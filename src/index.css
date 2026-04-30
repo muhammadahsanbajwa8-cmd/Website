@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Barlow:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+
+  --color-gold: #C9A84C;
+  --color-gold-light: #E8C96B;
+  --color-gold-pale: #F5E6B8;
+  --color-gold-dark: #8B6914;
+  
+  --color-black-soft: #111111;
+  --color-black-mid: #1C1C1C;
+  --color-black-card: #161616;
+}
+
+@layer base {
+  body {
+    @apply bg-black text-white font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .text-shadow-gold {
+    text-shadow: 0 0 10px rgba(201, 168, 76, 0.4);
+  }
+  
+  .bg-grid-gold {
+    background-image: 
+      linear-gradient(135deg, rgba(201, 168, 76, 0.07) 0%, transparent 50%),
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 60px,
+        rgba(201, 168, 76, 0.03) 60px,
+        rgba(201, 168, 76, 0.03) 61px
+      );
+  }
+}
