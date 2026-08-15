@@ -25,8 +25,18 @@ node build.mjs --offline   # generate with no network at all
 npm test              # the date, fallback, data-source and rendering suites
 npm run build         # live build: Nager.Date API, cached to .cache/
 npm run build:offline # no network: cache first, then computed rules
-npm run serve         # preview dist/ on http://localhost:8080
+npm run serve         # serve dist/ on http://localhost:8080
+npm run preview       # bundle dist/ into a single shareable dist/preview.html
 ```
+
+`npm run preview` folds the whole build into one self-contained HTML file you
+can open, mail, or drop into a message — no server and no network. Each page
+keeps its own markup; the stylesheet, webfonts, scripts, ES modules and country
+data are stored once and composed into an iframe as you navigate, so the real
+CSS and media queries apply. Links, the calculator, the finder and the
+comparison all work, and the frame adds a page picker plus light/dark and
+desktop/mobile switches. Fonts are embedded on the first run and cached in
+`.cache/`; with no network it falls back to linking them.
 
 The build prints what it used:
 
@@ -187,7 +197,9 @@ lib/pages/              page renderers
 assets/                 CSS and the browser scripts
 test/                   79 tests: dates, rules, source, stats, comparison,
                         rendering, and the browser-module contract
-tools/serve.mjs         preview server
+tools/serve.mjs         local server for dist/
+tools/preview.mjs       bundles dist/ into one shareable file
+tools/preview-shell.html  the frame that file is built into
 ```
 
 ### Pages generated

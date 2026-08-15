@@ -12,7 +12,8 @@
     "build:offline": "node build.mjs --offline",
     "test": "node --test test/*.test.mjs",
     "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\"",
-    "serve": "node tools/serve.mjs"
+    "serve": "node tools/serve.mjs",
+    "preview": "node tools/preview.mjs"
   },
   "dependencies": {},
   "devDependencies": {}
