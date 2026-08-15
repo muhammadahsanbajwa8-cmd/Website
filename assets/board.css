@@ -1209,6 +1209,87 @@ button.ghost:hover {
   z-index: 2;
 }
 
+/* --- Events -------------------------------------------------------------- */
+
+.month-block {
+  margin-bottom: 2rem;
+}
+.month-block__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 1.1rem;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Each day is a row group: the date is stated once and spans its listings. */
+.listings tbody {
+  border-left: 3px solid transparent;
+}
+.listings tbody.is-weekend td,
+.listings tbody.is-weekend th {
+  background: color-mix(in srgb, var(--weekend) 45%, transparent);
+}
+/* A show on a public holiday is the one thing on this page that earns the
+   signal colour, because it is the thing that changes your plans. */
+.listings tbody.is-holiday th.listings__date {
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+.listings tbody:not(:last-child) > tr:last-child > * {
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.listings__date {
+  vertical-align: top;
+  white-space: nowrap;
+  font-weight: 400;
+  width: 1%;
+}
+.listings__day {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.listings__num {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.listings__date .tag {
+  margin-top: 0.35rem;
+  white-space: normal;
+  max-width: 9rem;
+}
+
+a.tag {
+  text-decoration: none;
+}
+a.tag:hover {
+  text-decoration: underline;
+}
+
+.demo-banner {
+  border: 1px solid var(--rule-strong);
+  border-left: 4px solid var(--signal);
+  background: color-mix(in srgb, var(--signal) 10%, var(--board-raised));
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  margin-top: 1.5rem;
+}
+.demo-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.demo-banner code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
 /* --- Ads ----------------------------------------------------------------- */
 
 .ad {

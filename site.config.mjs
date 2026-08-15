@@ -38,6 +38,34 @@ export const config = {
     },
   },
 
+  // --- Events ---------------------------------------------------------------
+  /**
+   * Concerts, comedy and other live events, from the Ticketmaster Discovery
+   * API. Unlike the holiday data this needs a key — a free one from
+   * https://developer.ticketmaster.com — supplied as the TICKETMASTER_API_KEY
+   * environment variable rather than committed here.
+   *
+   * With no key the site builds exactly as it does today: no event pages, no
+   * "What's on" in the nav, nothing invented. Run
+   * `npm run build:offline -- --events-demo` to see the pages with clearly
+   * labelled sample listings.
+   */
+  events: {
+    provider: 'ticketmaster',
+    apiBase: 'https://app.ticketmaster.com/discovery/v2',
+    /**
+     * The key is read from this environment variable at build time. It is named
+     * here rather than read here: this file is also shipped to the browser for
+     * the comparison, where `process` does not exist.
+     */
+    apiKeyEnv: 'TICKETMASTER_API_KEY',
+    /** Empty means every published country; listing codes saves API calls. */
+    countries: [],
+    /** How far ahead to look, and how many to keep per category. */
+    windowDays: 120,
+    perCategory: 60,
+  },
+
   // --- Data -----------------------------------------------------------------
   /** Nager.Date API root. No key, no registration. */
   apiBase: 'https://date.nager.at/api/v3',

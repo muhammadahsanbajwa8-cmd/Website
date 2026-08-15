@@ -44,6 +44,9 @@ if (container) {
       flag: country.flag,
       holidays: bucket.holidays,
       stats: bucket.stats || yearStats(Number(year), bucket.holidays),
+      // Listings are upcoming-only, so they belong to the country rather than
+      // to the year being compared.
+      events: country.events || null,
     };
   }
 

@@ -64,6 +64,9 @@ codebase should need editing to deploy.
 | `contactEmail` | Shown on `/about/` and `/privacy/` |
 | `featured` | Country codes on the home page |
 | `years.back` / `years.ahead` | The published year range, relative to the current year |
+| `events.apiKeyEnv` | Environment variable holding the Ticketmaster key. No key, no event pages |
+| `events.countries` | Limit event lookups to these codes; empty means every published country |
+| `events.windowDays` / `perCategory` | How far ahead to look, and how many to keep per stream |
 | `adsense.publisherId` | `pub-…` (the `ca-` prefix is added for you). Empty = placeholder boxes, no ad code |
 | `adsense.slots` | Slot IDs for the leaderboard, in-article and footer positions |
 | `apiBase`, `cacheDir`, `outDir` | Data source, cache location, output folder |
@@ -190,13 +193,15 @@ lib/source.mjs          Nager.Date + cache + fallback resolution
 lib/countries.mjs       ISO 3166-1 names, regions, flags
 lib/stats.mjs           the computed facts on every year page
 lib/compare.mjs         shared days off, long weekends, bridges, highlights
+lib/events.mjs          concerts, comedy and events, cross-checked with holidays
+lib/events-demo.mjs     clearly labelled sample listings for --events-demo
 lib/ribbon.mjs          the year ribbon, single and twin
 lib/html.mjs            layout, SEO head, ad slots
 lib/browser-modules.mjs which modules ship to the browser
 lib/pages/              page renderers
 assets/                 CSS and the browser scripts
-test/                   79 tests: dates, rules, source, stats, comparison,
-                        rendering, and the browser-module contract
+test/                   103 tests: dates, rules, source, stats, comparison,
+                        events, rendering, and the browser-module contract
 tools/serve.mjs         local server for dist/
 tools/preview.mjs       bundles dist/ into one shareable file
 tools/preview-shell.html  the frame that file is built into
@@ -210,6 +215,8 @@ tools/preview-shell.html  the frame that file is built into
 | `/countries/` | Every country, grouped by region |
 | `/compare/` | Pick any two countries and compare them |
 | `/compare/{a}-vs-{b}/` | Pre-rendered comparison for a featured pairing |
+| `/events/` | Countries with live listings *(only with an API key)* |
+| `/{iso2}/events/`, `/{iso2}/concerts/`, `/{iso2}/comedy/` | What's on *(only with an API key)* |
 | `/today/` | Which countries have a public holiday today, and what is coming up |
 | `/{iso2}/` | Country hub: pick a year, see the next holiday |
 | `/{iso2}/{year}/` | The full holiday table plus computed statistics |
@@ -219,6 +226,53 @@ tools/preview-shell.html  the frame that file is built into
 Plus `sitemap.xml` (current year highest priority, past years lowest),
 `robots.txt`, `ads.txt`, `countries.json` for the finder, `data/{ISO2}.json` for
 the comparison, and a `404.html`.
+
+## Concerts, comedy and live events
+
+Event pages are the one **optional** part of the site, because they are the one
+part that needs a key.
+
+```bash
+export TICKETMASTER_API_KEY=your-key   # free, from developer.ticketmaster.com
+npm run build
+```
+
+With a key, each covered country gets three pages — `/{iso2}/events/`,
+`/{iso2}/concerts/` and `/{iso2}/comedy/` — plus a `/events/` hub and a
+"What's on" nav item. **Without a key the site builds exactly as it did
+before**: no event pages, no nav item, nothing invented to fill the gap. A
+country the source has no listings for gets no page rather than an empty one.
+
+What makes these pages belong here rather than being a bolt-on: every listing is
+matched against that country's public holiday calendar, and a show landing on a
+public holiday is flagged with a tag linking straight to that date in the
+calendar. That is the thing that actually changes your evening — transport on a
+Sunday timetable, different opening hours, different prices.
+
+### Seeing it without a key
+
+```bash
+npm run build:offline -- --events-demo
+```
+
+Sample listings, with invented acts and venues. Every such page carries a
+banner saying so, is marked `noindex`, is kept out of the sitemap, carries no
+ticket links, and gets no `Event` structured data — invented listings must never
+be marked up as though they were real. It exists to review the layout, never to
+stand in for real data.
+
+### Notes on the source
+
+- Three requests per country per build (music, comedy, everything else),
+  throttled below Ticketmaster's five-per-second limit, cached under a
+  date-stamped key so a rebuild the same day makes no calls and a listing can
+  never go stale by more than a day.
+- A rate limit or outage stops the build asking for more and simply yields no
+  event pages — it never fails the build and never serves a half-empty page.
+- Ticket links are `rel="noopener nofollow"`, and a listing with no valid https
+  link renders as plain text rather than inventing one.
+- Swapping provider means writing one `forCountry(code)` that returns the same
+  three buckets; the pages and the holiday cross-referencing are provider-blind.
 
 ## Comparing two countries
 

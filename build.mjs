@@ -18,12 +18,15 @@ import { BROWSER_MODULES } from './lib/browser-modules.mjs';
 import { compareCountries } from './lib/compare.mjs';
 import { countryInfo, flagEmoji } from './lib/countries.mjs';
 import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.mjs';
+import { annotate, createEventSource } from './lib/events.mjs';
+import { demoCountries, demoEvents } from './lib/events-demo.mjs';
 import { fallbackCountries } from './lib/fallback.mjs';
-import { url } from './lib/html.mjs';
+import { enableSection, url } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
 import { renderCompareIndex, renderComparePair } from './lib/pages/compare.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from './lib/pages/country.mjs';
+import { renderCountryEvents, renderEventsHub } from './lib/pages/events.mjs';
 import {
   renderAbout,
   renderCountriesIndex,
@@ -34,6 +37,7 @@ import {
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const offline = process.argv.includes('--offline') || process.env.OFFLINE === '1';
+const eventsDemo = process.argv.includes('--events-demo');
 const outDir = path.resolve(root, config.outDir);
 
 const now = new Date();
@@ -127,6 +131,85 @@ log(
 );
 if (source.stats.errors.length) log(`  network notes: ${source.stats.errors[0]}`);
 
+// --- 1b. Events ---------------------------------------------------------------
+
+/**
+ * Events are the one optional source here: they need an API key, so a build
+ * without one produces no event pages rather than empty ones or invented ones.
+ */
+const eventSource = createEventSource({
+  apiBase: config.events.apiBase,
+  apiKey: process.env[config.events.apiKeyEnv] || '',
+  cacheDir: path.resolve(root, config.cacheDir),
+  offline,
+  windowDays: config.events.windowDays,
+  perCategory: config.events.perCategory,
+});
+
+const wanted = config.events.countries.length
+  ? config.events.countries.map((code) => code.toUpperCase())
+  : published.map((country) => country.code);
+
+const eventCountries = [];
+if (eventsDemo) {
+  log('  events:        SAMPLE DATA (--events-demo) — invented listings, marked noindex');
+} else if (!eventSource.enabled) {
+  log(
+    `  events:        skipped (${
+      offline ? 'offline build' : 'no TICKETMASTER_API_KEY set'
+    }) — no event pages generated`,
+  );
+}
+
+if (eventsDemo || eventSource.enabled) {
+  for (const country of published) {
+    if (!wanted.includes(country.code)) continue;
+
+    const buckets = eventsDemo
+      ? demoCountries().includes(country.code)
+        ? demoEvents(country.code, config.events)
+        : null
+      : await eventSource.forCountry(country.code);
+    if (!buckets) continue;
+
+    // Tie every listing back to that country's calendar.
+    const holidaysByDate = new Map();
+    for (const year of years) {
+      for (const holiday of country.byYear[year]) holidaysByDate.set(holiday.date, holiday);
+    }
+
+    const byCategory = {};
+    for (const key of ['concerts', 'comedy', 'events']) {
+      byCategory[key] = annotate(buckets[key] || [], holidaysByDate);
+    }
+    const all = [...byCategory.concerts, ...byCategory.comedy, ...byCategory.events].sort((a, b) =>
+      a.date === b.date ? a.name.localeCompare(b.name, 'en') : a.date < b.date ? -1 : 1,
+    );
+
+    country.events = {
+      all,
+      ...byCategory,
+      counts: {
+        all: all.length,
+        concerts: byCategory.concerts.length,
+        comedy: byCategory.comedy.length,
+        events: byCategory.events.length,
+      },
+    };
+    eventCountries.push(country);
+  }
+
+  if (eventCountries.length) {
+    enableSection('events');
+    const listings = eventCountries.reduce((sum, country) => sum + country.events.counts.all, 0);
+    log(
+      `  events:        ${listings} listings across ${eventCountries.length} countries` +
+        (eventsDemo ? ' (sample)' : ` · live ${eventSource.stats.live} · cache ${eventSource.stats.cache}`),
+    );
+    if (eventSource.stats.errors.length) log(`  events note:   ${eventSource.stats.errors[0]}`);
+  }
+}
+
 // --- 2. Fresh output ---------------------------------------------------------
 
 await rm(outDir, { recursive: true, force: true });
@@ -167,8 +250,45 @@ await pool(published, 16, async (country) => {
     url.calculator(country.code),
     renderCalculator({ country, years, byYear: country.byYear, today: todayISO }),
   );
+
+  if (country.events) {
+    // "all" always; the named streams only when they have something in them,
+    // so there is no such thing as an empty comedy page.
+    for (const view of ['all', 'concerts', 'comedy']) {
+      const events = view === 'all' ? country.events.all : country.events[view];
+      if (view !== 'all' && !events.length) continue;
+      await write(
+        url.countryEvents(country.code, view),
+        renderCountryEvents({
+          country,
+          view,
+          events,
+          counts: country.events.counts,
+          currentYear,
+          demo: eventsDemo,
+        }),
+      );
+    }
+  }
 });
 log(`  country pages: ${pageCount}`);
+
+if (eventCountries.length) {
+  await write(
+    url.events(),
+    renderEventsHub({
+      countries: eventCountries.map((country) => ({
+        code: country.code,
+        name: country.name,
+        flag: country.flag,
+        counts: country.events.counts,
+        next: country.events.all[0] || null,
+      })),
+      demo: eventsDemo,
+      today: todayISO,
+    }),
+  );
+}
 
 // --- 4. Home, index, today ---------------------------------------------------
 
@@ -249,6 +369,21 @@ await write(
 
 // --- 4b. Comparison ----------------------------------------------------------
 
+/** The handful of listings the comparison shows, small enough to embed. */
+const eventsForCompare = (country) =>
+  country.events
+    ? {
+        counts: country.events.counts,
+        list: country.events.all.slice(0, 6).map((event) => ({
+          date: event.date,
+          name: event.name,
+          venue: event.venue,
+          city: event.city,
+          holiday: event.holiday ? event.holiday.name : null,
+        })),
+      }
+    : null;
+
 /** One country shaped for compareCountries(), for a single year. */
 const forCompare = (country, year) => ({
   code: country.code,
@@ -256,6 +391,7 @@ const forCompare = (country, year) => ({
   flag: country.flag,
   holidays: country.byYear[year],
   stats: country.statsByYear[year],
+  events: eventsForCompare(country),
 });
 
 // Pre-render every pairing of the featured countries. Any other pairing is
@@ -307,6 +443,7 @@ for (const country of published) {
       name: country.name,
       flag: country.flag,
       region: country.region,
+      events: eventsForCompare(country),
       years: Object.fromEntries(
         years.map((year) => [
           year,
@@ -399,6 +536,27 @@ const sitemapEntries = [
 ];
 for (const { a, b } of pairs) {
   sitemapEntries.push({ loc: url.pair(a.code, b.code), priority: '0.7', changefreq: 'weekly' });
+}
+
+// Sample listings are noindex, so they stay out of the sitemap entirely.
+if (eventCountries.length && !eventsDemo) {
+  sitemapEntries.push({ loc: url.events(), priority: '0.8', changefreq: 'daily' });
+  for (const country of eventCountries) {
+    sitemapEntries.push({
+      loc: url.countryEvents(country.code, 'all'),
+      priority: '0.7',
+      changefreq: 'daily',
+    });
+    for (const view of ['concerts', 'comedy']) {
+      if (country.events.counts[view]) {
+        sitemapEntries.push({
+          loc: url.countryEvents(country.code, view),
+          priority: '0.6',
+          changefreq: 'daily',
+        });
+      }
+    }
+  }
 }
 for (const country of published) {
   sitemapEntries.push({ loc: url.country(country.code), priority: '0.8', changefreq: 'weekly' });
