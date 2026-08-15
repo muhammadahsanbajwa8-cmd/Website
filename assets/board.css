@@ -1273,6 +1273,19 @@ a.tag:hover {
   text-decoration: underline;
 }
 
+/* Sample listings are marked on every row, so no line of the table can be
+   read as a real event even by someone who skipped the banner. */
+.tag--sample {
+  color: var(--ink-soft);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tag--sample::before {
+  border-style: dashed;
+  border-color: var(--ink-faint);
+}
+
 .coverage-note {
   border: 1px solid var(--rule);
   border-left: 3px solid var(--rule-strong);

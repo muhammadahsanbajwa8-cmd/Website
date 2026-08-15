@@ -27,6 +27,7 @@ npm run build         # live build: Nager.Date API, cached to .cache/
 npm run build:offline # no network: cache first, then computed rules
 npm run serve         # serve dist/ on http://localhost:8080
 npm run preview       # bundle dist/ into a single shareable dist/preview.html
+npm run events:check  # confirm real event listings are reachable with your key
 ```
 
 `npm run preview` folds the whole build into one self-contained HTML file you
@@ -242,8 +243,15 @@ part that needs a key.
 
 ```bash
 export TICKETMASTER_API_KEY=your-key   # free, from developer.ticketmaster.com
-npm run build
+npm run events:check                  # proves real listings are reachable
+npm run build                         # publishes them
 ```
+
+`npm run events:check` is the quickest way to answer "are these listings
+real?". It uses the same source module the build uses, and prints the actual
+counts and a real event name per country, so a pass means the build will
+publish real data. A 401 tells you the key is wrong or not yet active; an empty
+result tells you the country has no upstream coverage.
 
 With a key, each covered country gets three pages — `/{iso2}/events/`,
 `/{iso2}/concerts/` and `/{iso2}/comedy/` — plus a `/events/` hub and a
