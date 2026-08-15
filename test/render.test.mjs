@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { compareCountries } from '../lib/compare.mjs';
 import { countryInfo, flagEmoji, groupByRegion } from '../lib/countries.mjs';
+import { compareBody, renderCompareIndex, renderComparePair } from '../lib/pages/compare.mjs';
 import { fallbackHolidays } from '../lib/fallback.mjs';
 import { esc, url } from '../lib/html.mjs';
 import { yearRibbon } from '../lib/ribbon.mjs';
@@ -237,6 +239,149 @@ test('URLs are lowercase and directory-shaped', () => {
   assert.equal(url.year('gb', 2026), '/gb/2026/');
   assert.equal(url.calculator('DE'), '/de/business-days-calculator/');
   assert.match(url.absolute('/us/'), /^https?:\/\/[^/]+\/us\/$/);
+});
+
+test('a pair has exactly one address, whichever order you ask for', () => {
+  assert.equal(url.pair('US', 'GB'), '/compare/gb-vs-us/');
+  assert.equal(url.pair('gb', 'us'), '/compare/gb-vs-us/');
+  assert.equal(url.pair('DE', 'FR'), '/compare/de-vs-fr/');
+  assert.equal(url.holiday('DE', '2026-12-25'), '/de/2026/#2026-12-25');
+  assert.match(url.compareQuery('DE', 'FR', 2027), /^\/compare\/\?a=DE&b=FR&year=2027$/);
+});
+
+// --- Comparison pages ------------------------------------------------------
+
+const COMPARISON = compareCountries(
+  { code: 'US', name: 'United States', flag: '🇺🇸', holidays: US.byYear[2026], stats: US.statsByYear[2026] },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', holidays: GB.byYear[2026], stats: GB.statsByYear[2026] },
+  2026,
+);
+
+test('a pair page carries its own SEO tags and Dataset JSON-LD', () => {
+  const html = renderComparePair({ result: COMPARISON, years: YEARS, today: TODAY });
+  assert.match(html, /<title>United States vs United Kingdom[^<]*<\/title>/);
+  assert.match(html, /<link rel="canonical" href="[^"]+\/compare\/gb-vs-us\/">/);
+  assert.match(html, /<meta name="description" content="[^"]{80,}">/);
+
+  const parsed = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  const dataset = parsed.find((entry) => entry['@type'] === 'Dataset');
+  assert.equal(dataset.spatialCoverage.length, 2);
+  assert.deepEqual(
+    dataset.spatialCoverage.map((place) => place.identifier),
+    ['US', 'GB'],
+  );
+  const sharedMeasure = dataset.variableMeasured.find((v) => v.name === 'Shared days off');
+  assert.equal(sharedMeasure.value, COMPARISON.shared.length);
+});
+
+test('the pair page renders the comparison server-side, not only in the browser', () => {
+  const html = renderComparePair({ result: COMPARISON, years: YEARS, today: TODAY });
+  // Every number a visitor reads is in the HTML before any script runs.
+  assert.match(html, /Head to head, 2026/);
+  assert.match(html, /class="highlights"/);
+  assert.match(html, /class="ribbon ribbon--twin"/);
+  assert.ok(html.includes(String(US.statsByYear[2026].workingDays)));
+  assert.ok(html.includes(String(GB.statsByYear[2026].workingDays)));
+  for (const holiday of COMPARISON.shared) assert.ok(html.includes(holiday.date));
+  // And it hands the browser what it needs to re-render another year.
+  assert.match(html, /id="compare-body" data-a="US" data-b="GB" data-year="2026"/);
+  assert.match(html, /<script type="module" src="\/assets\/compare\.js"><\/script>/);
+});
+
+test('comparison links point back into the site for research', () => {
+  const body = compareBody(COMPARISON, { years: YEARS, today: TODAY });
+  // Each country hub, each year page, each calculator, and every shared date.
+  assert.ok(body.includes('href="/us/"'));
+  assert.ok(body.includes('href="/gb/"'));
+  assert.ok(body.includes('href="/us/2026/"'));
+  assert.ok(body.includes('href="/gb/2026/"'));
+  assert.ok(body.includes('href="/us/business-days-calculator/"'));
+  assert.ok(body.includes('href="/gb/business-days-calculator/"'));
+  for (const item of COMPARISON.shared) {
+    assert.ok(body.includes(`href="/us/2026/#${item.date}"`), `${item.date} links to the US calendar`);
+  }
+});
+
+test('the shared body carries no ad slots, because the browser injects it', () => {
+  const body = compareBody(COMPARISON, { years: YEARS, today: TODAY });
+  assert.ok(!body.includes('class="ad '), 'no ad markup inside the swappable region');
+  assert.ok(!body.includes('adsbygoogle'));
+  // The page shell around it still has all three.
+  const html = renderComparePair({ result: COMPARISON, years: YEARS, today: TODAY });
+  assert.equal((html.match(/class="ad /g) || []).length, 3);
+});
+
+test('year chips offer every published year and mark the current one', () => {
+  const body = compareBody(COMPARISON, { years: YEARS, today: TODAY });
+  for (const year of YEARS) assert.ok(body.includes(`data-year="${year}"`), `${year} chip`);
+  assert.match(body, /data-year="2026" aria-current="page"/);
+});
+
+test('hostile country data cannot break out of the comparison markup', () => {
+  const nasty = compareCountries(
+    {
+      code: 'US',
+      name: '<script>alert(1)</script>',
+      flag: '',
+      holidays: [{ date: '2026-01-01', name: '"><img src=x onerror=y>', national: true }],
+      stats: yearStats(2026, [{ date: '2026-01-01', name: 'x', national: true }]),
+    },
+    { code: 'GB', name: 'United Kingdom', flag: '', holidays: GB.byYear[2026], stats: GB.statsByYear[2026] },
+    2026,
+  );
+  const body = compareBody(nasty, { years: [2026], today: TODAY });
+  assert.ok(!body.includes('<script>alert(1)</script>'));
+  assert.ok(!body.includes('<img src=x'));
+  assert.match(body, /&lt;script&gt;|&lt;img/);
+});
+
+test('the comparison hub lists ready-made pairs and stays usable without JS', () => {
+  const html = renderCompareIndex({
+    countries: [
+      { ...US, stats: US.statsByYear[2026] },
+      { ...GB, stats: GB.statsByYear[2026] },
+    ],
+    years: YEARS,
+    currentYear: 2026,
+    pairs: [
+      {
+        a: { ...US, stats: US.statsByYear[2026] },
+        b: { ...GB, stats: GB.statsByYear[2026] },
+        shared: COMPARISON.shared.length,
+      },
+    ],
+  });
+  assert.match(html, /<title>Compare two countries[^<]*<\/title>/);
+  assert.match(html, /<link rel="canonical" href="[^"]+\/compare\/">/);
+  assert.match(html, /id="pick-a"/);
+  assert.match(html, /id="pick-b"/);
+  assert.match(html, /id="pick-year"/);
+  assert.match(html, /<noscript>/);
+  // The pre-built pairings are plain links, so they work with scripting off.
+  assert.match(html, /href="\/compare\/gb-vs-us\/"/);
+  assert.equal((html.match(/<h1/g) || []).length, 1);
+});
+
+test('every comparison page is a complete document', () => {
+  for (const html of [
+    renderComparePair({ result: COMPARISON, years: YEARS, today: TODAY }),
+    renderCompareIndex({
+      countries: [
+        { ...US, stats: US.statsByYear[2026] },
+        { ...GB, stats: GB.statsByYear[2026] },
+      ],
+      years: YEARS,
+      currentYear: 2026,
+      pairs: [],
+    }),
+  ]) {
+    assert.ok(html.startsWith('<!doctype html>'));
+    assert.equal((html.match(/<h1/g) || []).length, 1);
+    assert.match(html, /<a class="skip" href="#main">/);
+    assert.ok(!html.includes('undefined'));
+    assert.ok(!html.includes('[object Object]'));
+    assert.ok(!/>\s*NaN\s*</.test(html));
+  }
 });
 
 test('countries group into regions in a stable order', () => {

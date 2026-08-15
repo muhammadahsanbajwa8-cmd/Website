@@ -172,19 +172,22 @@ To add a country to the computed rules instead, add an entry to `RULES` in
 ## What is in the box
 
 ```
-build.mjs              orchestrator: data → pages → sitemap/robots/ads.txt
-site.config.mjs        everything a deployer changes
-lib/dates.mjs          Easter, nth-weekday, business days, UTC helpers
-lib/fallback.mjs       statutory rule sets, computed per year
-lib/source.mjs         Nager.Date + cache + fallback resolution
-lib/countries.mjs      ISO 3166-1 names, regions, flags
-lib/stats.mjs          the computed facts on every year page
-lib/ribbon.mjs         the year ribbon
-lib/html.mjs           layout, SEO head, ad slots
-lib/pages/             page renderers
-assets/                CSS and the three browser scripts
-test/                  53 tests: dates, rules, source, stats, rendering
-tools/serve.mjs        preview server
+build.mjs               orchestrator: data → pages → sitemap/robots/ads.txt
+site.config.mjs         everything a deployer changes
+lib/dates.mjs           Easter, nth-weekday, business days, UTC helpers
+lib/fallback.mjs        statutory rule sets, computed per year
+lib/source.mjs          Nager.Date + cache + fallback resolution
+lib/countries.mjs       ISO 3166-1 names, regions, flags
+lib/stats.mjs           the computed facts on every year page
+lib/compare.mjs         shared days off, long weekends, bridges, highlights
+lib/ribbon.mjs          the year ribbon, single and twin
+lib/html.mjs            layout, SEO head, ad slots
+lib/browser-modules.mjs which modules ship to the browser
+lib/pages/              page renderers
+assets/                 CSS and the browser scripts
+test/                   79 tests: dates, rules, source, stats, comparison,
+                        rendering, and the browser-module contract
+tools/serve.mjs         preview server
 ```
 
 ### Pages generated
@@ -193,6 +196,8 @@ tools/serve.mjs        preview server
 | --- | --- |
 | `/` | Hero, country finder, a heat-mapped year ribbon, featured countries |
 | `/countries/` | Every country, grouped by region |
+| `/compare/` | Pick any two countries and compare them |
+| `/compare/{a}-vs-{b}/` | Pre-rendered comparison for a featured pairing |
 | `/today/` | Which countries have a public holiday today, and what is coming up |
 | `/{iso2}/` | Country hub: pick a year, see the next holiday |
 | `/{iso2}/{year}/` | The full holiday table plus computed statistics |
@@ -200,7 +205,54 @@ tools/serve.mjs        preview server
 | `/about/`, `/privacy/` | Method, sources and privacy |
 
 Plus `sitemap.xml` (current year highest priority, past years lowest),
-`robots.txt`, `ads.txt`, `countries.json` for the finder, and a `404.html`.
+`robots.txt`, `ads.txt`, `countries.json` for the finder, `data/{ISO2}.json` for
+the comparison, and a `404.html`.
+
+## Comparing two countries
+
+`/compare/` answers the trip-planning question: *given these two countries, when
+should I go?* Everything on it is computed from the two holiday calendars:
+
+- **Highlights** — a row of one-line verdicts with the numbers in them: who has
+  more public holidays, who works fewer days, how many days off you have in
+  common, who gets more long weekends, the best day to book, and the quietest
+  month. Facts only; the site never claims one country is nicer than another.
+- **Head to head** — holidays, working days, weekend-absorbed holidays, long
+  weekends and the longest dry spell, side by side.
+- **Both calendars on one planner** — the year ribbon with two rows per month
+  sharing the same weekday columns. The upper country is solid, the lower one
+  hatched, and a day both are off is ruled through both rows so it reads as a
+  single block.
+- **When you are both off** — every date that is a public holiday in both, and
+  what each country calls it.
+- **Windows worth planning around** — each side's long weekends, the windows
+  where both are on a break at once, and the "book one day, get four" bridges.
+- **Month by month** and **what only one side observes**.
+
+Every date, country and year on the page is a link into the corresponding
+calendar page, so a comparison is the start of the research rather than the end
+of it.
+
+### How it stays in one implementation
+
+The pairs of the featured countries are pre-rendered at build time, so they are
+crawlable and work with scripting off. Any *other* pairing is built in the
+browser — and it is built by importing the generator's own modules as native ES
+modules:
+
+```
+dist/assets/mjs/          lib/compare.mjs, lib/pages/compare.mjs, lib/ribbon.mjs …
+assets/compare.js         imports them, fetches /data/{ISO2}.json, renders
+```
+
+There is no bundler and no second copy of the comparison logic, so a pairing
+rendered in the browser is identical to one rendered at build time. The list of
+shipped modules lives in `lib/browser-modules.mjs`;
+`test/browser-modules.test.mjs` fails if one of them starts importing something
+the browser cannot load, or something that is not shipped alongside it.
+
+Adding a pairing to the pre-rendered set is a matter of adding the country to
+`featured` in `site.config.mjs` — every pair of featured countries gets a page.
 
 ### The numbers on a year page
 

@@ -14,12 +14,15 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import config from './site.config.mjs';
+import { BROWSER_MODULES } from './lib/browser-modules.mjs';
+import { compareCountries } from './lib/compare.mjs';
 import { countryInfo, flagEmoji } from './lib/countries.mjs';
 import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.mjs';
 import { fallbackCountries } from './lib/fallback.mjs';
 import { url } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
+import { renderCompareIndex, renderComparePair } from './lib/pages/compare.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from './lib/pages/country.mjs';
 import {
   renderAbout,
@@ -244,6 +247,83 @@ await write(
   }),
 );
 
+// --- 4b. Comparison ----------------------------------------------------------
+
+/** One country shaped for compareCountries(), for a single year. */
+const forCompare = (country, year) => ({
+  code: country.code,
+  name: country.name,
+  flag: country.flag,
+  holidays: country.byYear[year],
+  stats: country.statsByYear[year],
+});
+
+// Pre-render every pairing of the featured countries. Any other pairing is
+// built in the browser by the same modules, so coverage is not limited to
+// what is on disk.
+const featuredForPairs = config.featured
+  .map((code) => published.find((country) => country.code === code.toUpperCase()))
+  .filter(Boolean);
+
+const pairs = [];
+for (let i = 0; i < featuredForPairs.length; i += 1) {
+  for (let j = i + 1; j < featuredForPairs.length; j += 1) {
+    const [a, b] = [featuredForPairs[i], featuredForPairs[j]].sort((x, y) =>
+      x.code < y.code ? -1 : 1,
+    );
+    pairs.push({ a, b });
+  }
+}
+
+const pairSummaries = [];
+for (const { a, b } of pairs) {
+  const result = compareCountries(forCompare(a, currentYear), forCompare(b, currentYear), currentYear);
+  await write(url.pair(a.code, b.code), renderComparePair({ result, years, today: todayISO }));
+  pairSummaries.push({ a, b, shared: result.shared.length });
+}
+
+await write(
+  url.compare(),
+  renderCompareIndex({
+    countries: published,
+    years,
+    currentYear,
+    pairs: pairSummaries.map((pair) => ({
+      a: { ...pair.a, stats: pair.a.statsByYear[currentYear] },
+      b: { ...pair.b, stats: pair.b.statsByYear[currentYear] },
+      shared: pair.shared,
+    })),
+  }),
+);
+
+// Per-country data for the browser-side comparison: one small file each, so a
+// visitor downloads two countries rather than the whole world.
+await mkdir(path.join(outDir, 'data'), { recursive: true });
+for (const country of published) {
+  await writeFile(
+    path.join(outDir, 'data', `${country.code}.json`),
+    JSON.stringify({
+      code: country.code,
+      name: country.name,
+      flag: country.flag,
+      region: country.region,
+      years: Object.fromEntries(
+        years.map((year) => [
+          year,
+          { holidays: country.byYear[year], stats: country.statsByYear[year] },
+        ]),
+      ),
+    }),
+  );
+}
+
+// The comparison pages import these straight from the browser.
+for (const relative of BROWSER_MODULES) {
+  const destination = path.join(outDir, 'assets', 'mjs', relative);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await cp(path.resolve(root, relative), destination);
+}
+
 const generatedAt = `${formatLong(today)} (UTC)`;
 await write(
   url.about(),
@@ -269,15 +349,22 @@ function pickFeatured(list) {
 }
 
 function notFoundPage() {
-  // Rendered through the same layout so a 404 still looks like the site.
+  // Rendered through the same layout so a 404 still looks like the site, and
+  // carries the country finder so the visitor can get where they meant to go.
+  // Pair URLs are alphabetical (/compare/de-vs-fr/, never fr-vs-de), so this is
+  // also where someone who typed the pair the other way round lands.
   return renderCountriesIndex({ countries: published, year: currentYear, years })
+    .replace('<h1>Every country we hold data for</h1>', '<h1>That page is not on the board</h1>')
     .replace(
-      '<h1>Every country we hold data for</h1>',
-      '<h1>That page is not on the board</h1>',
+      /<p class="lede hero__lede">[\s\S]*?<\/p>/,
+      `<p class="lede hero__lede">The address you asked for is not here. Search for a country below,
+        <a href="${url.compare()}">compare two countries</a>, or go back to the
+        <a href="${url.home()}">home page</a>.</p>`,
     )
+    .replace(/<title>[^<]*<\/title>/, '<title>Page not found</title>')
     .replace(
-      /<title>[^<]*<\/title>/,
-      '<title>Page not found</title>',
+      /<meta name="description" content="[^"]*">/,
+      '<meta name="description" content="That page was not found. Search for a country, compare two countries, or start from the home page.">',
     );
 }
 
@@ -305,10 +392,14 @@ await writeFile(
 const sitemapEntries = [
   { loc: url.home(), priority: '1.0', changefreq: 'daily' },
   { loc: url.today(), priority: '0.9', changefreq: 'daily' },
+  { loc: url.compare(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.countries(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.about(), priority: '0.3', changefreq: 'monthly' },
   { loc: url.privacy(), priority: '0.2', changefreq: 'yearly' },
 ];
+for (const { a, b } of pairs) {
+  sitemapEntries.push({ loc: url.pair(a.code, b.code), priority: '0.7', changefreq: 'weekly' });
+}
 for (const country of published) {
   sitemapEntries.push({ loc: url.country(country.code), priority: '0.8', changefreq: 'weekly' });
   sitemapEntries.push({ loc: url.calculator(country.code), priority: '0.7', changefreq: 'monthly' });
@@ -366,6 +457,7 @@ await cp(path.resolve(root, 'assets'), path.join(outDir, 'assets'), { recursive:
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
 log(`  total pages:   ${pageCount}`);
+log(`  comparisons:   ${pairs.length} pre-rendered pairs · any pairing in the browser`);
 log(`  sitemap urls:  ${sitemapEntries.length}`);
 log(`  ads.txt:       ${publisherId ? 'generated' : 'placeholder (no publisher ID)'}`);
 log(`  output:        ${path.relative(process.cwd(), outDir)}/`);
