@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { fallbackCountries, fallbackHolidays } from '../lib/fallback.mjs';
+import { detailedCountries, fallbackCountries, fallbackHolidays } from '../lib/fallback.mjs';
 import { isWeekend, parseISO } from '../lib/dates.mjs';
 
 const dates = (code, year) => fallbackHolidays(code, year).map((h) => h.date);
@@ -128,10 +128,14 @@ test('holidays introduced in a given year do not appear before it', () => {
 });
 
 test('every computed country stays sane across a twenty-year span', () => {
+  const detailed = new Set(detailedCountries());
   for (const code of fallbackCountries()) {
     for (let year = 2020; year <= 2040; year += 1) {
       const holidays = fallbackHolidays(code, year);
-      assert.ok(holidays.length >= 5, `${code} ${year} has holidays`);
+      // A full rule set is a complete national list; a core set only promises
+      // the principal holidays, and a few countries genuinely have very few.
+      const floor = detailed.has(code) ? 5 : 1;
+      assert.ok(holidays.length >= floor, `${code} ${year} has holidays`);
 
       const seen = new Set();
       let previous = '';

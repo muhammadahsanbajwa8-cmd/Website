@@ -320,9 +320,9 @@ iframe.pv-sheet {
 </div>
 
 <details class="pv-foot">
-  <summary><span>All <b id="pv-count">…</b> generated pages, running as built — <b>what works here</b></span></summary>
+  <summary><span id="pv-scope">…</span> — <b>what works here</b></summary>
   <ul>
-    <li><span class="pv-tick">✓</span><span>Every internal link, on every page</span></li>
+    <li><span class="pv-tick">✓</span><span id="pv-links">Every internal link, on every page</span></li>
     <li><span class="pv-tick">✓</span><span>The working-days calculator, with its own breakdown</span></li>
     <li><span class="pv-tick">✓</span><span id="pv-modules">The country finder and the comparison picker</span></li>
     <li><span class="pv-tick">✓</span><span>Light and dark, desktop and mobile, real media queries</span></li>
@@ -567,8 +567,24 @@ iframe.pv-sheet {
     }
   });
 
-  document.getElementById('pv-count').textContent = payload.site.pages;
-  document.getElementById('pv-name').textContent = payload.site.name;
+  // Say what this bundle actually contains. A full build runs to thousands of
+  // pages, so the preview usually carries a sample of countries plus every
+  // shared page — claiming "all pages" would be untrue.
+  var site = payload.site;
+  document.getElementById('pv-scope').innerHTML = site.skipped
+    ? '<b>' +
+      site.pages +
+      '</b> pages — every shared page, plus ' +
+      site.countries +
+      ' countries sampled from the ' +
+      (site.pages + site.skipped).toLocaleString() +
+      ' the build produced'
+    : 'All <b>' + site.pages + '</b> generated pages, running as built';
+  if (site.skipped) {
+    document.getElementById('pv-links').textContent =
+      'Every internal link within the sampled countries';
+  }
+  document.getElementById('pv-name').textContent = site.name;
   document.body.dataset.viewport = 'desktop';
   show('/');
 })();

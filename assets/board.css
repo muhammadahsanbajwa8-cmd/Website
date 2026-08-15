@@ -1273,6 +1273,17 @@ a.tag:hover {
   text-decoration: underline;
 }
 
+.coverage-note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-strong);
+  background: var(--board-sunk);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  max-width: none;
+}
+
 .demo-banner {
   border: 1px solid var(--rule-strong);
   border-left: 4px solid var(--signal);

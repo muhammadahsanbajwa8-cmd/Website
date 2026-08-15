@@ -199,7 +199,7 @@ test('every generated page is a complete, single-rooted document', () => {
       upcoming: [{ country: GB, holiday: GB.byYear[2026][0] }],
       countryCount: 2,
     }),
-    renderAbout({ countries: 2, years: YEARS, generatedAt: 'today', computedCountries: ['United States'] }),
+    renderAbout({ countries: 2, years: YEARS, generatedAt: 'today', computedCountries: ['United States'], coreCount: 187 }),
     renderPrivacy({ generatedAt: 'today' }),
   ];
 

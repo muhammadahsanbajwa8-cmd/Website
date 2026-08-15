@@ -43,12 +43,43 @@ async function walk(dir) {
 
 const files = (await walk(dist)).filter((file) => file !== output);
 
+/**
+ * A full build is a few thousand pages — far more than belongs in a single
+ * file you can mail. Every shared page is included, plus every page for a
+ * sample of countries chosen to show the range: complete rule sets, core
+ * coverage, estimated Islamic dates and the Orthodox computus.
+ *
+ * Override with `--countries=US,GB,...`, or `--countries=all` for everything.
+ */
+const DEFAULT_SAMPLE = [
+  ...config.featured,
+  'NG', // core coverage, with estimated Eid dates
+  'SA', // an entirely lunar calendar
+  'GR', // Orthodox Easter
+  'BR',
+];
+const requested = (process.argv.find((arg) => arg.startsWith('--countries=')) || '').split('=')[1];
+const sample = requested === 'all' ? null : new Set((requested ? requested.split(',') : DEFAULT_SAMPLE).map((code) => code.trim().toUpperCase()));
+
+/** Country-scoped routes are `/xx/...`; everything else is shared. */
+function inSample(route) {
+  if (!sample) return true;
+  const first = route.split('/')[1] || '';
+  if (!/^[a-z]{2}$/.test(first)) return true;
+  return sample.has(first.toUpperCase());
+}
+
 // --- Pages -------------------------------------------------------------------
 
 const pages = {};
+let skipped = 0;
 for (const file of files.filter((file) => file.endsWith('.html'))) {
   const source = await readFile(file, 'utf8');
   const route = `/${path.relative(dist, file).replace(/index\.html$/, '').split(path.sep).join('/')}`;
+  if (!inSample(route)) {
+    skipped += 1;
+    continue;
+  }
   const body = source.match(/<body[^>]*>([\s\S]*)<\/body>/);
   if (!body) continue;
 
@@ -95,7 +126,10 @@ for (const file of files.filter((file) => file.includes(`${path.sep}assets${path
 // Anything the pages fetch at runtime, served from memory by a fetch shim.
 const data = {};
 for (const file of files.filter((file) => file.endsWith('.json'))) {
-  data[`/${path.relative(dist, file).split(path.sep).join('/')}`] = await readFile(file, 'utf8');
+  const key = `/${path.relative(dist, file).split(path.sep).join('/')}`;
+  const match = key.match(/^\/data\/([A-Z]{2})\.json$/);
+  if (match && sample && !sample.has(match[1])) continue;
+  data[key] = await readFile(file, 'utf8');
 }
 
 // The site's own token blocks, so the preview can force either theme.
@@ -180,7 +214,12 @@ const payload = {
   data,
   lightTokens,
   darkTokens,
-  site: { name: config.name, pages: Object.keys(pages).length },
+  site: {
+    name: config.name,
+    pages: Object.keys(pages).length,
+    skipped,
+    countries: sample ? sample.size : null,
+  },
 };
 
 const shell = await readFile(path.join(root, 'tools/preview-shell.html'), 'utf8');

@@ -20,7 +20,7 @@ import { countryInfo, flagEmoji } from './lib/countries.mjs';
 import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.mjs';
 import { annotate, createEventSource } from './lib/events.mjs';
 import { demoCountries, demoEvents } from './lib/events-demo.mjs';
-import { fallbackCountries } from './lib/fallback.mjs';
+import { detailedCountries, fallbackCountries } from './lib/fallback.mjs';
 import { enableSection, url } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
@@ -98,12 +98,15 @@ const countries = await pool(available, 8, async (entry) => {
   const byYear = {};
   const origins = {};
   let total = 0;
+  let coverage = null;
 
   for (const year of years) {
-    const { holidays, origin } = await source.holidays(year, entry.code);
+    const { holidays, origin, coverage: yearCoverage } = await source.holidays(year, entry.code);
     byYear[year] = holidays;
     origins[year] = origin;
     total += holidays.length;
+    // The weakest coverage across the range is what the country pages claim.
+    if (yearCoverage === 'core' || coverage === null) coverage = yearCoverage;
   }
   if (!total) return null;
 
@@ -117,6 +120,7 @@ const countries = await pool(available, 8, async (entry) => {
     flag: flagEmoji(entry.code),
     byYear,
     origins,
+    coverage,
     statsByYear,
     next: nextHolidayAcrossYears(byYear, now),
   };
@@ -468,7 +472,8 @@ await write(
     countries: published.length,
     years,
     generatedAt,
-    computedCountries: fallbackCountries().map((code) => countryInfo(code).name),
+    computedCountries: detailedCountries().map((code) => countryInfo(code).name),
+    coreCount: fallbackCountries().length - detailedCountries().length,
   }),
 );
 await write(url.privacy(), renderPrivacy({ generatedAt }));

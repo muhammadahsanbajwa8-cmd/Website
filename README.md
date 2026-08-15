@@ -151,12 +151,17 @@ holidays(year, countryCode)   fresh cache → live API → stale cache → compu
 - **Cache:** every response is written to `.cache/`. Past years are treated as
   fresh for 30 days, the current and future years for 12 hours. A repeat build
   makes no network calls at all.
-- **Fallback:** `lib/fallback.mjs` computes holidays for the United States,
-  United Kingdom, Australia, Canada, Germany, France, Ireland and India from
-  their statutory rules — fixed dates, nth-weekday-of-month rules, and
-  Easter-relative dates via the Meeus/Jones/Butcher algorithm, plus each
-  country's own weekend-observance rule. **No per-year date lists exist
-  anywhere**, so computed dates stay correct for any year you ask for.
+- **Fallback:** two tiers of computed rules, so a build with no network still
+  publishes most of the world.
+  - `lib/fallback.mjs` — **full** rule sets for the United States, United
+    Kingdom, Australia, Canada, Germany, France, Ireland and India: complete
+    national lists including each country's own weekend-observance law.
+  - `lib/world.mjs` — **core** rule sets for 187 further countries: the
+    principal national holidays, one line of notation each.
+  Between them the rules cover fixed dates, nth-weekday-of-month rules,
+  Gregorian Easter (Meeus/Jones/Butcher), Orthodox Easter (Julian computus) and
+  the Islamic calendar. **No per-year date lists exist anywhere**, so computed
+  dates stay correct for any year you ask for.
 - **Normalised shape:** `{ date, name, type, national }`.
 - **Time zones:** every date is handled as UTC, so a build produces identical
   output wherever it runs.
@@ -188,7 +193,9 @@ To add a country to the computed rules instead, add an entry to `RULES` in
 build.mjs               orchestrator: data → pages → sitemap/robots/ads.txt
 site.config.mjs         everything a deployer changes
 lib/dates.mjs           Easter, nth-weekday, business days, UTC helpers
-lib/fallback.mjs        statutory rule sets, computed per year
+lib/fallback.mjs        full statutory rule sets for eight countries
+lib/world.mjs           core national holidays for 187 more, one line each
+lib/islamic.mjs         tabular Hijri calendar, for estimated Eid dates
 lib/source.mjs          Nager.Date + cache + fallback resolution
 lib/countries.mjs       ISO 3166-1 names, regions, flags
 lib/stats.mjs           the computed facts on every year page
@@ -200,8 +207,9 @@ lib/html.mjs            layout, SEO head, ad slots
 lib/browser-modules.mjs which modules ship to the browser
 lib/pages/              page renderers
 assets/                 CSS and the browser scripts
-test/                   103 tests: dates, rules, source, stats, comparison,
-                        events, rendering, and the browser-module contract
+test/                   120 tests: dates, rules, world table, calendars,
+                        source, stats, comparison, events, rendering, and the
+                        browser-module contract
 tools/serve.mjs         local server for dist/
 tools/preview.mjs       bundles dist/ into one shareable file
 tools/preview-shell.html  the frame that file is built into
@@ -372,9 +380,16 @@ Read this before trusting a number.
   observed on 31 December appears in the earlier year.
 - **Working-day counts assume a Monday-to-Friday week.** Countries and
   industries with a Friday–Saturday weekend or a six-day week will differ.
-- **Coverage follows upstream.** The API publishes roughly 110 countries; a
-  country with neither API data nor a rule set is not published at all rather
-  than shipped as an empty page.
+- **Coverage follows upstream, then the rule tables.** The API publishes roughly
+  110 countries; `lib/world.mjs` carries 187 more. A country with neither is not
+  published at all rather than shipped as an empty page.
+- **Core coverage is not a complete list.** For the countries that come from
+  `lib/world.mjs`, only the principal national holidays are computed. Every page
+  built from one says so, and its working-day count is an upper bound — the real
+  figure is lower wherever a holiday is missing.
+- **Islamic dates are estimates, and are labelled as such.** They come from the
+  arithmetic Hijri calendar and land within a day or so of the observed date,
+  which depends on a moon sighting and is confirmed only days ahead.
 
 Use it for planning. For payroll, statutory notice periods, or anything with
 legal consequences, confirm against the national gazette or labour authority.
