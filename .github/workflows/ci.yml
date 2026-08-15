@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test
+        run: npm test
+
+      # The offline build is the one that must never break: it proves the site
+      # can be generated with no network and no cache at all.
+      - name: Build with no network
+        run: npm run build:offline
+
+      - name: Sanity-check the output
+        run: |
+          test -f dist/index.html
+          test -f dist/us/2026/index.html || test -f dist/us/index.html
+          test -f dist/sitemap.xml
+          test -f dist/robots.txt
+          test -f dist/ads.txt
+          grep -q '<link rel="canonical"' dist/index.html
+          echo "pages: $(find dist -name '*.html' | wc -l)"
