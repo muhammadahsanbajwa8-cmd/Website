@@ -220,6 +220,7 @@ lib/dates.mjs           Easter, nth-weekday, business days, UTC helpers
 lib/fallback.mjs        full statutory rule sets for eight countries
 lib/world.mjs           core national holidays for 187 more, one line each
 lib/islamic.mjs         tabular Hijri calendar, for estimated Eid dates
+lib/glossary.mjs        what each holiday is for, written once and reused
 lib/source.mjs          Nager.Date + cache + fallback resolution
 lib/countries.mjs       ISO 3166-1 names, regions, flags
 lib/stats.mjs           the computed facts on every year page
@@ -231,9 +232,9 @@ lib/html.mjs            layout, SEO head, ad slots
 lib/browser-modules.mjs which modules ship to the browser
 lib/pages/              page renderers
 assets/                 CSS and the browser scripts
-test/                   120 tests: dates, rules, world table, calendars,
-                        source, stats, comparison, events, rendering, and the
-                        browser-module contract
+test/                   138 tests: dates, rules, world table, calendars,
+                        glossary, source, stats, comparison, events,
+                        rendering, and the browser-module contract
 tools/serve.mjs         local server for dist/
 tools/preview.mjs       bundles dist/ into one shareable file
 tools/preview-shell.html  the frame that file is built into
