@@ -333,12 +333,33 @@ iframe.pv-sheet {
     <code>dist/</code> output with the stylesheet, fonts, scripts and country data inlined.</p>
 </details>
 
-<script id="payload" type="application/json">__PAYLOAD__</script>
+<script id="payload" type="text/plain">__PAYLOAD__</script>
 <script>
-(function () {
+(async function () {
   'use strict';
 
-  var payload = JSON.parse(document.getElementById('payload').textContent);
+  /** The whole site, gzipped and base64'd, unpacked here. */
+  async function unpack(base64) {
+    var binary = atob(base64.trim());
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  var payload;
+  try {
+    payload = await unpack(document.getElementById('payload').textContent);
+  } catch (error) {
+    document.querySelector('.pv-stage').innerHTML =
+      '<p style="color:#e8eaef;font:14px ui-sans-serif,system-ui;max-width:34rem;padding:2rem">' +
+      'This preview needs a browser with DecompressionStream — any current Chrome, Firefox, ' +
+      'Safari or Edge. ' +
+      String(error) +
+      '</p>';
+    return;
+  }
+
   var sheet = document.getElementById('sheet');
   var routeSelect = document.getElementById('route');
   var backButton = document.getElementById('back');

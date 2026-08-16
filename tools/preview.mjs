@@ -16,6 +16,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 import config from '../site.config.mjs';
 
@@ -44,22 +45,18 @@ async function walk(dir) {
 const files = (await walk(dist)).filter((file) => file !== output);
 
 /**
- * A full build is a few thousand pages — far more than belongs in a single
- * file you can mail. Every shared page is included, plus every page for a
- * sample of countries chosen to show the range: complete rule sets, core
- * coverage, estimated Islamic dates and the Orthodox computus.
+ * Every country, by default.
  *
- * Override with `--countries=US,GB,...`, or `--countries=all` for everything.
+ * The pages are stored gzipped, which takes a full build from about 43 MB to
+ * under two — the markup repeats heavily from page to page, which is exactly
+ * what a compressor is good at. Narrow it with `--countries=US,GB,...` if you
+ * want a smaller file to send.
  */
-const DEFAULT_SAMPLE = [
-  ...config.featured,
-  'NG', // core coverage, with estimated Eid dates
-  'SA', // an entirely lunar calendar
-  'GR', // Orthodox Easter
-  'BR',
-];
 const requested = (process.argv.find((arg) => arg.startsWith('--countries=')) || '').split('=')[1];
-const sample = requested === 'all' ? null : new Set((requested ? requested.split(',') : DEFAULT_SAMPLE).map((code) => code.trim().toUpperCase()));
+const sample =
+  !requested || requested === 'all'
+    ? null
+    : new Set(requested.split(',').map((code) => code.trim().toUpperCase()));
 
 /** Country-scoped routes are `/xx/...`; everything else is shared. */
 function inSample(route) {
@@ -223,14 +220,25 @@ const payload = {
 };
 
 const shell = await readFile(path.join(root, 'tools/preview-shell.html'), 'utf8');
-const encoded = JSON.stringify(payload).replace(/</g, '\\u003c');
-await writeFile(output, shell.replace('__PAYLOAD__', () => encoded));
+
+// Gzipped, then base64'd. The markup repeats heavily from page to page, which
+// is exactly what a compressor is good at: a full build goes from about 43 MB
+// to under two. Base64 also keeps it safe inside a script element without
+// escaping every angle bracket in the whole site.
+const json = Buffer.from(JSON.stringify(payload), 'utf8');
+const packed = gzipSync(json, { level: 9 }).toString('base64');
+await writeFile(output, shell.replace('__PAYLOAD__', () => packed));
 
 const size = (await stat(output)).size;
 process.stdout.write(
   `\n  preview:  ${path.relative(process.cwd(), output)}\n` +
-    `  pages:    ${Object.keys(pages).length}\n` +
+    `  pages:    ${Object.keys(pages).length}${
+      skipped ? ` (${skipped} left out by --countries)` : ' — every page in the build'
+    }\n` +
     `  fonts:    ${fonts.note}\n` +
+    `  packed:   ${(json.length / 1048576).toFixed(1)} MB of pages → ${(
+      packed.length / 1048576
+    ).toFixed(2)} MB\n` +
     `  size:     ${(size / 1024 / 1024).toFixed(2)} MB\n` +
     `  open it directly in a browser — no server needed\n\n`,
 );

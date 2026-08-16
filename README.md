@@ -31,8 +31,10 @@ npm run events:check  # confirm real event listings are reachable with your key
 npm run adsense:check # scan the build for what gets AdSense applications rejected
 ```
 
-`npm run preview` folds the whole build into one self-contained HTML file you
-can open, mail, or drop into a message — no server and no network. Each page
+`npm run preview` folds the whole build — every page, all 1,595 of them — into
+one self-contained HTML file you can open, mail, or drop into a message, with no
+server and no network. The pages are stored gzipped and unpacked in the browser
+with DecompressionStream, which takes 47 MB of markup down to under 3 MB. Each page
 keeps its own markup; the stylesheet, webfonts, scripts, ES modules and country
 data are stored once and composed into an iframe as you navigate, so the real
 CSS and media queries apply. Links, the calculator, the finder and the
