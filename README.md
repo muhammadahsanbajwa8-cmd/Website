@@ -28,6 +28,7 @@ npm run build:offline # no network: cache first, then computed rules
 npm run serve         # serve dist/ on http://localhost:8080
 npm run preview       # bundle dist/ into a single shareable dist/preview.html
 npm run events:check  # confirm real event listings are reachable with your key
+npm run adsense:check # scan the build for what gets AdSense applications rejected
 ```
 
 `npm run preview` folds the whole build into one self-contained HTML file you
@@ -125,6 +126,26 @@ to get rejected.
 8. **Confirm `https://yourdomain/ads.txt`** returns
    `google.com, pub-…, DIRECT, f08c47fec0942fa0`. AdSense warns about a missing
    ads.txt within a day or two of activation.
+
+Run `npm run adsense:check` before you apply, and again after approval. It
+reads the built site and reports the mechanical things a reviewer sees first:
+
+- placeholder `url` or `contactEmail` still in `site.config.mjs` — these fail a
+  review on their own, because canonical tags and the sitemap would point at a
+  domain you do not own;
+- ads on the 404 page, which is against policy: an error page has no content of
+  its own to justify them;
+- ads on any `noindex` page — a page not fit to index is not fit to monetise;
+- sample event listings left in the build by `--events-demo`, which must never
+  reach a site carrying ads;
+- pages that carry ads but little text;
+- `ads.txt` disagreeing with the publisher ID, a blocking `robots.txt`, a
+  missing sitemap, `noindex` pages leaking into the sitemap, and a privacy page
+  that fails to mention AdSense, cookies or the opt-out route.
+
+It exits non-zero when something is blocking, so it can gate a deploy. What it
+cannot judge is whether Google finds the content itself useful — that is the
+part of the decision no script can measure.
 
 ### Consent, and the part you cannot skip
 

@@ -21,7 +21,7 @@ import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.
 import { annotate, createEventSource } from './lib/events.mjs';
 import { demoCountries, demoEvents } from './lib/events-demo.mjs';
 import { detailedCountries, fallbackCountries } from './lib/fallback.mjs';
-import { enableSection, url } from './lib/html.mjs';
+import { enableSection, url, withoutAds } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
 import { renderCompareIndex, renderComparePair } from './lib/pages/compare.mjs';
@@ -261,8 +261,7 @@ await pool(published, 16, async (country) => {
     for (const view of ['all', 'concerts', 'comedy']) {
       const events = view === 'all' ? country.events.all : country.events[view];
       if (view !== 'all' && !events.length) continue;
-      await write(
-        url.countryEvents(country.code, view),
+      const render = () =>
         renderCountryEvents({
           country,
           view,
@@ -270,16 +269,17 @@ await pool(published, 16, async (country) => {
           counts: country.events.counts,
           currentYear,
           demo: eventsDemo,
-        }),
-      );
+        });
+      // Invented listings are never monetised, so a demo build cannot put ad
+      // code next to content that is not real.
+      await write(url.countryEvents(country.code, view), eventsDemo ? withoutAds(render) : render());
     }
   }
 });
 log(`  country pages: ${pageCount}`);
 
 if (eventCountries.length) {
-  await write(
-    url.events(),
+  const renderHub = () =>
     renderEventsHub({
       countries: eventCountries.map((country) => ({
         code: country.code,
@@ -290,8 +290,8 @@ if (eventCountries.length) {
       })),
       demo: eventsDemo,
       today: todayISO,
-    }),
-  );
+    });
+  await write(url.events(), eventsDemo ? withoutAds(renderHub) : renderHub());
 }
 
 // --- 4. Home, index, today ---------------------------------------------------
@@ -495,7 +495,7 @@ function notFoundPage() {
   // carries the country finder so the visitor can get where they meant to go.
   // Pair URLs are alphabetical (/compare/de-vs-fr/, never fr-vs-de), so this is
   // also where someone who typed the pair the other way round lands.
-  return renderCountriesIndex({ countries: published, year: currentYear, years })
+  return withoutAds(() => renderCountriesIndex({ countries: published, year: currentYear, years }))
     .replace('<h1>Every country we hold data for</h1>', '<h1>That page is not on the board</h1>')
     .replace(
       /<p class="lede hero__lede">[\s\S]*?<\/p>/,

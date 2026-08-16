@@ -5,7 +5,7 @@ import { compareCountries } from '../lib/compare.mjs';
 import { countryInfo, flagEmoji, groupByRegion } from '../lib/countries.mjs';
 import { compareBody, renderCompareIndex, renderComparePair } from '../lib/pages/compare.mjs';
 import { fallbackHolidays } from '../lib/fallback.mjs';
-import { esc, url } from '../lib/html.mjs';
+import { esc, url, withoutAds } from '../lib/html.mjs';
 import { yearRibbon } from '../lib/ribbon.mjs';
 import { nextHolidayAcrossYears, yearStats } from '../lib/stats.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from '../lib/pages/country.mjs';
@@ -217,6 +217,33 @@ test('every generated page is a complete, single-rooted document', () => {
     assert.ok(!html.includes('[object Object]'));
     assert.ok(!/>\s*NaN\s*</.test(html));
   }
+});
+
+test('withoutAds strips every slot, and restores them afterwards', () => {
+  // AdSense forbids ads on error pages, and sample data must never be
+  // monetised. Both rely on this wrapper, so it is worth pinning down.
+  const normal = renderCountriesIndex({ countries: [US, GB], years: YEARS, year: 2026 });
+  const stripped = withoutAds(() =>
+    renderCountriesIndex({ countries: [US, GB], years: YEARS, year: 2026 }),
+  );
+  assert.equal((normal.match(/class="ad /g) || []).length, 3);
+  assert.equal((stripped.match(/class="ad /g) || []).length, 0);
+  assert.ok(!stripped.includes('adsbygoogle'));
+
+  // The page is otherwise unchanged, and later renders are unaffected.
+  assert.ok(stripped.includes('<h1>Every country we hold data for</h1>'));
+  const after = renderCountriesIndex({ countries: [US, GB], years: YEARS, year: 2026 });
+  assert.equal((after.match(/class="ad /g) || []).length, 3);
+});
+
+test('withoutAds restores slots even when the render throws', () => {
+  assert.throws(() =>
+    withoutAds(() => {
+      throw new Error('boom');
+    }),
+  );
+  const after = renderCountriesIndex({ countries: [US, GB], years: YEARS, year: 2026 });
+  assert.equal((after.match(/class="ad /g) || []).length, 3);
 });
 
 test('ad slots fall back to placeholders when no publisher ID is set', () => {
