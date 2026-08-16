@@ -10,6 +10,8 @@ import {
   annotate,
   classify,
   createEventSource,
+  describeContext,
+  describeEvent,
   eventStats,
   groupByMonth,
   normalise,
@@ -359,6 +361,117 @@ test('a rate limit stops the build asking for more', async (t) => {
   assert.equal(await source.forCountry('FR'), null);
   assert.equal(api.requests, afterFirst, 'no further requests once rate limited');
   assert.match(source.stats.errors[0], /rate limited/);
+});
+
+// --- The detail a visitor sees on clicking a listing -------------------------
+
+const describeOne = (event, extra = {}) =>
+  describeEvent(
+    annotate([event], extra.holidays || new Map())[0],
+    { countryName: 'Germany', today: '2026-08-15', sameCityThatWeek: 0, ...extra.context },
+  );
+
+test('a listing states when and where, without inventing either', () => {
+  const [first] = describeOne({
+    date: '2026-09-12',
+    name: 'A Band',
+    time: '20:00',
+    venue: 'Rathaus Hall',
+    city: 'Berlin',
+  });
+  assert.equal(first, 'Saturday 12 September 2026, from 20:00, at Rathaus Hall, Berlin.');
+
+  const [noTime] = describeOne({ date: '2026-09-12', name: 'A Band', venue: 'Rathaus Hall', city: 'Berlin' });
+  assert.match(noTime, /No start time has been published yet/);
+
+  const [bare] = describeOne({ date: '2026-09-12', name: 'A Band' });
+  assert.match(bare, /No venue or start time has been published yet/);
+});
+
+test('a listing on a public holiday explains what that means for getting there', () => {
+  const holidays = new Map(fallbackHolidays('DE', 2026).map((h) => [h.date, h]));
+  const lines = describeOne({ date: '2026-10-03', name: 'A Band', city: 'Berlin' }, { holidays });
+  const text = lines.join(' ');
+  assert.match(text, /German Unity Day, a public holiday in Germany/);
+  assert.match(text, /reduced timetable/);
+  // Hedged, because opening hours vary and the site does not know them.
+  assert.match(text, /often|many/);
+});
+
+test('a listing the day before a holiday says so', () => {
+  const holidays = new Map(fallbackHolidays('DE', 2026).map((h) => [h.date, h]));
+  const context = { nextDayHoliday: holidays.get('2026-10-03') };
+  const text = describeOne({ date: '2026-10-02', name: 'A Band' }, { holidays, context }).join(' ');
+  assert.match(text, /The following day is German Unity Day/);
+  assert.match(text, /costs you nothing the next morning/);
+});
+
+test('weekends and working days are distinguished', () => {
+  assert.match(
+    describeOne({ date: '2026-09-12', name: 'A' }).join(' '),
+    /falls on a Saturday, so nobody needs to book time off/,
+  );
+  assert.match(
+    describeOne({ date: '2026-09-15', name: 'A' }).join(' '),
+    /falls on a Tuesday, an ordinary working day in Germany/,
+  );
+});
+
+test('how far away it is, in the terms people use', () => {
+  const away = (date) => describeOne({ date, name: 'A' }).join(' ');
+  assert.match(away('2026-08-15'), /That is today\./);
+  assert.match(away('2026-08-16'), /That is tomorrow\./);
+  assert.match(away('2026-08-18'), /That is 3 days away\./);
+  assert.match(away('2026-08-25'), /a little over a week away/);
+  assert.match(away('2026-09-12'), /about 4 weeks away/);
+  assert.match(away('2026-12-12'), /about 4 months away/);
+});
+
+test('nearby listings are counted, and the event itself is not counted twice', () => {
+  const events = annotate(
+    [
+      { date: '2026-09-12', name: 'One', city: 'Berlin' },
+      { date: '2026-09-14', name: 'Two', city: 'Berlin' },
+      { date: '2026-09-15', name: 'Three', city: 'Berlin' },
+      { date: '2026-09-14', name: 'Four', city: 'Munich' },
+      { date: '2026-11-20', name: 'Five', city: 'Berlin' },
+    ],
+    new Map(),
+  );
+  const context = describeContext(events, {
+    countryName: 'Germany',
+    today: '2026-08-15',
+    holidaysByDate: new Map(),
+  });
+
+  // Berlin has three in that week, so any one of them has two others.
+  const berlin = describeEvent(events[1], context(events[1])).join(' ');
+  assert.match(berlin, /2 other listings in Berlin fall in the same week/);
+
+  // Munich has only the one, and a lone listing says nothing about neighbours.
+  const munich = describeEvent(events[3], context(events[3])).join(' ');
+  assert.ok(!/other listings? in Munich/.test(munich));
+
+  // A different week is not counted.
+  const later = describeEvent(events[4], context(events[4])).join(' ');
+  assert.ok(!/other listings? in Berlin/.test(later));
+});
+
+test('the description never claims anything about the act itself', () => {
+  // Everything said must be derivable from the date, the calendar and the
+  // other listings — never from knowledge the site does not have.
+  const lines = describeOne({
+    date: '2026-09-12',
+    name: 'An Act With A Long History',
+    venue: 'Rathaus Hall',
+    city: 'Berlin',
+    genre: 'Rock',
+    time: '20:00',
+  });
+  const text = lines.join(' ');
+  for (const claim of ['popular', 'acclaimed', 'famous', 'tour', 'album', 'best', 'must-see']) {
+    assert.ok(!new RegExp(claim, 'i').test(text), `does not claim "${claim}"`);
+  }
 });
 
 // --- Sample data --------------------------------------------------------------

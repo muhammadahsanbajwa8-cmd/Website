@@ -18,7 +18,7 @@ import { BROWSER_MODULES } from './lib/browser-modules.mjs';
 import { compareCountries } from './lib/compare.mjs';
 import { countryInfo, flagEmoji } from './lib/countries.mjs';
 import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.mjs';
-import { annotate, createEventSource } from './lib/events.mjs';
+import { annotate, createEventSource, describeContext } from './lib/events.mjs';
 import { demoCountries, demoEvents } from './lib/events-demo.mjs';
 import { detailedCountries, fallbackCountries } from './lib/fallback.mjs';
 import { enableSection, url, withoutAds } from './lib/html.mjs';
@@ -193,6 +193,13 @@ if (eventsDemo || eventSource.enabled) {
     country.events = {
       all,
       ...byCategory,
+      // Built once per country: the per-listing detail needs to know what else
+      // is on nearby, which only makes sense across the whole set.
+      describe: describeContext(all, {
+        countryName: country.name,
+        today: todayISO,
+        holidaysByDate,
+      }),
       counts: {
         all: all.length,
         concerts: byCategory.concerts.length,
@@ -269,6 +276,7 @@ await pool(published, 16, async (country) => {
           counts: country.events.counts,
           currentYear,
           demo: eventsDemo,
+          context: country.events.describe,
         });
       // Invented listings are never monetised, so a demo build cannot put ad
       // code next to content that is not real.

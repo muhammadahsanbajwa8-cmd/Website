@@ -1273,6 +1273,54 @@ a.tag:hover {
   text-decoration: underline;
 }
 
+/* A listing opens to show what its row cannot hold. */
+.event > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+}
+.event > summary::-webkit-details-marker {
+  display: none;
+}
+.event > summary::before {
+  content: '+';
+  font-family: var(--mono);
+  color: var(--ink-soft);
+  width: 0.8rem;
+  flex: none;
+}
+.event[open] > summary::before {
+  content: '−';
+}
+.event > summary:hover .event__name {
+  text-decoration: underline;
+}
+.event__genre {
+  font-size: 0.75rem;
+}
+.event__detail {
+  padding: 0.5rem 0 0.25rem 1.4rem;
+  max-width: 46rem;
+}
+.event__detail p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.event__detail p:first-child {
+  color: var(--ink);
+}
+.event__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--rule);
+}
+
 /* Sample listings are marked on every row, so no line of the table can be
    read as a real event even by someone who skipped the banner. */
 .tag--sample {
