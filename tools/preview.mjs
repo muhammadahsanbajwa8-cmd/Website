@@ -200,14 +200,27 @@ const fonts = await inlineFonts();
 
 // --- Compose -----------------------------------------------------------------
 
+/**
+ * The browser entry points, pointed at the same bare specifiers.
+ *
+ * Anything under assets/ that imports from /assets/mjs/ is an ES module and
+ * has to be attached as one — injected as a classic script it throws on its
+ * first import statement. Detecting them rather than naming them is what stops
+ * this file going stale the next time a page grows an interactive half.
+ */
+const entries = {};
+for (const [name, source] of Object.entries(scripts)) {
+  if (!/^\s*import\s[\s\S]*?from\s+['"]\/assets\/mjs\//m.test(source)) continue;
+  entries[name] = source.replace(/(['"])\/assets\/mjs\//g, `$1${BARE}`);
+}
+
 const payload = {
   pages,
   css,
   fontsHead: fonts.head,
   scripts,
   modules,
-  // The browser entry point, pointed at the same bare specifiers.
-  entry: (scripts['/assets/compare.js'] || '').replace(/(['"])\/assets\/mjs\//g, `$1${BARE}`),
+  entries,
   data,
   lightTokens,
   darkTokens,
@@ -216,6 +229,7 @@ const payload = {
     pages: Object.keys(pages).length,
     skipped,
     countries: sample ? sample.size : null,
+    interactive: Object.keys(entries).length,
   },
 };
 
