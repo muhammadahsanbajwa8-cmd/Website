@@ -110,7 +110,8 @@ npm run build
 npm run adsense:check
 ```
 
-Both blocking issues should now be gone.
+Both TODO lines should now be gone, and the last line should read *Ready to
+apply*.
 
 ---
 

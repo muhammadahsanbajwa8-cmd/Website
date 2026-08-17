@@ -11,7 +11,20 @@
  * pages that must not carry them, missing policy pages, sample data left in a
  * production build, and pages too thin to justify an ad.
  *
- * Exit code 0 means nothing blocking was found.
+ * Findings come in three kinds, and the difference matters because this runs
+ * in CI:
+ *
+ *   FIX     A policy violation in the build itself — ads on the 404 page,
+ *           invented sample listings, a sitemap full of noindex pages. These
+ *           exit 1, so the nightly build refuses to publish them.
+ *   TODO    Something not configured yet, like the placeholder domain. It has
+ *           to be done before you apply to AdSense, but it is a normal state
+ *           for a site that has not launched, so it exits 0. Blocking on it
+ *           would mean the site could never go live in the first place.
+ *   warn    Worth a look, nothing more.
+ *
+ * Exit code 0 means the build is safe to publish. It does not mean you are
+ * ready to apply — read the TODO list for that.
  */
 
 import { existsSync } from 'node:fs';
@@ -33,10 +46,12 @@ if (!existsSync(path.join(dist, 'index.html'))) {
 }
 
 const problems = [];
+const todos = [];
 const warnings = [];
 const passes = [];
 
 const fail = (what, why) => problems.push({ what, why });
+const todo = (what, why) => todos.push({ what, why });
 const warn = (what, why) => warnings.push({ what, why });
 const pass = (what) => passes.push(what);
 
@@ -55,17 +70,19 @@ const route = (file) => `/${path.relative(dist, file).replace(/index\.html$/, ''
 
 // --- 1. Configuration a reviewer would see -----------------------------------
 
+// A placeholder domain is a site that has not launched yet, not a site that
+// broke policy — so these are TODOs, and the build still publishes.
 if (/example($|\/|\.)/.test(new URL(config.url).hostname) || config.url.includes('example')) {
-  fail(
+  todo(
     'Site URL is still a placeholder',
-    `site.config.mjs has url: '${config.url}'. Canonical tags, the sitemap and Open Graph all point at a domain you do not own. Set it to your real domain and rebuild.`,
+    `site.config.mjs has url: '${config.url}'. Canonical tags, the sitemap and Open Graph all point at a domain you do not own. Set it to your real domain and rebuild before you apply.`,
   );
 } else {
   pass(`Canonical domain is set (${config.url})`);
 }
 
 if (config.contactEmail.includes('example')) {
-  fail(
+  todo(
     'Contact address is still a placeholder',
     `site.config.mjs has contactEmail: '${config.contactEmail}'. Reviewers check that a contact route exists and works. Use an address you can receive mail at.`,
   );
@@ -74,7 +91,7 @@ if (config.contactEmail.includes('example')) {
 }
 
 if (!config.url.startsWith('https://')) {
-  fail('Site URL is not HTTPS', 'AdSense expects the site to be served over HTTPS.');
+  todo('Site URL is not HTTPS', 'AdSense expects the site to be served over HTTPS.');
 }
 
 // --- 2. Policy pages ----------------------------------------------------------
@@ -178,6 +195,12 @@ if (!publisherId) {
     fail('Ad code is present without a publisher ID', 'Something is serving ad code it should not.');
   }
 } else {
+  // Once real ad code is being served, an unset domain stops being a
+  // pre-launch state and starts being a live site pointing its canonical tags
+  // somewhere it does not own.
+  if (todos.length) {
+    for (const item of todos.splice(0)) fail(item.what, `${item.why} Ad code is live, so this now blocks.`);
+  }
   if (!adsTxt.includes(publisherId.replace(/^ca-/, ''))) {
     fail('ads.txt does not match the publisher ID', 'Rebuild after setting adsense.publisherId.');
   } else {
@@ -223,28 +246,32 @@ if (!/assets\/consent\.js/.test(await readFile(path.join(dist, 'index.html'), 'u
 
 write(`\n  AdSense readiness — ${files.length} pages in ${config.outDir}/\n`);
 for (const item of passes) write(`  ok    ${item}`);
-if (warnings.length) {
+
+const section = (items, label) => {
+  if (!items.length) return;
   write('');
-  for (const item of warnings) {
-    write(`  warn  ${item.what}`);
-    write(`        ${item.why}`);
+  for (const item of items) {
+    write(`  ${label}  ${item.what}`);
+    write(`  ${' '.repeat(label.length)}  ${item.why}`);
   }
-}
-if (problems.length) {
-  write('');
-  for (const item of problems) {
-    write(`  FIX   ${item.what}`);
-    write(`        ${item.why}`);
-  }
-}
+};
+
+section(warnings, 'warn');
+section(todos, 'TODO');
+section(problems, 'FIX ');
 
 write('');
 if (problems.length) {
-  write(`  ${problems.length} blocking ${problems.length === 1 ? 'issue' : 'issues'} to fix before applying.\n`);
+  write(`  ${problems.length} policy ${problems.length === 1 ? 'problem' : 'problems'} in this build. Not safe to publish.\n`);
   process.exit(1);
 }
-write(
-  `  Nothing blocking found${warnings.length ? `, ${warnings.length} thing${warnings.length === 1 ? '' : 's'} worth a look` : ''}.`,
-);
+
+if (todos.length) {
+  write(`  Build is safe to publish. ${todos.length} thing${todos.length === 1 ? '' : 's'} still to do before you apply — see TODO above.`);
+} else {
+  write(
+    `  Ready to apply${warnings.length ? `, ${warnings.length} thing${warnings.length === 1 ? '' : 's'} worth a look` : ''}.`,
+  );
+}
 write('  Approval is still Google\'s call: they weigh the usefulness of the');
 write('  content itself, which no script can measure.\n');

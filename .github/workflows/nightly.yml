@@ -51,7 +51,10 @@ jobs:
           echo "pages: $(find dist -name '*.html' | wc -l)"
 
       # Stops a build that would put ads where policy forbids them, or that
-      # still carries sample listings, from reaching the deploy step.
+      # still carries sample listings, from reaching the deploy step. Config
+      # that is merely not filled in yet — the placeholder domain before you
+      # own one — is reported as TODO and does not fail the run, or the site
+      # could never go live in the first place.
       - name: AdSense policy check
         run: npm run adsense:check
 
