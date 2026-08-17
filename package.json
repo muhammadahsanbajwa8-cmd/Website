@@ -15,7 +15,8 @@
     "serve": "node tools/serve.mjs",
     "preview": "node tools/preview.mjs",
     "events:check": "node tools/events-check.mjs",
-    "adsense:check": "node tools/adsense-check.mjs"
+    "adsense:check": "node tools/adsense-check.mjs",
+    "preview:static": "node tools/preview-static.mjs"
   },
   "dependencies": {},
   "devDependencies": {}
