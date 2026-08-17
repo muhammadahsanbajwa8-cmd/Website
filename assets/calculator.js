@@ -21,6 +21,15 @@
   var output = document.getElementById('calc-output');
   var form = document.getElementById('calc-form');
 
+  // Second mode: a date a number of business days away.
+  var addForm = document.getElementById('calc-form-add');
+  var addStart = document.getElementById('add-start');
+  var addCount = document.getElementById('add-count');
+  var addDirection = document.getElementById('add-direction');
+  var addRegional = document.getElementById('add-regional');
+  var tabs = [].slice.call(root.querySelectorAll('[role="tab"]'));
+  var mode = 'between';
+
   var DAY = 86400000;
   var MAX_DAYS = 3653; // ten years
   var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -200,12 +209,166 @@
     });
   }
 
+  /**
+   * Walk forwards or backwards one day at a time, counting only working days.
+   *
+   * Counting starts on the day *after* the one entered, which is the ordinary
+   * reading of "30 business days from today" in a contract or a court rule.
+   * The walk is capped so a mistyped number cannot hang the page.
+   */
+  function addBusinessDays() {
+    var start = parse(addStart.value);
+    var wanted = Math.floor(Number(addCount.value));
+    var back = addDirection.value === 'before';
+
+    if (!start) {
+      message('note', 'Pick a date to count from.');
+      return;
+    }
+    if (!isFinite(wanted) || wanted < 0) {
+      message('calc__error', 'Enter a number of business days — zero or more.');
+      return;
+    }
+    if (wanted > 2500) {
+      message('calc__error', 'That is more than ten working years. Try a smaller number.');
+      return;
+    }
+
+    var years = Object.keys(data.holidays).map(Number);
+    var minYear = Math.min.apply(null, years);
+    var maxYear = Math.max.apply(null, years);
+    var map = holidayMap(minYear, maxYear, addRegional.checked);
+
+    var step = back ? -DAY : DAY;
+    var cursor = start.getTime();
+    var counted = 0;
+    var skipped = [];
+    var guard = 0;
+
+    while (counted < wanted && guard < 20000) {
+      guard += 1;
+      cursor += step;
+      var day = new Date(cursor);
+      var dow = day.getUTCDay();
+      if (dow === 0 || dow === 6) {
+        skipped.push({ date: iso(day), why: 'Weekend' });
+        continue;
+      }
+      var key = iso(day);
+      if (map[key]) {
+        skipped.push({ date: key, why: map[key] });
+        continue;
+      }
+      counted += 1;
+    }
+
+    var landed = new Date(cursor);
+    var landedYear = landed.getUTCFullYear();
+
+    var html =
+      '<p class="eyebrow">' +
+      (back ? wanted + ' business days before' : wanted + ' business days after') +
+      '</p>' +
+      '<p><span class="calc__big calc__big--date">' +
+      pretty(iso(landed)) +
+      '</span></p>' +
+      '<p class="note">Counting from ' +
+      pretty(addStart.value) +
+      ', starting the next working day' +
+      (back ? ' backwards' : '') +
+      '.</p>' +
+      '<ul class="calc__breakdown">' +
+      row('Business days counted', counted) +
+      row('Weekend days skipped', skipped.filter(isWeekendSkip).length) +
+      row('Public holidays skipped', skipped.filter(notWeekendSkip).length) +
+      row('Calendar days elapsed', Math.abs(Math.round((cursor - start.getTime()) / DAY))) +
+      '</ul>';
+
+    var holidaysSkipped = skipped.filter(notWeekendSkip);
+    if (holidaysSkipped.length) {
+      html +=
+        '<h3>Holidays skipped on the way</h3><div class="table-scroll"><table>' +
+        '<thead><tr><th>Date</th><th>Weekday</th><th>Holiday</th></tr></thead><tbody>' +
+        holidaysSkipped
+          .map(function (item) {
+            var date = parse(item.date);
+            return (
+              '<tr><td class="date">' +
+              item.date +
+              '</td><td>' +
+              WEEKDAYS[date.getUTCDay()] +
+              '</td><td>' +
+              escapeHTML(item.why) +
+              '</td></tr>'
+            );
+          })
+          .join('') +
+        '</tbody></table></div>';
+    } else {
+      html += '<p class="note">No public holiday fell inside that stretch — only weekends were skipped.</p>';
+    }
+
+    if (landedYear < minYear || landedYear > maxYear) {
+      html +=
+        '<p class="note">Heads up: this site holds holiday data for ' +
+        minYear +
+        '–' +
+        maxYear +
+        '. Part of that count ran outside the range, where weekends were skipped but holidays were not.</p>';
+    }
+
+    output.innerHTML = html;
+  }
+
+  function isWeekendSkip(item) {
+    return item.why === 'Weekend';
+  }
+
+  function notWeekendSkip(item) {
+    return item.why !== 'Weekend';
+  }
+
+  function run() {
+    if (mode === 'add') addBusinessDays();
+    else calculate();
+  }
+
+  function setMode(next) {
+    mode = next;
+    tabs.forEach(function (tab) {
+      tab.setAttribute('aria-selected', tab.dataset.mode === next ? 'true' : 'false');
+    });
+    form.hidden = next !== 'between';
+    if (addForm) addForm.hidden = next !== 'add';
+    run();
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      setMode(tab.dataset.mode);
+    });
+  });
+
+  if (addForm) {
+    addForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      addBusinessDays();
+    });
+    [addStart, addCount, addDirection, addRegional].forEach(function (element) {
+      element.addEventListener('change', function () {
+        if (mode === 'add') addBusinessDays();
+      });
+    });
+  }
+
   form.addEventListener('submit', function (event) {
     event.preventDefault();
     calculate();
   });
   [startInput, endInput, inclusive, regional].forEach(function (element) {
-    element.addEventListener('change', calculate);
+    element.addEventListener('change', function () {
+      if (mode === 'between') calculate();
+    });
   });
 
   var reset = document.getElementById('calc-reset');

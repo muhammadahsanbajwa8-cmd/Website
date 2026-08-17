@@ -53,19 +53,29 @@ test('every import of a shipped module is itself shipped', () => {
   }
 });
 
-test('the browser entry point only imports shipped modules', async () => {
-  const entry = await readFile(path.join(root, 'assets/compare.js'), 'utf8');
+test('every browser entry point only imports shipped modules', async () => {
   const shipped = new Set(BROWSER_MODULES.map((relative) => `/assets/mjs/${relative}`));
-  const specifiers = importsOf(entry);
-  assert.ok(specifiers.length > 0, 'the entry point imports something');
-  for (const specifier of specifiers) {
-    assert.ok(shipped.has(specifier), `assets/compare.js imports ${specifier}, which is not shipped`);
+  for (const name of ['assets/compare.js', 'assets/leave.js', 'assets/team.js']) {
+    const entry = await readFile(path.join(root, name), 'utf8');
+    const specifiers = importsOf(entry);
+    assert.ok(specifiers.length > 0, `${name} imports something`);
+    for (const specifier of specifiers) {
+      assert.ok(shipped.has(specifier), `${name} imports ${specifier}, which is not shipped`);
+    }
   }
 });
 
-test('the comparison renderer is reachable from the shipped set', () => {
-  assert.ok(BROWSER_MODULES.includes('lib/pages/compare.mjs'));
-  assert.ok(BROWSER_MODULES.includes('lib/compare.mjs'));
+test('every interactive renderer is reachable from the shipped set', () => {
+  for (const module of [
+    'lib/pages/compare.mjs',
+    'lib/compare.mjs',
+    'lib/pages/leave.mjs',
+    'lib/leave.mjs',
+    'lib/pages/team.mjs',
+    'lib/team.mjs',
+  ]) {
+    assert.ok(BROWSER_MODULES.includes(module), `${module} is shipped to the browser`);
+  }
   // The generator and the browser must agree on the config the layout reads.
   assert.ok(BROWSER_MODULES.includes('site.config.mjs'));
 });

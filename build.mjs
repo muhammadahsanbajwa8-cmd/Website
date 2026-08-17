@@ -24,9 +24,12 @@ import { detailedCountries, fallbackCountries } from './lib/fallback.mjs';
 import { enableSection, url, withoutAds } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
+import { teamOverlap } from './lib/team.mjs';
 import { renderCompareIndex, renderComparePair } from './lib/pages/compare.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from './lib/pages/country.mjs';
 import { renderCountryEvents, renderEventsHub } from './lib/pages/events.mjs';
+import { renderLeavePlanner } from './lib/pages/leave.mjs';
+import { renderTeam } from './lib/pages/team.mjs';
 import {
   renderAbout,
   renderCountriesIndex,
@@ -275,6 +278,17 @@ await pool(published, 16, async (country) => {
     renderCalculator({ country, years, byYear: country.byYear, today: todayISO }),
   );
 
+  await write(
+    url.leave(country.code),
+    renderLeavePlanner({
+      country,
+      years,
+      byYear: country.byYear,
+      currentYear,
+      today: todayISO,
+    }),
+  );
+
   if (country.events) {
     // "all" always; the named streams only when they have something in them,
     // so there is no such thing as an empty comedy page.
@@ -457,6 +471,34 @@ await write(
   }),
 );
 
+// --- 4c. Team overlap ---------------------------------------------------------
+
+// A realistic default line-up rather than an arbitrary one: three countries on
+// three continents, which is what makes the problem visible in the first place.
+const teamDefaults = ['US', 'GB', 'IN']
+  .map((code) => published.find((country) => country.code === code))
+  .filter(Boolean);
+const teamMembers = (
+  teamDefaults.length >= 2 ? teamDefaults : published.slice(0, 3)
+).map((country) => ({
+  code: country.code,
+  name: country.name,
+  flag: country.flag,
+  holidays: country.byYear[currentYear],
+}));
+
+await write(
+  url.team(),
+  renderTeam({
+    countries: published,
+    overlap: teamOverlap(currentYear, teamMembers, { today: todayISO }),
+    years,
+    currentYear,
+    today: todayISO,
+    defaultCodes: teamMembers.map((member) => member.code),
+  }),
+);
+
 // Per-country data for the browser-side comparison: one small file each, so a
 // visitor downloads two countries rather than the whole world.
 await mkdir(path.join(outDir, 'data'), { recursive: true });
@@ -556,6 +598,7 @@ const sitemapEntries = [
   { loc: url.home(), priority: '1.0', changefreq: 'daily' },
   { loc: url.today(), priority: '0.9', changefreq: 'daily' },
   { loc: url.compare(), priority: '0.8', changefreq: 'weekly' },
+  { loc: url.team(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.countries(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.about(), priority: '0.3', changefreq: 'monthly' },
   { loc: url.privacy(), priority: '0.2', changefreq: 'yearly' },
@@ -587,6 +630,7 @@ if (eventCountries.length && !eventsDemo) {
 for (const country of published) {
   sitemapEntries.push({ loc: url.country(country.code), priority: '0.8', changefreq: 'weekly' });
   sitemapEntries.push({ loc: url.calculator(country.code), priority: '0.7', changefreq: 'monthly' });
+  sitemapEntries.push({ loc: url.leave(country.code), priority: '0.7', changefreq: 'monthly' });
   for (const year of years) {
     // The current year is the page people actually search for; past years decay.
     const priority =
