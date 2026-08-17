@@ -77,6 +77,17 @@ codebase should need editing to deploy.
 
 ## Deploy it
 
+**New to this? Read [DEPLOY.md](DEPLOY.md)** — it walks from an unmerged branch
+to a live site on your own domain, step by step.
+
+One constraint to know up front: every link and asset is written from the domain
+root, so the site must be served at the root of a domain or subdomain —
+`example.com` or `site.pages.dev`, **not** `example.com/site`. A GitHub Pages
+*project* site is a sub-folder, so it loads the first page and then 404s the
+stylesheet and every link; it needs a custom domain. Cloudflare Pages and
+Netlify give you a root URL for free. The build prints a warning if `url` has a
+path in it.
+
 The generator writes a plain directory of files. Build command `npm run build`,
 publish directory `dist`, Node 20.
 

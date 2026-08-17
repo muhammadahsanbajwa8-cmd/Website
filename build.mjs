@@ -90,6 +90,19 @@ const source = createSource({
   offline,
 });
 
+// Every link and asset on the site is written from the domain root, so a host
+// that serves the site from a sub-folder — a GitHub Pages project site, for
+// instance — would load the first page and 404 its stylesheet and every link.
+// Better to say so at build time than to leave someone staring at a broken site.
+if (new URL(config.url).pathname !== '/') {
+  log(
+    `\n  WARNING: url is '${config.url}', which has a path.\n` +
+      `  This site links from the domain root, so it must be served at the root of a\n` +
+      `  domain or subdomain — example.com or site.pages.dev, not example.com/site.\n` +
+      `  See DEPLOY.md.\n`,
+  );
+}
+
 const available = await source.availableCountries();
 log(`  countries listed: ${available.length}`);
 

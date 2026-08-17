@@ -8,7 +8,7 @@ export const config = {
   tagline: 'Public holidays and working days for every country, rebuilt nightly.',
 
   /** Canonical origin. No trailing slash. Used for canonical tags, OG, sitemap. */
-  url: 'https://holidayboard.example',
+  url: 'https://holidayboard.example', // ← change this (see DEPLOY.md)
 
   /** Shown on /about/ and /privacy/ as the contact of record. */
   contactEmail: 'hello@holidayboard.example',
