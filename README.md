@@ -143,9 +143,9 @@ to get rejected.
 Run `npm run adsense:check` before you apply, and again after approval. It
 reads the built site and reports the mechanical things a reviewer sees first:
 
-- placeholder `url` or `contactEmail` still in `site.config.mjs` — these fail a
-  review on their own, because canonical tags and the sitemap would point at a
-  domain you do not own;
+- placeholder `url` or `contactEmail` still in `site.config.mjs` — these would
+  fail a review on their own, because canonical tags and the sitemap would
+  point at a domain you do not own;
 - ads on the 404 page, which is against policy: an error page has no content of
   its own to justify them;
 - ads on any `noindex` page — a page not fit to index is not fit to monetise;
@@ -156,9 +156,21 @@ reads the built site and reports the mechanical things a reviewer sees first:
   missing sitemap, `noindex` pages leaking into the sitemap, and a privacy page
   that fails to mention AdSense, cookies or the opt-out route.
 
-It exits non-zero when something is blocking, so it can gate a deploy. What it
-cannot judge is whether Google finds the content itself useful — that is the
-part of the decision no script can measure.
+It sorts what it finds into three kinds, and the distinction is what lets it
+gate a deploy without also preventing one:
+
+- **FIX** — a policy violation in the build itself: ads on the 404 page, sample
+  listings, a blocking `robots.txt`, `ads.txt` disagreeing with the publisher
+  ID. These exit non-zero, so the nightly build refuses to publish them.
+- **TODO** — not configured yet, like the placeholder `url`. It has to be done
+  before you apply, but a site that has not launched is *supposed* to be in
+  this state, so it exits zero. The exception is once `adsense.publisherId` is
+  set: real ad code serving from a domain the config does not name is a
+  violation, and every TODO is promoted to a FIX.
+- **warn** — worth a look, nothing more.
+
+What it cannot judge is whether Google finds the content itself useful — that
+is the part of the decision no script can measure.
 
 ### Consent, and the part you cannot skip
 
