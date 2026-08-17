@@ -11,6 +11,9 @@ import { compareCountries } from '/assets/mjs/lib/compare.mjs';
 import { compareBody } from '/assets/mjs/lib/pages/compare.mjs';
 import { yearStats } from '/assets/mjs/lib/stats.mjs';
 
+/** Where the site is mounted; empty when served from a domain root. */
+const BASE = document.documentElement.dataset.base || '';
+
 const container = document.getElementById('compare-body');
 if (container) {
   const picker = document.getElementById('compare-picker');
@@ -28,7 +31,7 @@ if (container) {
 
   async function loadCountry(code) {
     if (cache.has(code)) return cache.get(code);
-    const response = await fetch(`/data/${code.toUpperCase()}.json`);
+    const response = await fetch(`${BASE}/data/${code.toUpperCase()}.json`);
     if (!response.ok) throw new Error(`No data for ${code}`);
     const data = await response.json();
     cache.set(code, data);
@@ -70,7 +73,7 @@ if (container) {
       document.title = `${a.name} vs ${b.name} — public holidays ${year}`;
     } catch (error) {
       status(
-        'That country pairing has no data on this site. <a href="/countries/">Browse the countries we cover</a>.',
+        `That country pairing has no data on this site. <a href="${BASE}/countries/">Browse the countries we cover</a>.`,
         'calc__error',
       );
     }

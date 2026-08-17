@@ -8,7 +8,7 @@
  * Output is a plain dist/ folder of HTML, CSS and JS.
  */
 
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.
 import { annotate, createEventSource, describeContext } from './lib/events.mjs';
 import { demoCountries, demoEvents } from './lib/events-demo.mjs';
 import { detailedCountries, fallbackCountries } from './lib/fallback.mjs';
-import { enableSection, url, withoutAds } from './lib/html.mjs';
+import { BASE, enableSection, url, withoutAds } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
 import { teamOverlap } from './lib/team.mjs';
@@ -55,10 +55,19 @@ for (let year = currentYear - config.years.back; year <= currentYear + config.ye
 const started = Date.now();
 let pageCount = 0;
 
+/**
+ * @param {string} pathname an address as the site writes it, base included
+ *
+ * `dist/` is always the site *root*, whatever the site is mounted at: the host
+ * serves this folder from the base, so writing `dist/Website/de/` would put the
+ * whole site one level deeper than the base it already carries. The base comes
+ * back off here, and here only.
+ */
 async function write(pathname, contents) {
-  const file = pathname.endsWith('/')
-    ? path.join(outDir, pathname, 'index.html')
-    : path.join(outDir, pathname);
+  const relative = BASE && pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname;
+  const file = relative.endsWith('/')
+    ? path.join(outDir, relative, 'index.html')
+    : path.join(outDir, relative);
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, contents);
   pageCount += 1;
@@ -93,18 +102,10 @@ const source = createSource({
   offline,
 });
 
-// Every link and asset on the site is written from the domain root, so a host
-// that serves the site from a sub-folder — a GitHub Pages project site, for
-// instance — would load the first page and 404 its stylesheet and every link.
-// Better to say so at build time than to leave someone staring at a broken site.
-if (new URL(config.url).pathname !== '/') {
-  log(
-    `\n  WARNING: url is '${config.url}', which has a path.\n` +
-      `  This site links from the domain root, so it must be served at the root of a\n` +
-      `  domain or subdomain — example.com or site.pages.dev, not example.com/site.\n` +
-      `  See DEPLOY.md.\n`,
-  );
-}
+// A host that serves the site from a sub-folder — a GitHub Pages project site
+// is the common one — needs every generated address prefixed with that folder.
+// The prefix is taken from the configured URL, so there is nothing else to set.
+if (BASE) log(`  mounted at:    ${BASE}/ (from config.url)`);
 
 const available = await source.availableCountries();
 log(`  countries listed: ${available.length}`);
@@ -665,7 +666,7 @@ await writeFile(
   `User-agent: *
 Allow: /
 
-Sitemap: ${url.absolute('/sitemap.xml')}
+Sitemap: ${url.absolute(url.asset('/sitemap.xml'))}
 `,
 );
 
@@ -680,6 +681,20 @@ await writeFile(
 // --- 6. Assets ---------------------------------------------------------------
 
 await cp(path.resolve(root, 'assets'), path.join(outDir, 'assets'), { recursive: true });
+
+// `import { x } from '/assets/mjs/...'` is a static specifier: the browser
+// resolves it before any of our code runs, so it cannot read the mount point
+// from the document the way the fetches do. Rewrite it here instead — once, on
+// the way into dist/ — rather than shipping an import map to every page.
+if (BASE) {
+  for (const name of await readdir(path.join(outDir, 'assets'))) {
+    if (!name.endsWith('.js')) continue;
+    const file = path.join(outDir, 'assets', name);
+    const source = await readFile(file, 'utf8');
+    const rebased = source.replace(/(['"])\/assets\/mjs\//g, `$1${BASE}/assets/mjs/`);
+    if (rebased !== source) await writeFile(file, rebased);
+  }
+}
 
 // --- 7. Report ---------------------------------------------------------------
 

@@ -8,6 +8,9 @@
 import { teamOverlap } from '/assets/mjs/lib/team.mjs';
 import { teamBody } from '/assets/mjs/lib/pages/team.mjs';
 
+/** Where the site is mounted; empty when served from a domain root. */
+const BASE = document.documentElement.dataset.base || '';
+
 const container = document.getElementById('team-body');
 const form = document.getElementById('team-form');
 const configEl = document.getElementById('team-config');
@@ -38,7 +41,7 @@ if (container && form && configEl) {
 
   async function load(code) {
     if (cache.has(code)) return cache.get(code);
-    const response = await fetch(`/data/${code}.json`);
+    const response = await fetch(`${BASE}/data/${code}.json`);
     if (!response.ok) throw new Error(`no data for ${code}`);
     const data = await response.json();
     cache.set(code, data);
@@ -72,7 +75,7 @@ if (container && form && configEl) {
       document.title = `${members.map((member) => member.name).join(', ')} — team holiday overlap ${year}`;
     } catch (error) {
       status(
-        'One of those countries has no data on this site. <a href="/countries/">Browse the countries we cover</a>.',
+        `One of those countries has no data on this site. <a href="${BASE}/countries/">Browse the countries we cover</a>.`,
         'calc__error',
       );
     }

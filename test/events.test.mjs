@@ -18,6 +18,7 @@ import {
 } from '../lib/events.mjs';
 import { demoCountries, demoEvents } from '../lib/events-demo.mjs';
 import { fallbackHolidays } from '../lib/fallback.mjs';
+import { url } from '../lib/html.mjs';
 import { iso, todayUTC } from '../lib/dates.mjs';
 import { renderCountryEvents, renderEventsHub } from '../lib/pages/events.mjs';
 
@@ -528,7 +529,11 @@ test('an events page names itself the way people search', () => {
 
 test('a listing on a public holiday links to that date in the calendar', () => {
   const html = page('all');
-  assert.match(html, /class="tag tag--national" href="\/de\/2026\/#2026-10-03">German Unity Day/);
+  assert.ok(
+    html.includes(
+      `class="tag tag--national" href="${url.holiday('DE', '2026-10-03')}">German Unity Day`,
+    ),
+  );
   assert.ok(html.includes('Marta Vey'));
   assert.ok(html.includes('Rathaus Hall'));
 });
@@ -596,7 +601,7 @@ test('the hub lists only countries that actually have listings', () => {
     today: '2026-08-15',
   });
   assert.match(html, /<title>What&#39;s on[^<]*<\/title>/);
-  assert.match(html, /href="\/de\/events\/"/);
+  assert.ok(html.includes(`href="${url.countryEvents('DE', 'all')}"`));
   assert.match(html, /12 listings · 8 concerts · 3 comedy/);
   assert.equal((html.match(/<h1/g) || []).length, 1);
 });

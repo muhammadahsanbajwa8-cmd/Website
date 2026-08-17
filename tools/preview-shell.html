@@ -323,8 +323,8 @@ iframe.pv-sheet {
   <summary><span id="pv-scope">…</span> — <b>what works here</b></summary>
   <ul>
     <li><span class="pv-tick">✓</span><span id="pv-links">Every internal link, on every page</span></li>
-    <li><span class="pv-tick">✓</span><span>The working-days calculator, with its own breakdown</span></li>
-    <li><span class="pv-tick">✓</span><span id="pv-modules">The country finder and the comparison picker</span></li>
+    <li><span class="pv-tick">✓</span><span>The working-days calculator, both modes, with its breakdown</span></li>
+    <li><span class="pv-tick">✓</span><span id="pv-modules">The country finder, the comparison, the leave planner and the team view</span></li>
     <li><span class="pv-tick">✓</span><span>Light and dark, desktop and mobile, real media queries</span></li>
     <li><span class="pv-tick">✓</span><span>The consent banner and the dashed ad placeholders</span></li>
     <li><span class="pv-tick">·</span><span>Ads stay placeholders: no publisher ID is configured yet</span></li>
@@ -386,7 +386,7 @@ iframe.pv-sheet {
     var note = document.getElementById('pv-modules');
     if (note) {
       note.textContent =
-        'The country finder (the comparison picker needs the site served, not bundled)';
+        'The country finder (the comparison, leave planner and team view need the site served, not bundled)';
       note.previousElementSibling.textContent = '·';
     }
   });
@@ -410,13 +410,21 @@ iframe.pv-sheet {
     return '';
   }
 
-  /** Data the page's own scripts would fetch from the server. */
+  /**
+   * Data the page's own scripts would fetch from the server.
+   *
+   * The per-country files are 4 MB all told, so they are handed out per route
+   * rather than to every page: the comparison and the team view can reach for
+   * any country, but a leave planner only ever loads its own.
+   */
   function shim(route) {
+    var wantsEvery = route.indexOf('/compare') === 0 || route.indexOf('/team') === 0;
+    var own = route.match(/^\/([a-z]{2})\//);
+    var ownKey = own ? '/data/' + own[1].toUpperCase() + '.json' : null;
+
     var files = {};
     Object.keys(payload.data).forEach(function (key) {
-      // The per-country files are only read by the comparison; leaving them
-      // out elsewhere keeps the composed document small.
-      if (key.indexOf('/data/') === 0 && route.indexOf('/compare') !== 0) return;
+      if (key.indexOf('/data/') === 0 && !wantsEvery && key !== ownKey) return;
       files[key] = payload.data[key];
     });
     return (
@@ -439,16 +447,18 @@ iframe.pv-sheet {
 
   function compose(route) {
     var page = payload.pages[route];
+    var entries = payload.entries || {};
     var classic = '';
+    var module = '';
     (page.scripts || []).forEach(function (source) {
-      // compare.js is an ES module and is attached below, not here.
-      if (source === '/assets/compare.js') return;
+      // ES modules have to be attached as modules; as a classic script they
+      // throw on the first import statement and the page loses its controls.
+      if (entries[source]) {
+        module += '<script type="module">' + entries[source] + '<\/script>';
+        return;
+      }
       if (payload.scripts[source]) classic += '<script>' + payload.scripts[source] + '<\/script>';
     });
-    var module =
-      (page.scripts || []).indexOf('/assets/compare.js') > -1
-        ? '<script type="module">' + payload.entry + '<\/script>'
-        : '';
 
     return (
       '<!doctype html><html lang="en"><head><meta charset="utf-8">' +

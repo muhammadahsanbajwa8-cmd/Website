@@ -5,7 +5,7 @@ import { compareCountries } from '../lib/compare.mjs';
 import { countryInfo, flagEmoji, groupByRegion } from '../lib/countries.mjs';
 import { compareBody, renderCompareIndex, renderComparePair } from '../lib/pages/compare.mjs';
 import { fallbackHolidays } from '../lib/fallback.mjs';
-import { esc, url, withoutAds } from '../lib/html.mjs';
+import { BASE, esc, url, withoutAds } from '../lib/html.mjs';
 import { yearRibbon } from '../lib/ribbon.mjs';
 import { nextHolidayAcrossYears, yearStats } from '../lib/stats.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from '../lib/pages/country.mjs';
@@ -262,18 +262,21 @@ test('privacy page names what actually happens on the page', () => {
 });
 
 test('URLs are lowercase and directory-shaped', () => {
-  assert.equal(url.country('US'), '/us/');
-  assert.equal(url.year('gb', 2026), '/gb/2026/');
-  assert.equal(url.calculator('DE'), '/de/business-days-calculator/');
-  assert.match(url.absolute('/us/'), /^https?:\/\/[^/]+\/us\/$/);
+  // Written against the mount point rather than the domain root: the shape is
+  // the invariant, and where the site is mounted is a deployment decision.
+  assert.equal(url.country('US'), `${BASE}/us/`);
+  assert.equal(url.year('gb', 2026), `${BASE}/gb/2026/`);
+  assert.equal(url.calculator('DE'), `${BASE}/de/business-days-calculator/`);
+  assert.equal(url.leave('DE'), `${BASE}/de/annual-leave-planner/`);
+  assert.match(url.absolute(url.country('US')), /^https?:\/\/[^/]+\S*\/us\/$/);
 });
 
 test('a pair has exactly one address, whichever order you ask for', () => {
-  assert.equal(url.pair('US', 'GB'), '/compare/gb-vs-us/');
-  assert.equal(url.pair('gb', 'us'), '/compare/gb-vs-us/');
-  assert.equal(url.pair('DE', 'FR'), '/compare/de-vs-fr/');
-  assert.equal(url.holiday('DE', '2026-12-25'), '/de/2026/#2026-12-25');
-  assert.match(url.compareQuery('DE', 'FR', 2027), /^\/compare\/\?a=DE&b=FR&year=2027$/);
+  assert.equal(url.pair('US', 'GB'), `${BASE}/compare/gb-vs-us/`);
+  assert.equal(url.pair('gb', 'us'), `${BASE}/compare/gb-vs-us/`);
+  assert.equal(url.pair('DE', 'FR'), `${BASE}/compare/de-vs-fr/`);
+  assert.equal(url.holiday('DE', '2026-12-25'), `${BASE}/de/2026/#2026-12-25`);
+  assert.equal(url.compareQuery('DE', 'FR', 2027), `${BASE}/compare/?a=DE&b=FR&year=2027`);
 });
 
 // --- Comparison pages ------------------------------------------------------
@@ -312,20 +315,25 @@ test('the pair page renders the comparison server-side, not only in the browser'
   for (const holiday of COMPARISON.shared) assert.ok(html.includes(holiday.date));
   // And it hands the browser what it needs to re-render another year.
   assert.match(html, /id="compare-body" data-a="US" data-b="GB" data-year="2026"/);
-  assert.match(html, /<script type="module" src="\/assets\/compare\.js"><\/script>/);
+  assert.ok(
+    html.includes(`<script type="module" src="${url.asset('/assets/compare.js')}"></script>`),
+  );
 });
 
 test('comparison links point back into the site for research', () => {
   const body = compareBody(COMPARISON, { years: YEARS, today: TODAY });
   // Each country hub, each year page, each calculator, and every shared date.
-  assert.ok(body.includes('href="/us/"'));
-  assert.ok(body.includes('href="/gb/"'));
-  assert.ok(body.includes('href="/us/2026/"'));
-  assert.ok(body.includes('href="/gb/2026/"'));
-  assert.ok(body.includes('href="/us/business-days-calculator/"'));
-  assert.ok(body.includes('href="/gb/business-days-calculator/"'));
+  assert.ok(body.includes(`href="${url.country('US')}"`));
+  assert.ok(body.includes(`href="${url.country('GB')}"`));
+  assert.ok(body.includes(`href="${url.year('US', 2026)}"`));
+  assert.ok(body.includes(`href="${url.year('GB', 2026)}"`));
+  assert.ok(body.includes(`href="${url.calculator('US')}"`));
+  assert.ok(body.includes(`href="${url.calculator('GB')}"`));
   for (const item of COMPARISON.shared) {
-    assert.ok(body.includes(`href="/us/2026/#${item.date}"`), `${item.date} links to the US calendar`);
+    assert.ok(
+      body.includes(`href="${url.holiday('US', item.date)}"`),
+      `${item.date} links to the US calendar`,
+    );
   }
 });
 
@@ -385,7 +393,7 @@ test('the comparison hub lists ready-made pairs and stays usable without JS', ()
   assert.match(html, /id="pick-year"/);
   assert.match(html, /<noscript>/);
   // The pre-built pairings are plain links, so they work with scripting off.
-  assert.match(html, /href="\/compare\/gb-vs-us\/"/);
+  assert.ok(html.includes(`href="${url.pair('GB', 'US')}"`));
   assert.equal((html.match(/<h1/g) || []).length, 1);
 });
 
