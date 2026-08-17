@@ -53,7 +53,9 @@
       '<div class="consent__inner">' +
       '<p>This site shows ads from Google, which may set cookies. Choose “Personalised ads” to allow ' +
       'ad personalisation, or “Non-personalised” to keep ads generic. Your choice is stored in this ' +
-      'browser only. <a href="/privacy/">Privacy</a></p>' +
+      'browser only. <a href="' +
+      (document.documentElement.dataset.base || '') +
+      '/privacy/">Privacy</a></p>' +
       '<div class="consent__actions">' +
       '<button type="button" data-consent="declined" class="ghost">Non-personalised</button>' +
       '<button type="button" data-consent="accepted">Personalised ads</button>' +

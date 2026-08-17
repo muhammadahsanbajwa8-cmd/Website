@@ -10,73 +10,76 @@ There are three stages, and you can stop after any of them:
 
 ---
 
-## Before anything: get the work onto `main`
+## Before anything
 
-All the work is on a branch called `claude/follow-instructions-7q58x3`. Hosts
-build from your `main` branch, so merge it first.
-
-On github.com, in your repository:
-
-1. Click **Pull requests** → **New pull request**.
-2. Set *base* to `main` and *compare* to `claude/follow-instructions-7q58x3`.
-3. **Create pull request**, then **Merge pull request**.
-
-That is all a merge is: it copies the branch's work onto `main`.
+Nothing. The work is already merged to `main`, and `main` is what gets
+published. Start at Stage 1.
 
 ---
 
 ## Stage 1 — Live on a free URL
 
-**Use Cloudflare Pages or Netlify, not GitHub Pages.** The reason is specific
-and it will bite you otherwise: this site links everything from the domain root
-(`/assets/board.css`, `/us/2026/`). A GitHub Pages *project* site serves at
-`yourname.github.io/Website/` — a sub-folder — so the first page loads and then
-every stylesheet and every link returns 404. Cloudflare and Netlify give you a
-root URL, so nothing breaks. GitHub Pages is fine later, once you have a custom
-domain pointed at it.
+**GitHub Pages, free, no card, no domain.** Your repository can host the site
+itself. One setting, then every push publishes automatically.
 
-### Cloudflare Pages (recommended)
+1. On github.com, open your repository.
+2. **Settings** (top row) → **Pages** (left sidebar).
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 
-1. Sign up free at **dash.cloudflare.com** — no card needed.
-2. **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
-3. Authorise GitHub and pick your `Website` repository.
-4. Set the build settings exactly:
+That is the whole thing. There is no build command to fill in and no folder to
+choose — the workflow in this repository already does that part.
 
-   | Field | Value |
-   | --- | --- |
-   | Production branch | `main` |
-   | Build command | `npm run build` |
-   | Build output directory | `dist` |
+Within a few minutes the site is live at:
 
-5. **Save and Deploy.** The first build takes a couple of minutes.
+```
+https://muhammadahsanbajwa8-cmd.github.io/Website/
+```
 
-   (The repository already carries a `.node-version` file saying 20, so you do
-   not need to set a Node version by hand.)
+Every push to `main`, and the nightly rebuild at 03:17 UTC, republishes it.
 
-You get a URL like `holiday-board.pages.dev`. Open it — all 195 countries, the
-calculator, the comparison. Every push to `main` rebuilds it automatically.
+### Why the address has `/Website` on the end
 
-### Netlify (the same thing, if you prefer it)
+A GitHub Pages *project* site is served from a folder named after the
+repository rather than from the root of the domain. That used to break this
+site outright: it wrote every link and every stylesheet from the domain root,
+so the first page loaded and everything after it 404'd.
 
-Sign up at **netlify.com** → **Add new site** → **Import an existing project** →
-pick the repo, and accept what it offers. There is nothing to fill in: the
-repository carries a `netlify.toml` with the build command, the output
-directory and the Node version already set.
+The generator now takes its mount point from `url` in `site.config.mjs` and
+prefixes every address it writes. Nothing to configure — change `url` and the
+whole site follows.
 
-### If the build fails
+The one thing a sub-folder cannot do is `robots.txt`. Crawlers only read it
+from the root of a domain, and you do not control `github.io`'s root. It has no
+effect on the site working, and it stops mattering the moment you move to your
+own domain.
 
-Read the log — it says which step failed. The usual causes:
+### Cloudflare Pages or Netlify instead
 
-- **Node version too old.** Set `NODE_VERSION` to `20`. This is the common one.
-- **Wrong output directory.** It must be `dist`, not `build` or `public`.
+Both are also free and give you a root address (`something.pages.dev`), which
+avoids the `/Website` folder entirely.
 
----
+- **Cloudflare**: dash.cloudflare.com → **Workers & Pages** → **Create** →
+  **Pages** → **Connect to Git** → pick the repo. Production branch `main`,
+  build command `npm run build`, output directory `dist`.
+- **Netlify**: netlify.com → **Add new site** → **Import an existing project**
+  → pick the repo, accept what it offers. `netlify.toml` fills in the rest.
+
+If you use either, set `url` in `site.config.mjs` to the address they give you
+(no trailing slash, no folder), and switch the GitHub deploy off with a
+repository variable: **Settings → Secrets and variables → Actions → Variables**
+→ `DEPLOY_TARGET` = `off`.
+
+### If the deploy step goes red
+
+- **"Pages site not found"** — step 3 above has not been done yet. The build
+  itself succeeded; only publishing failed.
+- **Wrong Source** — it must be **GitHub Actions**, not "Deploy from a branch".
 
 ## Stage 2 — Your own domain
 
-Do this before applying to AdSense. Google wants a site on a domain you own, and
-right now `site.config.mjs` still says `holidayboard.example`, which is a
-placeholder that would fail a review on its own.
+Do this before applying to AdSense. Google wants a site on a domain you own,
+and a `github.io` sub-folder is not one. The site works perfectly well there —
+it is just not a good address to apply with.
 
 ### Buy a domain
 
@@ -95,12 +98,16 @@ DNS page. HTTPS is automatic and free.
 Two lines in `site.config.mjs`:
 
 ```js
-url: 'https://yourdomain.com',        // no trailing slash
+url: 'https://yourdomain.com',        // no trailing slash, no folder
 contactEmail: 'you@yourdomain.com',   // an address you actually read
 ```
 
+Changing `url` also moves the whole site back to the domain root: the `/Website`
+prefix disappears from every link and every asset on the next build, because
+every address is derived from that one line.
+
 This matters more than it looks: those values go into the canonical tag of
-every page, all 1,594 sitemap URLs, and the contact line on `/about/` and
+every page, all 1,790 sitemap URLs, and the contact line on `/about/` and
 `/privacy/`.
 
 Then commit and push (see below) and the site rebuilds. Confirm with:
@@ -172,6 +179,7 @@ check the dates still land correctly and the explanations still match.
 ```bash
 npm run adsense:check   # scans the built site for what gets AdSense rejected
 npm run preview         # bundles the whole site into one file you can send someone
+npm run preview:static  # ten pages, no JavaScript — opens in anything
 ```
 
 ### If something goes wrong

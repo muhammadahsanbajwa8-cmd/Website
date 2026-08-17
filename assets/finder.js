@@ -12,10 +12,13 @@
   var countries = [];
   var loaded = false;
 
+  /** Where the site is mounted; empty when served from a domain root. */
+  var BASE = document.documentElement.dataset.base || '';
+
   function load() {
     if (loaded) return Promise.resolve();
     loaded = true;
-    return fetch('/countries.json')
+    return fetch(BASE + '/countries.json')
       .then(function (response) {
         return response.json();
       })
@@ -24,7 +27,7 @@
         render(input.value);
       })
       .catch(function () {
-        results.innerHTML = '<li><a href="/countries/">Browse all countries</a></li>';
+        results.innerHTML = '<li><a href="' + BASE + '/countries/">Browse all countries</a></li>';
       });
   }
 
@@ -49,7 +52,8 @@
       else if (name.indexOf(q) > -1) matches.push(country);
     }
     if (!matches.length) {
-      results.innerHTML = '<li><a href="/countries/">No match — browse all countries</a></li>';
+      results.innerHTML =
+        '<li><a href="' + BASE + '/countries/">No match — browse all countries</a></li>';
       return;
     }
     results.innerHTML = matches

@@ -7,8 +7,19 @@ export const config = {
   name: 'Holiday Board',
   tagline: 'Public holidays and working days for every country, rebuilt nightly.',
 
-  /** Canonical origin. No trailing slash. Used for canonical tags, OG, sitemap. */
-  url: 'https://holidayboard.example', // ← change this (see DEPLOY.md)
+  /**
+   * Where the site lives. No trailing slash.
+   *
+   * This is the only place the address is written down. It sets the canonical
+   * tag, Open Graph and every sitemap URL — and, if it has a path, it also
+   * sets the folder the whole site is mounted under, so every internal link
+   * and asset is prefixed to match. A GitHub Pages project site needs that;
+   * a custom domain does not.
+   *
+   * Moving to your own domain is this one line: change it, and the /Website
+   * prefix disappears from the entire build. See DEPLOY.md.
+   */
+  url: 'https://muhammadahsanbajwa8-cmd.github.io/Website',
 
   /** Shown on /about/ and /privacy/ as the contact of record. */
   contactEmail: 'hello@holidayboard.example',

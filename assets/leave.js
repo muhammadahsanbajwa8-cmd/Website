@@ -9,6 +9,9 @@
 import { planLeave } from '/assets/mjs/lib/leave.mjs';
 import { leaveBody } from '/assets/mjs/lib/pages/leave.mjs';
 
+/** Where the site is mounted; empty when served from a domain root. */
+const BASE = document.documentElement.dataset.base || '';
+
 const container = document.getElementById('leave-body');
 const form = document.getElementById('leave-form');
 const configEl = document.getElementById('leave-config');
@@ -36,7 +39,7 @@ if (container && form && configEl) {
 
   async function load() {
     if (data) return data;
-    const response = await fetch(`/data/${config.code.toUpperCase()}.json`);
+    const response = await fetch(`${BASE}/data/${config.code.toUpperCase()}.json`);
     if (!response.ok) throw new Error('no data');
     data = await response.json();
     return data;
@@ -60,7 +63,7 @@ if (container && form && configEl) {
       container.dataset.year = String(year);
     } catch (error) {
       status(
-        `Could not load the ${config.name} calendar. <a href="/${config.code.toLowerCase()}/">Open the country page</a> instead.`,
+        `Could not load the ${config.name} calendar. <a href="${BASE}/${config.code.toLowerCase()}/">Open the country page</a> instead.`,
         'calc__error',
       );
     }
