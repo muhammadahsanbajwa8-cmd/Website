@@ -159,6 +159,8 @@ Beyond the config:
 | --- | --- |
 | What a holiday means, in the explanations | `lib/glossary.mjs` |
 | A country's holiday list | `lib/world.mjs` — one line per country |
+| How the leave planner picks days | `lib/leave.mjs` — the strategies are at the top |
+| How many countries the team view allows | `lib/team.mjs` — `MAX_MEMBERS` |
 | Colours, spacing, type | `assets/board.css` |
 | Wording on the About or Privacy pages | `lib/pages/site.mjs` |
 

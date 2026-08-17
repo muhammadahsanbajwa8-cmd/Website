@@ -271,17 +271,79 @@ tools/preview-shell.html  the frame that file is built into
 | `/countries/` | Every country, grouped by region |
 | `/compare/` | Pick any two countries and compare them |
 | `/compare/{a}-vs-{b}/` | Pre-rendered comparison for a featured pairing |
+| `/team/` | Up to six countries on one planner — when everyone is actually available |
 | `/events/` | Countries with live listings *(only with an API key)* |
 | `/{iso2}/events/`, `/{iso2}/concerts/`, `/{iso2}/comedy/` | What's on *(only with an API key)* |
 | `/today/` | Which countries have a public holiday today, and what is coming up |
 | `/{iso2}/` | Country hub: pick a year, see the next holiday |
 | `/{iso2}/{year}/` | The full holiday table plus computed statistics |
-| `/{iso2}/business-days-calculator/` | Client-side working-days calculator |
+| `/{iso2}/business-days-calculator/` | Working days between two dates, or a date N business days away |
+| `/{iso2}/annual-leave-planner/` | Where to spend a leave allowance for the most time off |
 | `/about/`, `/privacy/` | Method, sources and privacy |
 
 Plus `sitemap.xml` (current year highest priority, past years lowest),
 `robots.txt`, `ads.txt`, `countries.json` for the finder, `data/{ISO2}.json` for
 the comparison, and a `404.html`.
+
+## The three tools
+
+Holiday tables are the data. These are the reason to come back, and all three
+run entirely in the browser — the generator renders a default so the page works
+without JavaScript and reads properly to a crawler, then the same modules
+re-render it when the visitor changes anything.
+
+### Annual leave planner — `/{iso2}/annual-leave-planner/`
+
+Answers "I get N days of leave, which days do I book?"
+
+A day off is worth more next to other days off, because what a person values is
+the length of the unbroken run rather than the count of days. So the planner
+lays the year out as a strip, marks every weekend and public holiday, enumerates
+**every** unbroken run that could be bought, prices each in leave days, and
+solves a knapsack for the set that buys the most time. It is exact, not greedy —
+365 days by 40 leave days is a small enough problem to solve properly.
+
+Three strategies, because the arithmetic cannot tell you which person you are:
+
+| Strategy | What it does |
+| --- | --- |
+| Long weekends | Only bridges one or two days. Buys the most total time off |
+| Proper holidays | Nothing shorter than a week |
+| Balanced | Reserves 60% of the budget for one real trip, then spends the rest |
+
+Balanced needs two passes, and that is not incidental. Left to itself the
+optimiser *always* buys long weekends, because bridging a single Friday is the
+best trade on the board and stays the best trade until the budget runs out —
+which made the first two strategies return identical plans. Reserving part of
+the budget first is what makes the choice mean something.
+
+Among runs of equal length the planner prefers the one built on a public
+holiday. Every spare Monday in the year buys the same three days, and without
+that tie-break the tool hands back "book a Monday in November" as though it were
+a finding.
+
+### Team holiday overlap — `/team/`
+
+Up to six countries on one planner, because the question distributed teams
+actually have is about the intersection. It separates three things people
+conflate: days everyone is working (the number to plan around), days somebody is
+away, and days everyone is off at once — rarer than expected, and worth knowing.
+It also finds the longest runs of working days with nobody away, for whatever
+needs the whole team in one place.
+
+The line-up lives in the query string, so a link carries the team.
+
+### Business-day deadline calculator
+
+The existing calculator gained a second mode: not how many working days lie
+between two dates, but what date you land on after a given number of them.
+"30 business days from today" is how notice periods, payment terms and statutory
+response windows are written. It counts from the next working day, the usual
+convention, and shows every weekend and holiday it skipped so the answer can be
+checked rather than trusted.
+
+It is a second tab on the existing page rather than 195 new pages. Page volume
+is this site's risk with reviewers, not its strength.
 
 ## Concerts, comedy and live events
 
