@@ -1,0 +1,612 @@
+<title>Holiday Board Preview</title>
+<style>
+/* ==========================================================================
+   Preview housing. Deliberately a cool near-black instrument frame so the
+   site's warm board sits inside it as the subject, not as more chrome.
+   Single committed theme: this is a viewer, not a document.
+   ========================================================================== */
+:root {
+  --housing: #16181c;
+  --housing-raised: #1e2126;
+  --housing-sunk: #101215;
+  --edge: #31353d;
+  --dim: #8d94a2;
+  --bright: #e8eaef;
+  --live: #ffd400;
+
+  --ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --code: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--housing);
+  color: var(--bright);
+  font-family: var(--ui);
+  font-size: 14px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--live);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* --- Rail ---------------------------------------------------------------- */
+
+.pv-rail {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--housing-raised);
+  border-bottom: 1px solid var(--edge);
+  flex-wrap: wrap;
+}
+
+.pv-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.pv-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--live);
+  flex: none;
+}
+
+.pv-brand small {
+  font-family: var(--code);
+  font-size: 0.7rem;
+  color: var(--dim);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.pv-nav {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.pv-icon {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  background: var(--housing-sunk);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+.pv-icon:hover:not(:disabled) {
+  border-color: var(--dim);
+}
+.pv-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pv-route {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--housing-sunk);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0 0.6rem;
+  height: 2rem;
+}
+
+.pv-route select {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  font-family: var(--code);
+  font-size: 0.78rem;
+  padding: 0;
+  height: 100%;
+  cursor: pointer;
+  appearance: none;
+  text-overflow: ellipsis;
+}
+.pv-route select option {
+  background: var(--housing-raised);
+  color: var(--bright);
+}
+.pv-route::after {
+  content: '▾';
+  color: var(--dim);
+  font-size: 0.7rem;
+  pointer-events: none;
+}
+
+.pv-group {
+  display: flex;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--housing-sunk);
+}
+
+.pv-group button {
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--edge);
+  padding: 0 0.7rem;
+  height: 2rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.pv-group button:last-child {
+  border-right: 0;
+}
+.pv-group button:hover {
+  color: var(--bright);
+}
+.pv-group button[aria-pressed='true'] {
+  background: var(--live);
+  color: #16181c;
+  font-weight: 600;
+}
+
+.pv-label {
+  font-family: var(--code);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  align-self: center;
+}
+
+/* --- Stage --------------------------------------------------------------- */
+
+.pv-stage {
+  min-height: 0;
+  padding: 0.9rem;
+  display: grid;
+  justify-items: center;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #1b1e24 0%, var(--housing) 60%);
+}
+
+.pv-sheet {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: #f2efe4;
+  box-shadow: 0 18px 40px -20px #000, 0 0 0 1px #0006;
+  transition: max-width 0.18s ease;
+}
+body[data-viewport='mobile'] .pv-sheet {
+  max-width: 390px;
+}
+
+iframe.pv-sheet {
+  display: block;
+}
+
+/* --- Footnote ------------------------------------------------------------ */
+
+.pv-foot {
+  border-top: 1px solid var(--edge);
+  background: var(--housing-raised);
+  padding: 0.5rem 0.9rem;
+  color: var(--dim);
+  font-size: 0.76rem;
+}
+
+.pv-foot summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pv-foot summary::-webkit-details-marker {
+  display: none;
+}
+.pv-foot summary::before {
+  content: '›';
+  transition: transform 0.15s ease;
+  display: inline-block;
+  color: var(--live);
+}
+.pv-foot[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.pv-foot ul {
+  margin: 0.6rem 0 0.2rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.35rem 1.5rem;
+}
+.pv-foot li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.pv-foot b {
+  color: var(--bright);
+  font-weight: 600;
+}
+.pv-tick {
+  color: var(--live);
+  flex: none;
+}
+.pv-foot code {
+  font-family: var(--code);
+  font-size: 0.72rem;
+  color: var(--bright);
+}
+
+@media (max-width: 46rem) {
+  .pv-brand small,
+  .pv-label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.001ms !important;
+  }
+}
+</style>
+
+<div class="pv-rail">
+  <span class="pv-brand"><i class="pv-dot"></i><span id="pv-name">Holiday Board</span> <small>static preview</small></span>
+
+  <span class="pv-nav">
+    <button class="pv-icon" id="back" title="Back" aria-label="Back" disabled>←</button>
+    <button class="pv-icon" id="home" title="Home" aria-label="Home">⌂</button>
+  </span>
+
+  <span class="pv-route">
+    <select id="route" aria-label="Page"></select>
+  </span>
+
+  <span class="pv-label">Width</span>
+  <span class="pv-group" id="viewport">
+    <button data-viewport="desktop" aria-pressed="true">Desktop</button>
+    <button data-viewport="mobile" aria-pressed="false">Mobile</button>
+  </span>
+
+  <span class="pv-label">Theme</span>
+  <span class="pv-group" id="theme">
+    <button data-theme="system" aria-pressed="true">System</button>
+    <button data-theme="light" aria-pressed="false">Light</button>
+    <button data-theme="dark" aria-pressed="false">Dark</button>
+  </span>
+</div>
+
+<div class="pv-stage">
+  <iframe class="pv-sheet" id="sheet" title="Site preview"></iframe>
+</div>
+
+<details class="pv-foot">
+  <summary><span id="pv-scope">…</span> — <b>what works here</b></summary>
+  <ul>
+    <li><span class="pv-tick">✓</span><span id="pv-links">Every internal link, on every page</span></li>
+    <li><span class="pv-tick">✓</span><span>The working-days calculator, with its own breakdown</span></li>
+    <li><span class="pv-tick">✓</span><span id="pv-modules">The country finder and the comparison picker</span></li>
+    <li><span class="pv-tick">✓</span><span>Light and dark, desktop and mobile, real media queries</span></li>
+    <li><span class="pv-tick">✓</span><span>The consent banner and the dashed ad placeholders</span></li>
+    <li><span class="pv-tick">·</span><span>Ads stay placeholders: no publisher ID is configured yet</span></li>
+  </ul>
+  <p style="margin:.6rem 0 0">Served locally with <code>npm run serve</code> — this bundle is the same
+    <code>dist/</code> output with the stylesheet, fonts, scripts and country data inlined.</p>
+</details>
+
+<script id="payload" type="text/plain">__PAYLOAD__</script>
+<script>
+(async function () {
+  'use strict';
+
+  /** The whole site, gzipped and base64'd, unpacked here. */
+  async function unpack(base64) {
+    var binary = atob(base64.trim());
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  var payload;
+  try {
+    payload = await unpack(document.getElementById('payload').textContent);
+  } catch (error) {
+    document.querySelector('.pv-stage').innerHTML =
+      '<p style="color:#e8eaef;font:14px ui-sans-serif,system-ui;max-width:34rem;padding:2rem">' +
+      'This preview needs a browser with DecompressionStream — any current Chrome, Firefox, ' +
+      'Safari or Edge. ' +
+      String(error) +
+      '</p>';
+    return;
+  }
+
+  var sheet = document.getElementById('sheet');
+  var routeSelect = document.getElementById('route');
+  var backButton = document.getElementById('back');
+
+  var history = [];
+  var theme = 'system';
+
+  // Modules are served from blob: URLs through an import map, because a
+  // srcdoc document has no origin to resolve /assets/mjs/... against.
+  var moduleMap = {};
+  Object.keys(payload.modules).forEach(function (name) {
+    moduleMap[name] = URL.createObjectURL(
+      new Blob([payload.modules[name]], { type: 'text/javascript' })
+    );
+  });
+  var importMap = JSON.stringify({ imports: moduleMap });
+
+  // Whether this host allows modules from blob: URLs decides how much of the
+  // comparison can run here. Check rather than claim: if it is blocked, the
+  // year chips fall through to the router and land on the pre-rendered pair,
+  // and the note below says so instead of promising a picker that will not
+  // respond.
+  import(moduleMap['hb/lib/compare.mjs']).catch(function () {
+    var note = document.getElementById('pv-modules');
+    if (note) {
+      note.textContent =
+        'The country finder (the comparison picker needs the site served, not bundled)';
+      note.previousElementSibling.textContent = '·';
+    }
+  });
+
+  Object.keys(payload.pages)
+    .sort()
+    .forEach(function (route) {
+      var option = document.createElement('option');
+      option.value = route;
+      option.textContent = route;
+      routeSelect.appendChild(option);
+    });
+
+  function themeCss() {
+    if (theme === 'dark') return '<style>:root{' + payload.darkTokens + '}</style>';
+    if (theme === 'light') {
+      return (
+        '<style>@media (prefers-color-scheme: dark){:root{' + payload.lightTokens + '}}</style>'
+      );
+    }
+    return '';
+  }
+
+  /** Data the page's own scripts would fetch from the server. */
+  function shim(route) {
+    var files = {};
+    Object.keys(payload.data).forEach(function (key) {
+      // The per-country files are only read by the comparison; leaving them
+      // out elsewhere keeps the composed document small.
+      if (key.indexOf('/data/') === 0 && route.indexOf('/compare') !== 0) return;
+      files[key] = payload.data[key];
+    });
+    return (
+      '<script>(function(){' +
+      'var FILES=' +
+      JSON.stringify(files) +
+      ';var real=window.fetch?window.fetch.bind(window):null;' +
+      'window.fetch=function(input,init){var key=String(input&&input.url||input)' +
+      '.replace(location.origin,"").split("?")[0];' +
+      'if(FILES[key])return Promise.resolve(new Response(FILES[key],{status:200,' +
+      'headers:{"content-type":"application/json"}}));' +
+      'return real?real(input,init):Promise.reject(new Error("offline"));};' +
+      // A srcdoc document cannot rewrite its own address; report it upward so
+      // the rail can show it instead of throwing a SecurityError.
+      'var report=function(s,t,u){try{parent.postMessage({type:"path",path:u},"*");}catch(e){}};' +
+      'window.history.replaceState=report;window.history.pushState=report;' +
+      '})();<\/script>'
+    );
+  }
+
+  function compose(route) {
+    var page = payload.pages[route];
+    var classic = '';
+    (page.scripts || []).forEach(function (source) {
+      // compare.js is an ES module and is attached below, not here.
+      if (source === '/assets/compare.js') return;
+      if (payload.scripts[source]) classic += '<script>' + payload.scripts[source] + '<\/script>';
+    });
+    var module =
+      (page.scripts || []).indexOf('/assets/compare.js') > -1
+        ? '<script type="module">' + payload.entry + '<\/script>'
+        : '';
+
+    return (
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      payload.fontsHead +
+      '<style>' + payload.css + '</style>' +
+      themeCss() +
+      '<script type="importmap">' + importMap + '<\/script>' +
+      '</head><body>' +
+      page.body +
+      shim(route) +
+      classic +
+      module +
+      '</body></html>'
+    );
+  }
+
+  function resolve(href) {
+    // Pair pages are alphabetical; the year chips point at the interactive
+    // route, so send those to the pre-rendered pair when one exists.
+    var url = href.split('#')[0];
+    var query = url.indexOf('?') > -1 ? url.slice(url.indexOf('?') + 1) : '';
+    var path = url.split('?')[0];
+
+    if (payload.pages[path]) return { route: path, hash: href.split('#')[1] || '', query: query };
+
+    if (path === '/compare/' && query) {
+      var params = new URLSearchParams(query);
+      var a = (params.get('a') || '').toLowerCase();
+      var b = (params.get('b') || '').toLowerCase();
+      var pair = '/compare/' + [a, b].sort().join('-vs-') + '/';
+      if (payload.pages[pair]) return { route: pair, hash: '', query: query };
+    }
+    return null;
+  }
+
+  function show(route, hash, record) {
+    if (record !== false) history.push(route);
+    backButton.disabled = history.length < 2;
+    routeSelect.value = route;
+
+    sheet.srcdoc = compose(route);
+    sheet.onload = function () {
+      wire();
+      if (hash) {
+        var target = sheet.contentDocument.getElementById(hash);
+        if (target) target.scrollIntoView();
+      }
+    };
+  }
+
+  function wire() {
+    var doc = sheet.contentDocument;
+    if (!doc) return;
+
+    // Bubble phase, and defaultPrevented is respected: the page's own scripts
+    // get first refusal. That is what lets the comparison's year chips
+    // re-render in place here exactly as they do on a served site, instead of
+    // being hijacked into a navigation.
+    doc.addEventListener('click', function (event) {
+      if (event.defaultPrevented) return;
+
+      var link = event.target.closest && event.target.closest('a[href]');
+      if (!link) return;
+      var href = link.getAttribute('href');
+
+      if (/^https?:/.test(href)) {
+        event.preventDefault();
+        window.open(href, '_blank', 'noopener');
+        return;
+      }
+      if (href.charAt(0) === '#') return; // in-page anchor
+      if (href.charAt(0) !== '/') return;
+
+      event.preventDefault();
+      var found = resolve(href);
+      if (found) show(found.route, found.hash);
+      else notFound(href);
+    });
+  }
+
+  function notFound(href) {
+    var doc = sheet.contentDocument;
+    var note = doc.createElement('div');
+    note.setAttribute(
+      'style',
+      'position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);z-index:99;' +
+        'background:#16181c;color:#e8eaef;border:1px solid #31353d;border-left:3px solid #ffd400;' +
+        'border-radius:4px;padding:.6rem .9rem;font:13px ui-sans-serif,system-ui;max-width:32rem'
+    );
+    note.textContent = href + ' is generated by the build but not bundled into this preview.';
+    doc.body.appendChild(note);
+    setTimeout(function () {
+      note.remove();
+    }, 3200);
+  }
+
+  routeSelect.addEventListener('change', function () {
+    show(routeSelect.value);
+  });
+
+  backButton.addEventListener('click', function () {
+    history.pop();
+    var previous = history[history.length - 1];
+    if (previous) show(previous, '', false);
+    backButton.disabled = history.length < 2;
+  });
+
+  document.getElementById('home').addEventListener('click', function () {
+    show('/');
+  });
+
+  document.getElementById('viewport').addEventListener('click', function (event) {
+    var button = event.target.closest('button');
+    if (!button) return;
+    document.body.dataset.viewport = button.dataset.viewport;
+    [].forEach.call(this.children, function (child) {
+      child.setAttribute('aria-pressed', String(child === button));
+    });
+  });
+
+  document.getElementById('theme').addEventListener('click', function (event) {
+    var button = event.target.closest('button');
+    if (!button) return;
+    theme = button.dataset.theme;
+    [].forEach.call(this.children, function (child) {
+      child.setAttribute('aria-pressed', String(child === button));
+    });
+    show(routeSelect.value, '', false);
+  });
+
+  window.addEventListener('message', function (event) {
+    if (event.data && event.data.type === 'path') {
+      // The comparison picker rewrote its own address; mirror it in the rail.
+      var found = resolve(String(event.data.path || ''));
+      if (found && found.route !== routeSelect.value) routeSelect.value = found.route;
+    }
+  });
+
+  // Say what this bundle actually contains. A full build runs to thousands of
+  // pages, so the preview usually carries a sample of countries plus every
+  // shared page — claiming "all pages" would be untrue.
+  var site = payload.site;
+  document.getElementById('pv-scope').innerHTML = site.skipped
+    ? '<b>' +
+      site.pages +
+      '</b> pages — every shared page, plus ' +
+      site.countries +
+      ' countries sampled from the ' +
+      (site.pages + site.skipped).toLocaleString() +
+      ' the build produced'
+    : 'All <b>' + site.pages + '</b> generated pages, running as built';
+  if (site.skipped) {
+    document.getElementById('pv-links').textContent =
+      'Every internal link within the sampled countries';
+  }
+  document.getElementById('pv-name').textContent = site.name;
+  document.body.dataset.viewport = 'desktop';
+  show('/');
+})();
+</script>

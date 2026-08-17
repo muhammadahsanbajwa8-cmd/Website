@@ -1,34 +1,22 @@
 {
-  "name": "react-example",
+  "name": "holiday-board",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
+  "description": "Static generator for public holiday calendars and working-day counts, for every country with open data.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "build": "node build.mjs",
+    "build:offline": "node build.mjs --offline",
+    "test": "node --test test/*.test.mjs",
+    "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\"",
+    "serve": "node tools/serve.mjs",
+    "preview": "node tools/preview.mjs",
+    "events:check": "node tools/events-check.mjs",
+    "adsense:check": "node tools/adsense-check.mjs"
   },
-  "dependencies": {
-    "@google/genai": "^1.29.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
-    "lucide-react": "^0.546.0",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
-    "vite": "^6.2.3",
-    "express": "^4.21.2",
-    "dotenv": "^17.2.3",
-    "motion": "^12.23.24"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "autoprefixer": "^10.4.21",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3",
-    "@types/express": "^4.17.21"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }

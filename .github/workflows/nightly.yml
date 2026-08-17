@@ -1,0 +1,100 @@
+name: Nightly build and deploy
+
+# The whole point of the nightly run: it keeps /today/ correct, refreshes the
+# holiday data, and publishes next year's pages on its own as the range rolls
+# forward. Nothing here needs a human.
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC daily
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Keeps repeat builds fast and means an upstream outage degrades to
+      # yesterday's data rather than to nothing.
+      - name: Restore API cache
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: nager-cache-${{ github.run_id }}
+          restore-keys: nager-cache-
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check the output is not empty
+        run: |
+          test -f dist/index.html
+          test -f dist/sitemap.xml
+          echo "pages: $(find dist -name '*.html' | wc -l)"
+
+      # Stops a build that would put ads where policy forbids them, or that
+      # still carries sample listings, from reaching the deploy step.
+      - name: AdSense policy check
+        run: npm run adsense:check
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # Deploying to GitHub Pages is opt-in, and deliberately so. A GitHub Pages
+  # *project* site is served from a sub-folder (user.github.io/Repo/), while
+  # this site links everything from the domain root — so it would load the
+  # first page and 404 the stylesheet and every link. It is only correct once
+  # a custom domain is pointed at Pages, which serves at the root.
+  #
+  # To use it: repository Settings → Pages → Source: GitHub Actions, add your
+  # custom domain there, then Settings → Secrets and variables → Actions →
+  # Variables, and set DEPLOY_TARGET to github-pages.
+  #
+  # Hosting on Cloudflare Pages or Netlify instead? Leave this switched off.
+  # They build from the repository themselves and need nothing here.
+  deploy:
+    needs: build
+    if: vars.DEPLOY_TARGET == 'github-pages'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+# ---------------------------------------------------------------------------
+# Deploying somewhere else instead? Replace the `deploy` job above.
+#
+# Cloudflare Pages:
+#   - uses: cloudflare/wrangler-action@v3
+#     with:
+#       apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#       accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+#       command: pages deploy dist --project-name=holiday-board
+#
+# Netlify:
+#   - run: npx --yes netlify-cli deploy --dir=dist --prod
+#     env:
+#       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+#       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+# ---------------------------------------------------------------------------
