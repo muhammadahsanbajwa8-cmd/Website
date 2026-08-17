@@ -59,8 +59,21 @@ jobs:
         with:
           path: dist
 
+  # Deploying to GitHub Pages is opt-in, and deliberately so. A GitHub Pages
+  # *project* site is served from a sub-folder (user.github.io/Repo/), while
+  # this site links everything from the domain root — so it would load the
+  # first page and 404 the stylesheet and every link. It is only correct once
+  # a custom domain is pointed at Pages, which serves at the root.
+  #
+  # To use it: repository Settings → Pages → Source: GitHub Actions, add your
+  # custom domain there, then Settings → Secrets and variables → Actions →
+  # Variables, and set DEPLOY_TARGET to github-pages.
+  #
+  # Hosting on Cloudflare Pages or Netlify instead? Leave this switched off.
+  # They build from the repository themselves and need nothing here.
   deploy:
     needs: build
+    if: vars.DEPLOY_TARGET == 'github-pages'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

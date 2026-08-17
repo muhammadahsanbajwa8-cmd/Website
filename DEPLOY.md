@@ -48,8 +48,10 @@ domain pointed at it.
    | Build command | `npm run build` |
    | Build output directory | `dist` |
 
-5. Open **Environment variables** and add one: `NODE_VERSION` = `20`.
-6. **Save and Deploy.** The first build takes a couple of minutes.
+5. **Save and Deploy.** The first build takes a couple of minutes.
+
+   (The repository already carries a `.node-version` file saying 20, so you do
+   not need to set a Node version by hand.)
 
 You get a URL like `holiday-board.pages.dev`. Open it — all 195 countries, the
 calculator, the comparison. Every push to `main` rebuilds it automatically.
@@ -57,8 +59,9 @@ calculator, the comparison. Every push to `main` rebuilds it automatically.
 ### Netlify (the same thing, if you prefer it)
 
 Sign up at **netlify.com** → **Add new site** → **Import an existing project** →
-pick the repo. Build command `npm run build`, publish directory `dist`, and an
-environment variable `NODE_VERSION` = `20`.
+pick the repo, and accept what it offers. There is nothing to fill in: the
+repository carries a `netlify.toml` with the build command, the output
+directory and the Node version already set.
 
 ### If the build fails
 

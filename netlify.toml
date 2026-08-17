@@ -1,0 +1,17 @@
+# Netlify reads this, so there is nothing to fill in on the dashboard: connect
+# the repository and deploy. Cloudflare Pages ignores it and asks for the same
+# two values in its own form — build command `npm run build`, output `dist`.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# The generator writes real files at real paths, so nothing needs rewriting.
+# This only catches addresses that were never generated.
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
