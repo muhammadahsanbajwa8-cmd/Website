@@ -1,0 +1,180 @@
+// Data model for the e-commerce API.
+//
+// Two rules drive most of the shapes below:
+//   1. Money is only ever an integer number of cents. There is no Float
+//      anywhere in this file, and there never should be.
+//   2. An order is a historical record. Once placed it must keep describing
+//      what the customer actually bought, even if the product is renamed,
+//      repriced, or withdrawn from sale afterwards.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  // Stored lower-cased by the service layer, so the unique index is what
+  // actually prevents "Ada@example.com" and "ada@example.com" both existing.
+  email        String   @unique
+  // bcrypt/argon2 output. The plain password is never held beyond the request
+  // that hashes it, and this column is never included in an API response.
+  passwordHash String
+  name         String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cart   Cart?
+  orders Order[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  // Human-readable identifier for URLs. Unique so /products/blue-mug is stable.
+  slug        String  @unique
+  description String  @default("")
+  // Integer cents. 1999 means $19.99. Never a Float, never a formatted string.
+  priceCents  Int
+  // ISO 4217, three letters. Fixed per product rather than per order so a cart
+  // can refuse to mix currencies.
+  currency    String  @default("USD") @db.Char(3)
+  // Units available to sell. Guarded by a CHECK (stock >= 0) constraint added
+  // in the migration, so an oversell is a database error, not a silent -3.
+  stock       Int     @default(0)
+  // Withdrawn products are deactivated, not deleted, because order history
+  // points at them. Public reads filter on this; admin reads do not.
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  // Supports the default catalogue listing: active products, newest first.
+  @@index([isActive, createdAt])
+  @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// Cart
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id String @id @default(cuid())
+  // One cart per user, enforced by the database rather than by application
+  // code remembering to check.
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id       String @id @default(cuid())
+  cartId   String
+  cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  // A cart line is a live pointer at the product: the price shown in the cart
+  // is today's price, read through this relation. Nothing about money is
+  // copied here. Restrict, not Cascade, so a product in someone's cart cannot
+  // be hard-deleted out from under them.
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quantity Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Adding the same product twice increments the existing line instead of
+  // creating a second one.
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  CANCELLED
+}
+
+model Order {
+  id     String @id @default(cuid())
+  userId String
+  // Restrict: deleting a user must not silently delete their order history.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  status OrderStatus @default(PENDING)
+
+  // Sum of the line totals, in cents, stored at checkout time. Denormalised on
+  // purpose: it is the number the customer agreed to, and recomputing it later
+  // from live product prices would produce a different answer.
+  totalCents Int
+  currency   String @db.Char(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  // Supports "list my orders, newest first".
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Kept as a reference for "buy this again" and for reporting, but the order
+  // does not depend on it to render — see the snapshot columns below.
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quantity Int
+
+  // Snapshots taken at checkout. These are why a price change tomorrow cannot
+  // rewrite what an invoice from today says.
+  nameSnapshot   String
+  unitPriceCents Int
+  // quantity * unitPriceCents, stored rather than computed so the arithmetic
+  // that produced totalCents is auditable line by line.
+  lineTotalCents Int
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_items")
+}
