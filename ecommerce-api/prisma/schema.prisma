@@ -83,16 +83,35 @@ model Product {
 
 model Cart {
   id String @id @default(cuid())
-  // One cart per user, enforced by the database rather than by application
-  // code remembering to check.
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A cart belongs to EITHER a signed-in user OR an anonymous visitor, never
+  // both and never neither. A database CHECK enforces that exclusive-or, so
+  // there is no such thing as an orphaned or double-owned cart.
+  //
+  // Nullable + unique is deliberate and does the right thing in Postgres: a
+  // unique index ignores NULLs, so "one cart per user" still holds while any
+  // number of guest carts coexist.
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Opaque 256-bit random token held by the anonymous visitor. This is a
+  // bearer credential — whoever presents it owns the cart — so it is generated
+  // with crypto.randomBytes, never guessable, and never derived from anything
+  // about the visitor.
+  sessionToken String? @unique
+
+  // Guest carts are garbage. Without an expiry they accumulate forever, one
+  // row per visitor who ever added an item. Set for guest carts, cleared when
+  // the cart is claimed by a user at login.
+  expiresAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   items CartItem[]
 
+  // Supports the sweep that deletes expired guest carts.
+  @@index([expiresAt])
   @@map("carts")
 }
 

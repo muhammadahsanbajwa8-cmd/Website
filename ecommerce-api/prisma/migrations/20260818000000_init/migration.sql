@@ -39,7 +39,9 @@ CREATE TABLE "products" (
 -- CreateTable
 CREATE TABLE "carts" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" TEXT,
+    "sessionToken" TEXT,
+    "expiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -98,6 +100,12 @@ CREATE INDEX "products_isActive_createdAt_idx" ON "products"("isActive", "create
 CREATE UNIQUE INDEX "carts_userId_key" ON "carts"("userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "carts_sessionToken_key" ON "carts"("sessionToken");
+
+-- CreateIndex
+CREATE INDEX "carts_expiresAt_idx" ON "carts"("expiresAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "cart_items_cartId_productId_key" ON "cart_items"("cartId", "productId");
 
 -- CreateIndex
@@ -132,8 +140,9 @@ ALTER TABLE "order_items" ADD CONSTRAINT "order_items_productId_fkey" FOREIGN KE
 --
 -- The point of these is that a bug in the application layer becomes a loud
 -- database error instead of a quiet wrong number. Negative stock, a zero-
--- quantity cart line, and a line total that does not match its own arithmetic
--- are all impossible to store, not merely discouraged.
+-- quantity cart line, a cart owned by nobody, and a line total that does not
+-- match its own arithmetic are all impossible to store, not merely
+-- discouraged.
 -- ---------------------------------------------------------------------------
 
 -- Emails are stored lower-cased, so the unique index actually means what the
@@ -145,6 +154,19 @@ ALTER TABLE "products"
   ADD CONSTRAINT "products_price_non_negative" CHECK ("priceCents" >= 0),
   ADD CONSTRAINT "products_stock_non_negative" CHECK ("stock" >= 0),
   ADD CONSTRAINT "products_currency_iso4217" CHECK ("currency" ~ '^[A-Z]{3}$');
+
+-- A cart belongs to exactly one of a user or an anonymous session. Both set is
+-- an ownership ambiguity; neither set is a cart nobody can ever reach.
+ALTER TABLE "carts"
+  ADD CONSTRAINT "carts_owner_exclusive"
+    CHECK (("userId" IS NULL) <> ("sessionToken" IS NULL));
+
+-- Guest carts expire; carts owned by a user do not. Claiming a guest cart at
+-- login therefore has to clear expiresAt in the same statement that sets
+-- userId, which is exactly the atomicity we want.
+ALTER TABLE "carts"
+  ADD CONSTRAINT "carts_guest_carts_expire"
+    CHECK (("sessionToken" IS NULL) = ("expiresAt" IS NULL));
 
 -- A cart line with quantity 0 is a removal, not a line. Remove it instead.
 ALTER TABLE "cart_items"

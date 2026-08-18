@@ -61,6 +61,11 @@ route  ->  authenticate  ->  requireRole  ->  validate  ->  controller  ->  serv
                                                             errorHandler
 ```
 
+`authenticate` comes in two flavours. Most protected routes use the strict one,
+which 401s without a valid token. Cart routes use a permissive one that resolves
+a signed-in user *or* an anonymous `sessionToken`, and mints a new guest cart if
+it finds neither — that is what lets a logged-out visitor build a cart.
+
 ## Error shape
 
 Every failure — from a bad password to an unhandled exception — leaves the API
@@ -113,22 +118,75 @@ Prices are integer cents, everywhere, end to end. `priceCents: 1999` is $19.99.
 See `prisma/schema.prisma` — every non-obvious column is commented there.
 
 ```
-User 1---0..1 Cart 1---* CartItem *---1 Product
-  |                                        |
-  1                                        1
-  |                                        |
-  *                                        *
-Order 1---------------* OrderItem *--------+
+                 Cart 1---* CartItem *---1 Product
+                  |                            |
+User 0..1---------+                            |
+  |          (or an anonymous sessionToken)    |
+  1                                            1
+  |                                            |
+  *                                            *
+Order 1--------------* OrderItem *-------------+
 ```
 
 - **User** — email, password hash, `role` of `USER` or `ADMIN`.
 - **Product** — name, unique slug, `priceCents`, `stock`, `isActive`.
-- **Cart** — exactly one per user, enforced by a unique index on `userId`.
+- **Cart** — owned by *either* a user *or* an anonymous visitor, never both.
 - **CartItem** — unique on `(cartId, productId)`; prices are read live from the
   product, never copied.
-- **Order** — `status`, and a `totalCents` frozen at checkout.
+- **Order** — always belongs to a real user. `status`, and a `totalCents`
+  frozen at checkout.
 - **OrderItem** — quantity plus a snapshot of the name and unit price as they
   were at checkout.
+
+### Guest carts
+
+An anonymous visitor gets a cart keyed by an opaque `sessionToken` — 256 bits
+from `crypto.randomBytes`, returned once and presented on later requests. It is
+a bearer credential: whoever holds the token holds the cart.
+
+`Cart.userId` and `Cart.sessionToken` are both nullable and both unique, and a
+CHECK constraint requires exactly one of them to be set. Nullable-unique is the
+right tool here because a Postgres unique index ignores NULLs, so "one cart per
+user" still holds while any number of guest carts coexist.
+
+**Claiming a cart at login.** When a visitor with a guest cart registers or logs
+in, the guest cart is merged into their account inside one transaction:
+
+- The user had no cart → the guest cart is claimed in place: set `userId`, clear
+  `sessionToken`, clear `expiresAt`.
+- The user already had a cart → lines are merged into it and the guest cart is
+  deleted. A product present in both has its **quantities summed**, which is
+  what the major storefronts do and what a customer expects from "I added two
+  at work and one at home".
+
+Summing can exceed available stock. That is deliberately *not* corrected at
+merge time — silently reducing someone's quantity is worse than telling them at
+checkout, and checkout is already the place that validates stock and fails
+cleanly. The merge never loses a line.
+
+**Expiry.** Guest carts accumulate one row per visitor who ever added an item,
+so they carry an `expiresAt` and a periodic sweep deletes the stale ones. Carts
+owned by a user never expire. A second CHECK ties these together — `expiresAt`
+is set if and only if `sessionToken` is — which means a claim that forgets to
+clear the expiry is rejected by the database rather than leaving a user's cart
+scheduled for deletion.
+
+**Checkout stays authenticated.** There is no anonymous order, so every order
+has a real `userId` and "you may only read your own orders" needs no special
+case. A guest checking out is asked to log in or register first, and their cart
+comes with them.
+
+### Order lifecycle
+
+```
+PENDING ──(admin)──> PAID ──(admin)──> SHIPPED
+   │
+   └──(owner or admin)──> CANCELLED
+```
+
+Checkout creates a `PENDING` order and decrements stock. There is no payment
+gateway, so an admin moves an order to `PAID` and then `SHIPPED`. Only a
+`PENDING` order can be cancelled; cancelling anything else is a 409.
 
 ## Verifying the data model
 
@@ -137,19 +195,29 @@ real PostgreSQL 16 database and each invariant checked by trying to violate it.
 All of the following are rejected by the database, not merely by application
 code:
 
-| Attempted write                              | Rejected by                          |
-| -------------------------------------------- | ------------------------------------ |
-| Email stored as `Ada@Example.com`             | `users_email_lowercase`              |
-| Second account on an existing email           | `users_email_key`                    |
-| Product with `stock = -1`                     | `products_stock_non_negative`        |
-| Product with `priceCents = -1`                | `products_price_non_negative`        |
-| Currency `usd` instead of `USD`               | `products_currency_iso4217`          |
-| Second cart for a user who already has one    | `carts_userId_key`                   |
-| Same product added twice as two cart lines    | `cart_items_cartId_productId_key`    |
-| Cart line with `quantity = 0`                 | `cart_items_quantity_positive`       |
-| Deleting a product sitting in someone's cart  | `cart_items_productId_fkey`          |
-| Order line claiming `2 x 1999 = 100`          | `order_items_line_total_consistent`  |
-| Deleting a user who has order history         | `orders_userId_fkey`                 |
+| Attempted write                                  | Rejected by                          |
+| ------------------------------------------------ | ------------------------------------ |
+| Email stored as `Ada@Example.com`                 | `users_email_lowercase`              |
+| Second account on an existing email               | `users_email_key`                    |
+| Product with `stock = -1`                         | `products_stock_non_negative`        |
+| Product with `priceCents = -1`                    | `products_price_non_negative`        |
+| Currency `usd` instead of `USD`                   | `products_currency_iso4217`          |
+| Second cart for a user who already has one        | `carts_userId_key`                   |
+| Two guest carts sharing one session token         | `carts_sessionToken_key`             |
+| A cart owned by nobody                            | `carts_owner_exclusive`              |
+| A cart owned by a user *and* a session            | `carts_owner_exclusive`              |
+| A guest cart with no expiry                       | `carts_guest_carts_expire`           |
+| A user's cart carrying an expiry                  | `carts_guest_carts_expire`           |
+| Claiming a guest cart without clearing its expiry | `carts_guest_carts_expire`           |
+| Same product added twice as two cart lines        | `cart_items_cartId_productId_key`    |
+| Cart line with `quantity = 0`                     | `cart_items_quantity_positive`       |
+| Deleting a product sitting in someone's cart      | `cart_items_productId_fkey`          |
+| Order line claiming `2 x 1999 = 100`              | `order_items_line_total_consistent`  |
+| Deleting a user who has order history             | `orders_userId_fkey`                 |
+
+Writes that *should* succeed do: a second guest cart, the same product in two
+different carts, a correctly claimed cart, and a line total that matches its own
+arithmetic.
 
 To repeat this against your own database:
 
