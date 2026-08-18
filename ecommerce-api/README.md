@@ -10,8 +10,8 @@ project and is not affected by anything here.
 
 | Phase | Scope                          | State       |
 | ----- | ------------------------------ | ----------- |
-| 1     | Data model + folder structure  | in review   |
-| 2     | Auth                           | not started |
+| 1     | Data model + folder structure  | done        |
+| 2     | Auth                           | in review   |
 | 3     | Products                       | not started |
 | 4     | Cart                           | not started |
 | 5     | Orders + checkout              | not started |
@@ -99,6 +99,54 @@ in exactly one shape:
 
 400 vs 422 is the distinction people argue about, so to be explicit: 400 means
 we could not read the request, 422 means we read it fine and disagreed with it.
+
+## Endpoints
+
+### Auth
+
+| Method | Path                 | Access | Notes                                    |
+| ------ | -------------------- | ------ | ---------------------------------------- |
+| POST   | `/api/auth/register` | public | 201 with the user and an access token    |
+| POST   | `/api/auth/login`    | public | 200 with the user and an access token    |
+| GET    | `/api/auth/me`       | token  | The caller's own record                  |
+
+Both `register` and `login` accept an optional `X-Cart-Session` header. If it
+names a live guest cart, that cart is claimed or merged into the account in the
+same transaction as the sign-in.
+
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","password":"correct-horse-battery","name":"Ada"}'
+```
+
+```json
+{
+  "user": { "id": "cmsy…", "email": "ada@example.com", "name": "Ada",
+            "role": "USER", "createdAt": "2026-08-18T14:47:35.062Z" },
+  "accessToken": "eyJhbGciOiJIUzI1NiIs…"
+}
+```
+
+Send it back as `Authorization: Bearer <accessToken>`.
+
+### Auth decisions worth knowing about
+
+- **Login never says which half was wrong.** An unknown email and a wrong
+  password produce the same 401 and the same message. The unknown-email path
+  also hashes a decoy, so the two take the same time — otherwise response
+  latency turns login into a "does this person have an account here?" oracle.
+- **`authenticate` re-reads the user from the database** on every request rather
+  than trusting the `role` claim inside the token. That costs one primary-key
+  lookup and means demoting an admin takes effect immediately, instead of
+  whenever their current token happens to expire.
+- **Unknown body fields are dropped, not ignored.** `validate` replaces
+  `req.body` with zod's parsed output, and zod strips keys the schema does not
+  mention. A registration body carrying `"role": "ADMIN"` creates an ordinary
+  user, because the extra key is gone before any code could read it.
+- **Auth routes are rate limited** to 20 attempts per 15 minutes. bcrypt's cost
+  protects stored hashes; it does nothing about someone trying thousands of
+  passwords against one account over the network.
 
 ## Money
 
