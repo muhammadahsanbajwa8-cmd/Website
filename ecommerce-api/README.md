@@ -11,8 +11,8 @@ project and is not affected by anything here.
 | Phase | Scope                          | State       |
 | ----- | ------------------------------ | ----------- |
 | 1     | Data model + folder structure  | done        |
-| 2     | Auth                           | in review   |
-| 3     | Products                       | not started |
+| 2     | Auth                           | done        |
+| 3     | Products                       | in review   |
 | 4     | Cart                           | not started |
 | 5     | Orders + checkout              | not started |
 | 6     | Tests for the main flows       | not started |
@@ -129,6 +129,85 @@ curl -X POST http://localhost:3000/api/auth/register \
 ```
 
 Send it back as `Authorization: Bearer <accessToken>`.
+
+### Products
+
+| Method | Path                    | Access | Notes                                  |
+| ------ | ----------------------- | ------ | -------------------------------------- |
+| GET    | `/api/products`         | public | Search, filter, sort, paginate         |
+| GET    | `/api/products/:slug`   | public | One product, by slug                   |
+| POST   | `/api/products`         | admin  | 201 with a `Location` header           |
+| PATCH  | `/api/products/:id`     | admin  | Partial update, by id                  |
+| DELETE | `/api/products/:id`     | admin  | Deactivates; does not destroy          |
+
+Query parameters on the list endpoint:
+
+| Parameter                       | Default  | Notes                                       |
+| ------------------------------- | -------- | ------------------------------------------- |
+| `q`                             | —        | Case-insensitive, over name and description |
+| `page`                          | `1`      |                                             |
+| `limit`                         | `20`     | Capped at 100                               |
+| `minPriceCents`/`maxPriceCents` | —        | Integer cents, inclusive                    |
+| `inStock`                       | —        | `true` or `false`                           |
+| `sort`                          | `newest` | `oldest`, `price_asc`, `price_desc`, `name` |
+| `status`                        | `active` | **Admin only.** `inactive` or `all`         |
+
+```json
+{
+  "data": [
+    { "id": "cmsy…", "name": "Enamel Mug", "slug": "enamel-mug",
+      "priceCents": 1499, "currency": "USD", "stock": 40, "isActive": true }
+  ],
+  "page": { "number": 1, "size": 20, "total": 1, "pages": 1 }
+}
+```
+
+### Product decisions worth knowing about
+
+- **`DELETE` deactivates rather than destroys.** Order lines reference products
+  with `onDelete: Restrict`, so a hard delete of anything ever sold would fail at
+  the database regardless. Setting `isActive: false` hides it from the catalogue,
+  keeps order history readable, and lets it come back via
+  `PATCH { "isActive": true }`. Deactivating an already-inactive product is a
+  409, matching how cancelling an already-cancelled order will behave.
+- **Reads use the slug, writes use the id.** A slug is editable, so addressing a
+  write by slug means a rename silently changes what a stored URL points at. The
+  id never changes.
+- **A withdrawn product is a 404, not a 403,** to anyone but an admin. A 403
+  would confirm the slug is real, which is itself a leak.
+- **`status` returns 403 to a non-admin instead of being ignored.** Silently
+  dropping a parameter someone deliberately sent is how people spend an hour
+  debugging the wrong thing.
+- **Prices are rejected, never rounded.** `"priceCents": 19.99` is a 422 saying
+  a whole number of cents is required. Guessing what someone meant by a
+  fractional cent is where pricing bugs begin.
+- **`limit` is capped at 100.** Without a cap, `?limit=1000000` is a
+  denial-of-service request the database would happily serve.
+
+### A note on search, before it grows
+
+`q` is a case-insensitive substring match, which Postgres runs as
+`ILIKE '%q%'`. That cannot use a B-tree index. Confirmed against the running
+database:
+
+```
+EXPLAIN ANALYZE SELECT id FROM products
+WHERE "isActive" = true AND (name ILIKE '%mug%' OR description ILIKE '%mug%');
+
+ Seq Scan on products  (cost=0.00..16.15 rows=16 width=32)
+   Filter: ("isActive" AND ((name ~~* '%mug%') OR (description ~~* '%mug%')))
+```
+
+Every row, every query. That is fine for a demo catalogue and wrong for a real
+one. The fix is a trigram index before the table gets large:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX products_name_trgm ON products USING gin (name gin_trgm_ops);
+```
+
+Deep pagination has the same shape of problem: `?page=5000` becomes a large SQL
+`OFFSET`, and Postgres walks every skipped row to get there.
 
 ### Auth decisions worth knowing about
 
