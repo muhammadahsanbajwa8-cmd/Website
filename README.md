@@ -248,6 +248,7 @@ lib/source.mjs          Nager.Date + cache + fallback resolution
 lib/countries.mjs       ISO 3166-1 names, regions, flags
 lib/stats.mjs           the computed facts on every year page
 lib/compare.mjs         shared days off, long weekends, bridges, highlights
+lib/assistant.mjs       reads a plain-English question and answers it
 lib/events.mjs          concerts, comedy and events, cross-checked with holidays
 lib/events-demo.mjs     clearly labelled sample listings for --events-demo
 lib/ribbon.mjs          the year ribbon, single and twin
@@ -255,9 +256,10 @@ lib/html.mjs            layout, SEO head, ad slots
 lib/browser-modules.mjs which modules ship to the browser
 lib/pages/              page renderers
 assets/                 CSS and the browser scripts
-test/                   138 tests: dates, rules, world table, calendars,
+test/                   203 tests: dates, rules, world table, calendars,
                         glossary, source, stats, comparison, events,
-                        rendering, and the browser-module contract
+                        the assistant, rendering, and the browser-module
+                        contract
 tools/serve.mjs         local server for dist/
 tools/preview.mjs       bundles dist/ into one shareable file
 tools/preview-shell.html  the frame that file is built into
@@ -268,6 +270,7 @@ tools/preview-shell.html  the frame that file is built into
 | URL | What it is |
 | --- | --- |
 | `/` | Hero, country finder, a heat-mapped year ribbon, featured countries |
+| `/ask/` | A plain-English question about holidays, working days or leave |
 | `/countries/` | Every country, grouped by region |
 | `/compare/` | Pick any two countries and compare them |
 | `/compare/{a}-vs-{b}/` | Pre-rendered comparison for a featured pairing |
@@ -283,12 +286,83 @@ tools/preview-shell.html  the frame that file is built into
 
 Plus `sitemap.xml` (current year highest priority, past years lowest),
 `robots.txt`, `ads.txt`, `countries.json` for the finder, `data/{ISO2}.json` for
-the comparison, and a `404.html`.
+the comparison and the assistant, and a `404.html`.
 
-## The three tools
+## Ask — `/ask/`
 
-Holiday tables are the data. These are the reason to come back, and all three
-run entirely in the browser — the generator renders a default so the page works
+A plain-English question, a worked answer, instantly:
+
+> *How many working days until 24 December in the United States?*
+> **88 working days from 19 Aug 2026 to 24 Dec 2026 in United States.**
+> 128 calendar days · 36 weekend days · 4 public holidays.
+
+It handles eleven kinds of question — the next day off, whether a given date is
+a working day, working days between two dates, a deadline N business days out,
+where to spend a leave allowance, when a spread-out team is all present, two
+countries side by side, long weekends, what falls in a month, how many holidays
+a year has, and what a named holiday is for.
+
+### There is no language model in it
+
+That is the design, not a gap. "What date is twenty working days from Tuesday"
+has exactly one correct answer, and this repository already holds every public
+holiday for 195 countries. Computing it is instant, costs nothing, runs with no
+network, and cannot invent a date. A model would add latency, a bill, an API key
+a static site has nowhere to keep — and the possibility of a confidently wrong
+answer to a question about somebody's deadline.
+
+So the work is in *reading* the question, not producing the answer:
+
+```
+interpret(text, index)   what is being asked, about where, about when
+answer(request, data)    the arithmetic, from the real holiday tables
+```
+
+The split is what makes it work in a browser. `interpret` runs first and names
+the countries it needs; the caller fetches only those (a few kilobytes each);
+`answer` then runs on the data. Nothing is sent anywhere, because there is
+nowhere to send it — the site is a folder of static files.
+
+`lib/assistant.mjs` holds both, plus the parsing they need:
+
+- **Countries** — formal names, the names people actually type (`UK`, `USA`,
+  `Holland`, `South Korea`), and bare ISO codes. Codes that are also English
+  words (`IN`, `IT`, `IS`, `AT`, `US`) match only when capitalised, so "how many
+  days are in it" names no country at all.
+- **Dates** — `2026-03-15`, `15 March`, `15th of March 2027`, `March 15`,
+  `Mar 15th, 2027`, `today`, `tomorrow`, `next Friday`, `in 10 days`, `end of
+  the year`. An impossible date such as `31 February` is refused rather than
+  rolled into March.
+- **Intent** — matched top-down from the most unmistakable shape to the
+  vaguest, so "is 25 December a working day" is read as a yes/no about one date
+  and "how many working days until 25 December" as a span to count, even though
+  both contain the words *working day*.
+
+When it cannot tell what you meant it says so and asks for the missing piece.
+It never guesses a country, and never answers a question it did not understand.
+
+### The contract
+
+`CAPABILITIES` in `lib/assistant.mjs` lists what the page advertises, and every
+entry carries the example shown on the page. Two tests enforce that the list
+stays honest: every advertised example must interpret to its stated intent and
+produce an answer, and every follow-up an answer suggests must itself be
+answerable. A capability that stops working fails the build rather than
+disappointing a visitor.
+
+### How it stays in one implementation
+
+Exactly as the other tools do. The generator answers one question at build time
+and puts the result in the HTML — so the page is useful before any JavaScript
+runs and reads properly to a crawler — then the browser answers every question
+after that using the same two functions and the same renderer, imported as
+native ES modules from `/assets/mjs/`. There is no second copy of the logic to
+drift, and no bundler.
+
+## The three planners
+
+Holiday tables are the data. These are the reason to come back, and like the
+assistant above, all three run entirely in the browser — the generator renders a default so the page works
 without JavaScript and reads properly to a crawler, then the same modules
 re-render it when the visitor changes anything.
 

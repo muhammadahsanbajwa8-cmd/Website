@@ -24,6 +24,7 @@ test('every address the site generates carries the mount point', () => {
     url.privacy(),
     url.compare(),
     url.team(),
+    url.assistant(),
     url.country('DE'),
     url.year('DE', 2026),
     url.calculator('DE'),
@@ -112,7 +113,7 @@ test('static module specifiers are the one exception, and are rewritten at build
   const build = await readFile(path.join(root, 'build.mjs'), 'utf8');
   assert.match(build, /assets\\\/mjs\\\//, 'build.mjs still rebases module specifiers');
 
-  const entries = ['assets/compare.js', 'assets/leave.js', 'assets/team.js'];
+  const entries = ['assets/compare.js', 'assets/leave.js', 'assets/team.js', 'assets/assistant.js'];
   for (const name of entries) {
     const source = await readFile(path.join(root, name), 'utf8');
     assert.match(source, /from '\/assets\/mjs\//, `${name} imports from /assets/mjs/`);

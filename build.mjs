@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import config from './site.config.mjs';
 import { BROWSER_MODULES } from './lib/browser-modules.mjs';
+import { ask, buildIndex } from './lib/assistant.mjs';
 import { compareCountries } from './lib/compare.mjs';
 import { countryInfo, flagEmoji } from './lib/countries.mjs';
 import { eachDayOfYear, formatLong, iso, parseISO, todayUTC } from './lib/dates.mjs';
@@ -25,6 +26,7 @@ import { BASE, enableSection, url, withoutAds } from './lib/html.mjs';
 import { createSource } from './lib/source.mjs';
 import { nextHolidayAcrossYears, yearStats } from './lib/stats.mjs';
 import { teamOverlap } from './lib/team.mjs';
+import { renderAssistant } from './lib/pages/assistant.mjs';
 import { renderCompareIndex, renderComparePair } from './lib/pages/compare.mjs';
 import { renderCalculator, renderCountryHub, renderYearPage } from './lib/pages/country.mjs';
 import { renderCountryEvents, renderEventsHub } from './lib/pages/events.mjs';
@@ -500,6 +502,57 @@ await write(
   }),
 );
 
+// --- 4d. The assistant --------------------------------------------------------
+
+// The page is useful before any JavaScript runs, so the generator answers one
+// question itself and puts the result in the HTML. The browser then answers
+// every question after that with the same two functions and the same renderer.
+const askIndex = buildIndex(published);
+const askData = Object.fromEntries(
+  published.map((country) => [
+    country.code,
+    {
+      code: country.code,
+      name: country.name,
+      flag: country.flag,
+      years: Object.fromEntries(
+        years.map((year) => [
+          year,
+          { holidays: country.byYear[year], stats: country.statsByYear[year] },
+        ]),
+      ),
+    },
+  ]),
+);
+
+// Whichever featured country actually published, so the worked example is
+// never about a country with no table.
+const askCountry =
+  config.featured.map((code) => published.find((c) => c.code === code)).find(Boolean) ||
+  published[0];
+const askQuestion = askCountry
+  ? `How many working days until 24 December in ${askCountry.name}?`
+  : 'How many working days until 24 December?';
+const { answer: askAnswer } = ask(askQuestion, {
+  index: askIndex,
+  data: askData,
+  today,
+  years,
+  url,
+});
+
+await write(
+  url.assistant(),
+  renderAssistant({
+    answer: askAnswer,
+    question: askQuestion,
+    years,
+    currentYear,
+    today: todayISO,
+    countryCount: published.length,
+  }),
+);
+
 // Per-country data for the browser-side comparison: one small file each, so a
 // visitor downloads two countries rather than the whole world.
 await mkdir(path.join(outDir, 'data'), { recursive: true });
@@ -598,6 +651,7 @@ await writeFile(
 const sitemapEntries = [
   { loc: url.home(), priority: '1.0', changefreq: 'daily' },
   { loc: url.today(), priority: '0.9', changefreq: 'daily' },
+  { loc: url.assistant(), priority: '0.9', changefreq: 'daily' },
   { loc: url.compare(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.team(), priority: '0.8', changefreq: 'weekly' },
   { loc: url.countries(), priority: '0.8', changefreq: 'weekly' },

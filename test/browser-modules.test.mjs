@@ -55,7 +55,12 @@ test('every import of a shipped module is itself shipped', () => {
 
 test('every browser entry point only imports shipped modules', async () => {
   const shipped = new Set(BROWSER_MODULES.map((relative) => `/assets/mjs/${relative}`));
-  for (const name of ['assets/compare.js', 'assets/leave.js', 'assets/team.js']) {
+  for (const name of [
+    'assets/compare.js',
+    'assets/leave.js',
+    'assets/team.js',
+    'assets/assistant.js',
+  ]) {
     const entry = await readFile(path.join(root, name), 'utf8');
     const specifiers = importsOf(entry);
     assert.ok(specifiers.length > 0, `${name} imports something`);
@@ -73,6 +78,9 @@ test('every interactive renderer is reachable from the shipped set', () => {
     'lib/leave.mjs',
     'lib/pages/team.mjs',
     'lib/team.mjs',
+    'lib/pages/assistant.mjs',
+    'lib/assistant.mjs',
+    'lib/glossary.mjs',
   ]) {
     assert.ok(BROWSER_MODULES.includes(module), `${module} is shipped to the browser`);
   }

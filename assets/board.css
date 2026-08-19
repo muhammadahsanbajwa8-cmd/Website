@@ -1757,3 +1757,183 @@ tr.is-past td {
   font-size: clamp(1.4rem, 4vw, 2.2rem);
   line-height: 1.15;
 }
+
+/* --- Ask ----------------------------------------------------------------- */
+
+.hero--ask .lede {
+  max-width: 46rem;
+}
+
+.ask {
+  margin: 1.75rem 0 1.25rem;
+  max-width: 46rem;
+}
+
+.ask__label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+
+.ask__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.ask__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 1.05rem;
+  padding: 0.75rem 0.9rem;
+  color: var(--ink);
+  background: var(--board-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+.ask__input:focus {
+  outline: 2px solid var(--signal-deep);
+  outline-offset: 1px;
+}
+.ask__input::placeholder {
+  color: var(--ink-faint);
+}
+
+.ask__go {
+  flex: 0 0 auto;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.75rem 1.4rem;
+  color: #191712;
+  background: var(--signal);
+  border: 1px solid var(--signal-deep);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.ask__go:hover {
+  background: var(--signal-deep);
+}
+
+.ask__hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* The suggestions are buttons, not links: they run a question rather than
+   going anywhere, so they must not look or behave like navigation. */
+button.chip {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ask__list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+.ask__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--board-raised);
+}
+.ask__list .mono {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+/* --- An answer ----------------------------------------------------------- */
+
+.answer {
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--signal);
+  border-radius: var(--radius);
+  background: var(--board-raised);
+  padding: 1.25rem 1.4rem 1.4rem;
+}
+
+.answer--empty {
+  border-left-color: var(--rule-strong);
+}
+
+.answer__asked {
+  margin: 0 0 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.answer__headline {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.3rem, 1rem + 1.4vw, 1.9rem);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.answer .facts {
+  margin-top: 1.1rem;
+}
+
+.answer__prose {
+  margin-top: 0.4rem;
+}
+.answer__prose p {
+  margin: 0.7rem 0 0;
+}
+
+.answer .table-scroll {
+  margin-top: 1.2rem;
+}
+
+.answer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.1rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.answer__source {
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+
+.answer__next {
+  margin-top: 1.1rem;
+}
+.answer__next .note {
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 34rem) {
+  .ask__row {
+    flex-direction: column;
+  }
+  .ask__go {
+    width: 100%;
+  }
+}
