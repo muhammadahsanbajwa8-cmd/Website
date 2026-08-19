@@ -1,0 +1,3215 @@
+{
+  "city_aliases": {
+    "nairobi": "KE",
+    "mombasa": "KE",
+    "lagos": "NG",
+    "abuja": "NG",
+    "kano": "NG",
+    "accra": "GH",
+    "kumasi": "GH",
+    "addis ababa": "ET",
+    "dar es salaam": "TZ",
+    "kampala": "UG",
+    "kigali": "RW",
+    "lusaka": "ZM",
+    "harare": "ZW",
+    "johannesburg": "ZA",
+    "cape town": "ZA",
+    "durban": "ZA",
+    "pretoria": "ZA",
+    "gaborone": "BW",
+    "windhoek": "NA",
+    "maputo": "MZ",
+    "luanda": "AO",
+    "kinshasa": "CD",
+    "abidjan": "CI",
+    "dakar": "SN",
+    "bamako": "ML",
+    "casablanca": "MA",
+    "rabat": "MA",
+    "marrakesh": "MA",
+    "algiers": "DZ",
+    "tunis": "TN",
+    "tripoli": "LY",
+    "cairo": "EG",
+    "alexandria": "EG",
+    "khartoum": "SD",
+    "antananarivo": "MG",
+    "port louis": "MU",
+    "riyadh": "SA",
+    "jeddah": "SA",
+    "mecca": "SA",
+    "medina": "SA",
+    "dammam": "SA",
+    "doha": "QA",
+    "kuwait city": "KW",
+    "manama": "BH",
+    "muscat": "OM",
+    "amman": "JO",
+    "beirut": "LB",
+    "damascus": "SY",
+    "baghdad": "IQ",
+    "basra": "IQ",
+    "erbil": "IQ",
+    "tehran": "IR",
+    "isfahan": "IR",
+    "mashhad": "IR",
+    "tel aviv": "IL",
+    "jerusalem": "IL",
+    "haifa": "IL",
+    "gaza": "PS",
+    "ramallah": "PS",
+    "istanbul": "TR",
+    "ankara": "TR",
+    "izmir": "TR",
+    "antalya": "TR",
+    "baku": "AZ",
+    "tbilisi": "GE",
+    "yerevan": "AM",
+    "almaty": "KZ",
+    "astana": "KZ",
+    "tashkent": "UZ",
+    "bishkek": "KG",
+    "dushanbe": "TJ",
+    "kabul": "AF",
+    "peshawar": "PK",
+    "quetta": "PK",
+    "hyderabad sindh": "PK",
+    "gujranwala": "PK",
+    "sialkot": "PK",
+    "sargodha": "PK",
+    "bahawalpur": "PK",
+    "dhaka": "BD",
+    "chittagong": "BD",
+    "colombo": "LK",
+    "kathmandu": "NP",
+    "thimphu": "BT",
+    "male": "MV",
+    "kolkata": "IN",
+    "chennai": "IN",
+    "hyderabad": "IN",
+    "pune": "IN",
+    "ahmedabad": "IN",
+    "jaipur": "IN",
+    "lucknow": "IN",
+    "surat": "IN",
+    "beijing": "CN",
+    "shanghai": "CN",
+    "guangzhou": "CN",
+    "shenzhen": "CN",
+    "chengdu": "CN",
+    "wuhan": "CN",
+    "tianjin": "CN",
+    "chongqing": "CN",
+    "tokyo": "JP",
+    "osaka": "JP",
+    "kyoto": "JP",
+    "yokohama": "JP",
+    "nagoya": "JP",
+    "seoul": "KR",
+    "busan": "KR",
+    "incheon": "KR",
+    "taipei": "TW",
+    "kaohsiung": "TW",
+    "ulaanbaatar": "MN",
+    "bangkok": "TH",
+    "chiang mai": "TH",
+    "hanoi": "VN",
+    "ho chi minh city": "VN",
+    "saigon": "VN",
+    "jakarta": "ID",
+    "surabaya": "ID",
+    "bandung": "ID",
+    "bali": "ID",
+    "kuala lumpur": "MY",
+    "penang": "MY",
+    "johor bahru": "MY",
+    "manila": "PH",
+    "quezon city": "PH",
+    "cebu": "PH",
+    "yangon": "MM",
+    "phnom penh": "KH",
+    "vientiane": "LA",
+    "london": "GB",
+    "manchester": "GB",
+    "birmingham": "GB",
+    "leeds": "GB",
+    "bristol": "GB",
+    "liverpool": "GB",
+    "dublin": "IE",
+    "cork": "IE",
+    "paris": "FR",
+    "marseille": "FR",
+    "lyon": "FR",
+    "toulouse": "FR",
+    "nice": "FR",
+    "berlin": "DE",
+    "munich": "DE",
+    "hamburg": "DE",
+    "frankfurt": "DE",
+    "cologne": "DE",
+    "stuttgart": "DE",
+    "amsterdam": "NL",
+    "rotterdam": "NL",
+    "the hague": "NL",
+    "utrecht": "NL",
+    "brussels": "BE",
+    "antwerp": "BE",
+    "ghent": "BE",
+    "vienna": "AT",
+    "salzburg": "AT",
+    "graz": "AT",
+    "zurich": "CH",
+    "geneva": "CH",
+    "basel": "CH",
+    "bern": "CH",
+    "madrid": "ES",
+    "barcelona": "ES",
+    "valencia": "ES",
+    "seville": "ES",
+    "lisbon": "PT",
+    "porto": "PT",
+    "rome": "IT",
+    "milan": "IT",
+    "naples": "IT",
+    "turin": "IT",
+    "florence": "IT",
+    "venice": "IT",
+    "athens": "GR",
+    "thessaloniki": "GR",
+    "copenhagen": "DK",
+    "aarhus": "DK",
+    "stockholm": "SE",
+    "gothenburg": "SE",
+    "oslo": "NO",
+    "bergen": "NO",
+    "helsinki": "FI",
+    "reykjavik": "IS",
+    "tallinn": "EE",
+    "riga": "LV",
+    "vilnius": "LT",
+    "warsaw": "PL",
+    "krakow": "PL",
+    "gdansk": "PL",
+    "wroclaw": "PL",
+    "prague": "CZ",
+    "brno": "CZ",
+    "bratislava": "SK",
+    "budapest": "HU",
+    "bucharest": "RO",
+    "sofia": "BG",
+    "zagreb": "HR",
+    "ljubljana": "SI",
+    "belgrade": "RS",
+    "sarajevo": "BA",
+    "skopje": "MK",
+    "tirana": "AL",
+    "podgorica": "ME",
+    "pristina": "XK",
+    "kyiv": "UA",
+    "kiev": "UA",
+    "lviv": "UA",
+    "odesa": "UA",
+    "chisinau": "MD",
+    "minsk": "BY",
+    "moscow": "RU",
+    "saint petersburg": "RU",
+    "novosibirsk": "RU",
+    "chicago": "US",
+    "houston": "US",
+    "phoenix": "US",
+    "philadelphia": "US",
+    "san antonio": "US",
+    "san diego": "US",
+    "dallas": "US",
+    "austin": "US",
+    "seattle": "US",
+    "denver": "US",
+    "boston": "US",
+    "atlanta": "US",
+    "miami": "US",
+    "las vegas": "US",
+    "portland": "US",
+    "detroit": "US",
+    "toronto": "CA",
+    "vancouver": "CA",
+    "montreal": "CA",
+    "calgary": "CA",
+    "ottawa": "CA",
+    "edmonton": "CA",
+    "mexico city": "MX",
+    "guadalajara": "MX",
+    "monterrey": "MX",
+    "cancun": "MX",
+    "guatemala city": "GT",
+    "san salvador": "SV",
+    "tegucigalpa": "HN",
+    "managua": "NI",
+    "san jose": "CR",
+    "panama city": "PA",
+    "havana": "CU",
+    "santo domingo": "DO",
+    "kingston": "JM",
+    "port of spain": "TT",
+    "nassau": "BS",
+    "bridgetown": "BB",
+    "sao paulo": "BR",
+    "rio de janeiro": "BR",
+    "brasilia": "BR",
+    "salvador": "BR",
+    "fortaleza": "BR",
+    "belo horizonte": "BR",
+    "recife": "BR",
+    "buenos aires": "AR",
+    "cordoba": "AR",
+    "rosario": "AR",
+    "santiago": "CL",
+    "valparaiso": "CL",
+    "bogota": "CO",
+    "medellin": "CO",
+    "cali": "CO",
+    "cartagena": "CO",
+    "lima": "PE",
+    "arequipa": "PE",
+    "cusco": "PE",
+    "quito": "EC",
+    "guayaquil": "EC",
+    "caracas": "VE",
+    "la paz": "BO",
+    "santa cruz": "BO",
+    "montevideo": "UY",
+    "asuncion": "PY",
+    "sydney": "AU",
+    "melbourne": "AU",
+    "brisbane": "AU",
+    "perth": "AU",
+    "adelaide": "AU",
+    "canberra": "AU",
+    "hobart": "AU",
+    "darwin": "AU",
+    "auckland": "NZ",
+    "wellington": "NZ",
+    "christchurch": "NZ",
+    "suva": "FJ",
+    "port moresby": "PG",
+    "honolulu": "US"
+  },
+  "$comment": "Which code governs where, and how much of it codraft can check. A country listed here is NOT a claim that its code is encoded -- read rule_packs and confidence. Nothing in this file is legal advice, and no entry substitutes for the authority having jurisdiction.",
+  "version": 1,
+  "regimes": {
+    "icc": {
+      "family": "ICC model codes",
+      "description": "International Building Code and International Residential Code, as adopted and amended locally.",
+      "codes": [
+        "International Building Code (IBC)",
+        "International Residential Code (IRC)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021",
+        "irc-2021"
+      ],
+      "publisher": "International Code Council",
+      "url": "https://codes.iccsafe.org/",
+      "confidence": "high",
+      "note": "The IBC is a model code with no force of its own. A state, emirate or municipality adopts an edition and amends it, so the adopted edition and its local amendments always govern."
+    },
+    "icc-derived": {
+      "family": "ICC-derived national code",
+      "description": "A national code built on an IBC edition, with local amendments for climate, seismicity and practice.",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium",
+      "note": "Checks run against the IBC provisions the national code was built from. Local amendments are not encoded and can be stricter; confirm each finding against the national document."
+    },
+    "eurocode": {
+      "family": "Eurocodes plus national regulations",
+      "description": "EN Eurocodes for structural design, with fire, egress and energy set by national building regulations.",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "publisher": "CEN",
+      "url": "https://eurocodes.jrc.ec.europa.eu/",
+      "confidence": "medium",
+      "note": "The Eurocodes cover structural design, not room sizes or egress geometry. Those sit in each country's own building regulations and its National Annex, which are not encoded here. Only the practice baseline is applied."
+    },
+    "uk": {
+      "family": "Approved Documents",
+      "description": "The Building Regulations for England, with Approved Documents giving practical guidance.",
+      "codes": [
+        "The Building Regulations 2010",
+        "Approved Documents B, K, M and others"
+      ],
+      "rule_packs": [
+        "baseline",
+        "uk-approved-documents"
+      ],
+      "publisher": "HM Government",
+      "url": "https://www.gov.uk/government/collections/approved-documents",
+      "confidence": "medium",
+      "note": "Scotland, Wales and Northern Ireland have their own, divergent regulations. Resolve to the nation, not to 'UK'."
+    },
+    "pk": {
+      "family": "Building Code of Pakistan and provincial by-laws",
+      "description": "A national code for structural and fire provisions, with planning controls set by each city's development authority.",
+      "codes": [
+        "Building Code of Pakistan (Seismic Provisions) 2021",
+        "Building Code of Pakistan (Fire Safety Provisions) 2016",
+        "Provincial and municipal building by-laws"
+      ],
+      "rule_packs": [
+        "baseline",
+        "pk-bylaws"
+      ],
+      "authority": "Pakistan Engineering Council; provincial development authorities (CDA, LDA, RDA, SBCA, PDA)",
+      "url": "https://www.pec.org.pk/",
+      "confidence": "low",
+      "note": "Setbacks, coverage and height are fixed by the development authority for each city and vary by plot size and scheme. The encoded values are common by-law figures and must be confirmed against the authority for the specific scheme."
+    },
+    "in": {
+      "family": "National Building Code of India",
+      "description": "NBC 2016, adopted through state and municipal building by-laws.",
+      "codes": [
+        "National Building Code of India 2016",
+        "State and municipal building by-laws"
+      ],
+      "rule_packs": [
+        "baseline",
+        "in-nbc-2016"
+      ],
+      "publisher": "Bureau of Indian Standards",
+      "url": "https://www.bis.gov.in/",
+      "authority": "State urban development departments and municipal corporations",
+      "confidence": "low",
+      "note": "The NBC is a model code. States and municipalities adopt it with amendments, and the local development control rules govern setbacks, ground coverage and FAR/FSI."
+    },
+    "ca": {
+      "family": "National Building Code of Canada",
+      "description": "The NBC, adopted with amendments by each province.",
+      "codes": [
+        "National Building Code of Canada",
+        "Provincial building codes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "publisher": "National Research Council Canada",
+      "url": "https://nrc.canada.ca/en/certifications-evaluations-standards/codes-canada",
+      "confidence": "medium",
+      "note": "No NBC rule pack is encoded yet. Ontario, Quebec, BC and Alberta each publish their own code, which governs."
+    },
+    "cn": {
+      "family": "GB national standards",
+      "description": "Mandatory GB standards for design, fire and residential buildings.",
+      "codes": [
+        "GB 50352 Uniform standard for design of civil buildings",
+        "GB 50016 Code for fire protection design of buildings",
+        "GB 50096 Design code for residential buildings"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low",
+      "note": "No GB rule pack is encoded. The GB standards are mandatory and published in Chinese; a translation is not authoritative."
+    },
+    "jp": {
+      "family": "Building Standards Act",
+      "description": "The Building Standards Act and its Enforcement Order.",
+      "codes": [
+        "Building Standards Act (建築基準法)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low",
+      "note": "No rule pack encoded. Setbacks and bulk are governed by the city planning system, including sunlight and setback slope controls with no equivalent in other codes."
+    },
+    "national": {
+      "family": "National building code",
+      "description": "A national code administered by a central ministry or standards body.",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low",
+      "note": "The national code for this country is not encoded, so only the practice baseline is applied. Its provisions govern and must be checked directly."
+    },
+    "unknown": {
+      "family": "Not established",
+      "description": "codraft has no mapping for which code governs here.",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none",
+      "note": "No code has been mapped for this country. Nothing in the report should be read as a statement about local law. Identify the authority having jurisdiction before relying on any of it."
+    },
+    "au": {
+      "family": "National Construction Code",
+      "description": "The NCC, adopted by each state and territory.",
+      "codes": [
+        "National Construction Code (NCC)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "publisher": "Australian Building Codes Board",
+      "url": "https://ncc.abcb.gov.au/",
+      "confidence": "medium",
+      "note": "No NCC rule pack is encoded yet, so only the practice baseline is applied. The NCC is free to read at the link."
+    }
+  },
+  "countries": {
+    "AD": {
+      "name": "Andorra",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "AE": {
+      "name": "United Arab Emirates",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "Dubai Building Code",
+        "Abu Dhabi International Building Code"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium",
+      "authority": "Dubai Municipality; Abu Dhabi Department of Municipalities",
+      "note": "Each emirate publishes its own code and they differ. Resolve to the emirate, not to the country.",
+      "subdivisions": [
+        {
+          "slug": "dubai",
+          "name": "Dubai",
+          "authority": "Dubai Municipality",
+          "note": "The Dubai Building Code governs."
+        },
+        {
+          "slug": "abu-dhabi",
+          "name": "Abu Dhabi",
+          "authority": "Department of Municipalities and Transport",
+          "note": "Abu Dhabi has adopted an IBC-based code set."
+        },
+        {
+          "slug": "sharjah",
+          "name": "Sharjah",
+          "authority": "Sharjah Municipality"
+        }
+      ]
+    },
+    "AF": {
+      "name": "Afghanistan",
+      "region": "Southern Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "AG": {
+      "name": "Antigua and Barbuda",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "AL": {
+      "name": "Albania",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "AM": {
+      "name": "Armenia",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "AO": {
+      "name": "Angola",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "AR": {
+      "name": "Argentina",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "CIRSOC standards",
+        "Codigo de Edificacion (per municipality)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Municipal building departments"
+    },
+    "AT": {
+      "name": "Austria",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "AU": {
+      "name": "Australia",
+      "region": "Australia and New Zealand",
+      "regime": "au",
+      "codes": [
+        "National Construction Code (NCC)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://ncc.abcb.gov.au/",
+      "subdivisions": [
+        {
+          "slug": "nsw",
+          "name": "New South Wales",
+          "authority": "NSW Department of Planning"
+        },
+        {
+          "slug": "victoria",
+          "name": "Victoria",
+          "authority": "Victorian Building Authority"
+        },
+        {
+          "slug": "queensland",
+          "name": "Queensland",
+          "authority": "Queensland Building and Construction Commission"
+        }
+      ]
+    },
+    "AZ": {
+      "name": "Azerbaijan",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BA": {
+      "name": "Bosnia and Herzegovina",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "BB": {
+      "name": "Barbados",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "BD": {
+      "name": "Bangladesh",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "Bangladesh National Building Code (BNBC) 2020"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "RAJUK and local authorities"
+    },
+    "BE": {
+      "name": "Belgium",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "BF": {
+      "name": "Burkina Faso",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "BG": {
+      "name": "Bulgaria",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "BH": {
+      "name": "Bahrain",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "BI": {
+      "name": "Burundi",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "BJ": {
+      "name": "Benin",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "BN": {
+      "name": "Brunei",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BO": {
+      "name": "Bolivia",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BR": {
+      "name": "Brazil",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "ABNT NBR 9050, NBR 15575 and related standards",
+        "Municipal Codigo de Obras"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Municipal building departments",
+      "url": "https://www.abnt.org.br/"
+    },
+    "BS": {
+      "name": "Bahamas",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "BT": {
+      "name": "Bhutan",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BW": {
+      "name": "Botswana",
+      "region": "Southern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BY": {
+      "name": "Belarus",
+      "region": "Eastern Europe",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "BZ": {
+      "name": "Belize",
+      "region": "Central America",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CA": {
+      "name": "Canada",
+      "region": "Northern America",
+      "regime": "ca",
+      "codes": [
+        "National Building Code of Canada",
+        "Provincial building codes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://nrc.canada.ca/en/certifications-evaluations-standards/codes-canada",
+      "subdivisions": [
+        {
+          "slug": "ontario",
+          "name": "Ontario",
+          "authority": "Ministry of Municipal Affairs and Housing",
+          "note": "The Ontario Building Code governs, not the NBC directly."
+        },
+        {
+          "slug": "british-columbia",
+          "name": "British Columbia",
+          "authority": "BC Building and Safety Standards Branch"
+        },
+        {
+          "slug": "quebec",
+          "name": "Quebec",
+          "authority": "Regie du batiment du Quebec"
+        },
+        {
+          "slug": "alberta",
+          "name": "Alberta",
+          "authority": "Alberta Municipal Affairs"
+        }
+      ]
+    },
+    "CD": {
+      "name": "DR Congo",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CF": {
+      "name": "Central African Republic",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CG": {
+      "name": "Republic of the Congo",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CH": {
+      "name": "Switzerland",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "CI": {
+      "name": "Cote d'Ivoire",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CL": {
+      "name": "Chile",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "Ordenanza General de Urbanismo y Construcciones (OGUC)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Direccion de Obras Municipales"
+    },
+    "CM": {
+      "name": "Cameroon",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CN": {
+      "name": "China",
+      "region": "Eastern Asia",
+      "regime": "cn",
+      "codes": [
+        "GB 50352 Uniform standard for design of civil buildings",
+        "GB 50016 Code for fire protection design of buildings",
+        "GB 50096 Design code for residential buildings"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "CO": {
+      "name": "Colombia",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "NSR-10 Reglamento Colombiano de Construccion Sismo Resistente"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Curadurias urbanas"
+    },
+    "CR": {
+      "name": "Costa Rica",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "CU": {
+      "name": "Cuba",
+      "region": "Caribbean",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "CV": {
+      "name": "Cabo Verde",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "CY": {
+      "name": "Cyprus",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "CZ": {
+      "name": "Czechia",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "DE": {
+      "name": "Germany",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "DJ": {
+      "name": "Djibouti",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "DK": {
+      "name": "Denmark",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "DM": {
+      "name": "Dominica",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "DO": {
+      "name": "Dominican Republic",
+      "region": "Caribbean",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "DZ": {
+      "name": "Algeria",
+      "region": "Northern Africa",
+      "regime": "national",
+      "codes": [
+        "Regles Parasismiques Algeriennes (RPA 99/2003)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "CGS"
+    },
+    "EC": {
+      "name": "Ecuador",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "EE": {
+      "name": "Estonia",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "EG": {
+      "name": "Egypt",
+      "region": "Northern Africa",
+      "regime": "national",
+      "codes": [
+        "Egyptian Code of Practice (ECP) series",
+        "Unified Building Law 119/2008"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Housing and Building National Research Center"
+    },
+    "ER": {
+      "name": "Eritrea",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "ES": {
+      "name": "Spain",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "ET": {
+      "name": "Ethiopia",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "Ethiopian Building Code Standards (EBCS)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Ministry of Urban Development and Construction"
+    },
+    "FI": {
+      "name": "Finland",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "FJ": {
+      "name": "Fiji",
+      "region": "Melanesia",
+      "regime": "national",
+      "codes": [
+        "Fiji National Building Code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local authorities"
+    },
+    "FM": {
+      "name": "Micronesia",
+      "region": "Micronesia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "FR": {
+      "name": "France",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "GA": {
+      "name": "Gabon",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "GB": {
+      "name": "United Kingdom",
+      "region": "Northern Europe",
+      "regime": "uk",
+      "codes": [
+        "The Building Regulations 2010",
+        "Approved Documents B, K, M and others"
+      ],
+      "rule_packs": [
+        "baseline",
+        "uk-approved-documents"
+      ],
+      "confidence": "medium",
+      "url": "https://www.gov.uk/government/collections/approved-documents",
+      "subdivisions": [
+        {
+          "slug": "england",
+          "name": "England",
+          "authority": "Local authority building control",
+          "rule_packs": [
+            "baseline",
+            "uk-approved-documents"
+          ]
+        },
+        {
+          "slug": "wales",
+          "name": "Wales",
+          "authority": "Local authority building control",
+          "note": "Wales has diverged from England; the Welsh Approved Documents govern."
+        },
+        {
+          "slug": "scotland",
+          "name": "Scotland",
+          "authority": "Local authority verifiers",
+          "rule_packs": [
+            "baseline"
+          ],
+          "note": "Scotland uses the Building (Scotland) Regulations and Technical Handbooks, not the Approved Documents. The England pack does not apply."
+        },
+        {
+          "slug": "northern-ireland",
+          "name": "Northern Ireland",
+          "authority": "District council building control",
+          "rule_packs": [
+            "baseline"
+          ],
+          "note": "Northern Ireland uses its own Technical Booklets."
+        }
+      ]
+    },
+    "GD": {
+      "name": "Grenada",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "GE": {
+      "name": "Georgia",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "GH": {
+      "name": "Ghana",
+      "region": "Western Africa",
+      "regime": "national",
+      "codes": [
+        "Ghana Building Code (GS 1207:2018)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Metropolitan, municipal and district assemblies"
+    },
+    "GM": {
+      "name": "Gambia",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "GN": {
+      "name": "Guinea",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "GQ": {
+      "name": "Equatorial Guinea",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "GR": {
+      "name": "Greece",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "GT": {
+      "name": "Guatemala",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "GU": {
+      "name": "Guam",
+      "region": "Micronesia",
+      "regime": "icc",
+      "codes": [
+        "International Building Code (IBC)",
+        "International Residential Code (IRC)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021",
+        "irc-2021"
+      ],
+      "confidence": "high",
+      "url": "https://codes.iccsafe.org/"
+    },
+    "GW": {
+      "name": "Guinea-Bissau",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "GY": {
+      "name": "Guyana",
+      "region": "South America",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "HK": {
+      "name": "Hong Kong",
+      "region": "Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Buildings Ordinance and Practice Notes",
+        "Code of Practice for Fire Safety in Buildings"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Buildings Department"
+    },
+    "HN": {
+      "name": "Honduras",
+      "region": "Central America",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "HR": {
+      "name": "Croatia",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "HT": {
+      "name": "Haiti",
+      "region": "Caribbean",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "HU": {
+      "name": "Hungary",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "ID": {
+      "name": "Indonesia",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "SNI standards",
+        "Peraturan Menteri PUPR"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Dinas Penataan Bangunan (city level)"
+    },
+    "IE": {
+      "name": "Ireland",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "IL": {
+      "name": "Israel",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "Israeli Standard SI 1205",
+        "Planning and Building Law"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local planning and building committees"
+    },
+    "IN": {
+      "name": "India",
+      "region": "Southern Asia",
+      "regime": "in",
+      "codes": [
+        "National Building Code of India 2016",
+        "State and municipal building by-laws"
+      ],
+      "rule_packs": [
+        "baseline",
+        "in-nbc-2016"
+      ],
+      "confidence": "low",
+      "authority": "State urban development departments and municipal corporations",
+      "url": "https://www.bis.gov.in/",
+      "subdivisions": [
+        {
+          "slug": "maharashtra",
+          "name": "Maharashtra",
+          "authority": "Urban Development Department",
+          "localities": [
+            {
+              "slug": "mumbai",
+              "name": "Mumbai",
+              "authority": "Municipal Corporation of Greater Mumbai",
+              "note": "The Development Control and Promotion Regulations 2034 govern FSI and setbacks."
+            }
+          ]
+        },
+        {
+          "slug": "delhi",
+          "name": "Delhi",
+          "authority": "Delhi Development Authority",
+          "localities": [
+            {
+              "slug": "new-delhi",
+              "name": "New Delhi",
+              "authority": "Delhi Development Authority",
+              "note": "The Master Plan for Delhi and the Unified Building Bye-Laws 2016 govern."
+            }
+          ]
+        },
+        {
+          "slug": "karnataka",
+          "name": "Karnataka",
+          "authority": "Bruhat Bengaluru Mahanagara Palike",
+          "localities": [
+            {
+              "slug": "bengaluru",
+              "name": "Bengaluru",
+              "authority": "BBMP / BDA"
+            }
+          ]
+        },
+        {
+          "slug": "tamil-nadu",
+          "name": "Tamil Nadu",
+          "authority": "Directorate of Town and Country Planning"
+        }
+      ]
+    },
+    "IQ": {
+      "name": "Iraq",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "IR": {
+      "name": "Iran",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "IS": {
+      "name": "Iceland",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "IT": {
+      "name": "Italy",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "JM": {
+      "name": "Jamaica",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "JO": {
+      "name": "Jordan",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "Jordanian National Building Code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Jordan Engineers Association"
+    },
+    "JP": {
+      "name": "Japan",
+      "region": "Eastern Asia",
+      "regime": "jp",
+      "codes": [
+        "Building Standards Act (建築基準法)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "KE": {
+      "name": "Kenya",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "Building Code 2024",
+        "Physical and Land Use Planning Act"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "County governments"
+    },
+    "KG": {
+      "name": "Kyrgyzstan",
+      "region": "Central Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "KH": {
+      "name": "Cambodia",
+      "region": "South-Eastern Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "KI": {
+      "name": "Kiribati",
+      "region": "Micronesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "KM": {
+      "name": "Comoros",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "KN": {
+      "name": "Saint Kitts and Nevis",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "KP": {
+      "name": "North Korea",
+      "region": "Eastern Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "KR": {
+      "name": "South Korea",
+      "region": "Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Building Act and Enforcement Decree"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local government building departments"
+    },
+    "KW": {
+      "name": "Kuwait",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "KZ": {
+      "name": "Kazakhstan",
+      "region": "Central Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "LA": {
+      "name": "Laos",
+      "region": "South-Eastern Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "LB": {
+      "name": "Lebanon",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "LC": {
+      "name": "Saint Lucia",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "LI": {
+      "name": "Liechtenstein",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "LK": {
+      "name": "Sri Lanka",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "UDA Planning and Development Regulations"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Urban Development Authority"
+    },
+    "LR": {
+      "name": "Liberia",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "LS": {
+      "name": "Lesotho",
+      "region": "Southern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "LT": {
+      "name": "Lithuania",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "LU": {
+      "name": "Luxembourg",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "LV": {
+      "name": "Latvia",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "LY": {
+      "name": "Libya",
+      "region": "Northern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "MA": {
+      "name": "Morocco",
+      "region": "Northern Africa",
+      "regime": "national",
+      "codes": [
+        "Reglement de Construction Parasismique (RPS 2011)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Ministere de l'Amenagement du Territoire"
+    },
+    "MC": {
+      "name": "Monaco",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "MD": {
+      "name": "Moldova",
+      "region": "Eastern Europe",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "ME": {
+      "name": "Montenegro",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "MG": {
+      "name": "Madagascar",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "MH": {
+      "name": "Marshall Islands",
+      "region": "Micronesia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "MK": {
+      "name": "North Macedonia",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "ML": {
+      "name": "Mali",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "MM": {
+      "name": "Myanmar",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "MN": {
+      "name": "Mongolia",
+      "region": "Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "MO": {
+      "name": "Macao",
+      "region": "Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "MR": {
+      "name": "Mauritania",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "MT": {
+      "name": "Malta",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "MU": {
+      "name": "Mauritius",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "Building Control Act and Building Control Regulations"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local authorities"
+    },
+    "MV": {
+      "name": "Maldives",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "MW": {
+      "name": "Malawi",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "MX": {
+      "name": "Mexico",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "Reglamento de Construcciones (per municipality)",
+        "Normas Tecnicas Complementarias"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Municipal building authorities"
+    },
+    "MY": {
+      "name": "Malaysia",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Uniform Building By-Laws 1984 (UBBL)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local authorities under the Street, Drainage and Building Act"
+    },
+    "MZ": {
+      "name": "Mozambique",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "NA": {
+      "name": "Namibia",
+      "region": "Southern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "NC": {
+      "name": "New Caledonia",
+      "region": "Melanesia",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "NE": {
+      "name": "Niger",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "NG": {
+      "name": "Nigeria",
+      "region": "Western Africa",
+      "regime": "national",
+      "codes": [
+        "National Building Code of Nigeria"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "State physical planning authorities"
+    },
+    "NI": {
+      "name": "Nicaragua",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "NL": {
+      "name": "Netherlands",
+      "region": "Western Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "NO": {
+      "name": "Norway",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "NP": {
+      "name": "Nepal",
+      "region": "Southern Asia",
+      "regime": "national",
+      "codes": [
+        "Nepal National Building Code (NBC) series"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Department of Urban Development and Building Construction"
+    },
+    "NR": {
+      "name": "Nauru",
+      "region": "Micronesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "NZ": {
+      "name": "New Zealand",
+      "region": "Australia and New Zealand",
+      "regime": "national",
+      "codes": [
+        "New Zealand Building Code (Schedule 1, Building Regulations 1992)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Building Consent Authorities",
+      "url": "https://www.building.govt.nz/"
+    },
+    "OM": {
+      "name": "Oman",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "PA": {
+      "name": "Panama",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "PE": {
+      "name": "Peru",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "Reglamento Nacional de Edificaciones (RNE)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Municipalidades"
+    },
+    "PF": {
+      "name": "French Polynesia",
+      "region": "Polynesia",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "PG": {
+      "name": "Papua New Guinea",
+      "region": "Melanesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "PH": {
+      "name": "Philippines",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "National Building Code of the Philippines (PD 1096)"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Office of the Building Official"
+    },
+    "PK": {
+      "name": "Pakistan",
+      "region": "Southern Asia",
+      "regime": "pk",
+      "codes": [
+        "Building Code of Pakistan (Seismic Provisions) 2021",
+        "Building Code of Pakistan (Fire Safety Provisions) 2016",
+        "Provincial and municipal building by-laws"
+      ],
+      "rule_packs": [
+        "baseline",
+        "pk-bylaws"
+      ],
+      "confidence": "low",
+      "authority": "Pakistan Engineering Council; provincial development authorities (CDA, LDA, RDA, SBCA, PDA)",
+      "url": "https://www.pec.org.pk/",
+      "subdivisions": [
+        {
+          "slug": "punjab",
+          "name": "Punjab",
+          "authority": "Lahore Development Authority; Rawalpindi Development Authority",
+          "localities": [
+            {
+              "slug": "lahore",
+              "name": "Lahore",
+              "authority": "Lahore Development Authority (LDA)",
+              "note": "LDA Building and Zoning Regulations set setbacks, coverage and height by plot size and by scheme."
+            },
+            {
+              "slug": "rawalpindi",
+              "name": "Rawalpindi",
+              "authority": "Rawalpindi Development Authority (RDA)"
+            },
+            {
+              "slug": "faisalabad",
+              "name": "Faisalabad",
+              "authority": "Faisalabad Development Authority (FDA)"
+            },
+            {
+              "slug": "multan",
+              "name": "Multan",
+              "authority": "Multan Development Authority (MDA)"
+            }
+          ]
+        },
+        {
+          "slug": "sindh",
+          "name": "Sindh",
+          "authority": "Sindh Building Control Authority (SBCA)",
+          "localities": [
+            {
+              "slug": "karachi",
+              "name": "Karachi",
+              "authority": "Sindh Building Control Authority (SBCA)",
+              "note": "The Karachi Building and Town Planning Regulations 2002 govern, as amended."
+            }
+          ]
+        },
+        {
+          "slug": "islamabad",
+          "name": "Islamabad Capital Territory",
+          "authority": "Capital Development Authority (CDA)",
+          "localities": [
+            {
+              "slug": "islamabad",
+              "name": "Islamabad",
+              "authority": "Capital Development Authority (CDA)",
+              "note": "CDA building control regulations differ by sector and by plot category."
+            }
+          ]
+        },
+        {
+          "slug": "kpk",
+          "name": "Khyber Pakhtunkhwa",
+          "authority": "Peshawar Development Authority (PDA)"
+        },
+        {
+          "slug": "balochistan",
+          "name": "Balochistan",
+          "authority": "Quetta Development Authority (QDA)"
+        }
+      ]
+    },
+    "PL": {
+      "name": "Poland",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "PR": {
+      "name": "Puerto Rico",
+      "region": "Caribbean",
+      "regime": "icc",
+      "codes": [
+        "International Building Code (IBC)",
+        "International Residential Code (IRC)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021",
+        "irc-2021"
+      ],
+      "confidence": "high",
+      "url": "https://codes.iccsafe.org/"
+    },
+    "PS": {
+      "name": "Palestine",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "PT": {
+      "name": "Portugal",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "PW": {
+      "name": "Palau",
+      "region": "Micronesia",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "PY": {
+      "name": "Paraguay",
+      "region": "South America",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "QA": {
+      "name": "Qatar",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "Qatar Construction Specifications (QCS)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium",
+      "authority": "Ministry of Municipality"
+    },
+    "RO": {
+      "name": "Romania",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "RS": {
+      "name": "Serbia",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "RU": {
+      "name": "Russia",
+      "region": "Eastern Europe",
+      "regime": "national",
+      "codes": [
+        "SP (Svod Pravil) series, successors to SNiP"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Ministry of Construction (Minstroy)"
+    },
+    "RW": {
+      "name": "Rwanda",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "SA": {
+      "name": "Saudi Arabia",
+      "region": "Western Asia",
+      "regime": "icc-derived",
+      "codes": [
+        "Saudi Building Code (SBC 201, 301, 401, 801)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium",
+      "authority": "Saudi Building Code National Committee",
+      "url": "https://sbc.gov.sa/"
+    },
+    "SB": {
+      "name": "Solomon Islands",
+      "region": "Melanesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SC": {
+      "name": "Seychelles",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SD": {
+      "name": "Sudan",
+      "region": "Northern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SE": {
+      "name": "Sweden",
+      "region": "Northern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "SG": {
+      "name": "Singapore",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Building Control Regulations",
+        "SCDF Fire Code",
+        "BCA Approved Documents"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Building and Construction Authority",
+      "url": "https://www1.bca.gov.sg/",
+      "note": "Singapore's CORENET X system accepts machine-checkable submissions, and is the furthest developed rule-checking regime anywhere."
+    },
+    "SI": {
+      "name": "Slovenia",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "SK": {
+      "name": "Slovakia",
+      "region": "Eastern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "SL": {
+      "name": "Sierra Leone",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SM": {
+      "name": "San Marino",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "SN": {
+      "name": "Senegal",
+      "region": "Western Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "SO": {
+      "name": "Somalia",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SR": {
+      "name": "Suriname",
+      "region": "South America",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SS": {
+      "name": "South Sudan",
+      "region": "Eastern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "ST": {
+      "name": "Sao Tome and Principe",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SV": {
+      "name": "El Salvador",
+      "region": "Central America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "SY": {
+      "name": "Syria",
+      "region": "Western Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "SZ": {
+      "name": "Eswatini",
+      "region": "Southern Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TD": {
+      "name": "Chad",
+      "region": "Middle Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TG": {
+      "name": "Togo",
+      "region": "Western Africa",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TH": {
+      "name": "Thailand",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Building Control Act B.E. 2522 and ministerial regulations"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Department of Public Works and Town and Country Planning"
+    },
+    "TJ": {
+      "name": "Tajikistan",
+      "region": "Central Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "TL": {
+      "name": "Timor-Leste",
+      "region": "South-Eastern Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TM": {
+      "name": "Turkmenistan",
+      "region": "Central Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TN": {
+      "name": "Tunisia",
+      "region": "Northern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "TO": {
+      "name": "Tonga",
+      "region": "Polynesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TR": {
+      "name": "Turkey",
+      "region": "Western Asia",
+      "regime": "national",
+      "codes": [
+        "Turkiye Bina Deprem Yonetmeligi (TBDY 2018)",
+        "Planli Alanlar Imar Yonetmeligi"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Municipal imar directorates"
+    },
+    "TT": {
+      "name": "Trinidad and Tobago",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "TV": {
+      "name": "Tuvalu",
+      "region": "Polynesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "TW": {
+      "name": "Taiwan",
+      "region": "Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "Building Technical Regulations"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Construction and Planning Agency"
+    },
+    "TZ": {
+      "name": "Tanzania",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "UA": {
+      "name": "Ukraine",
+      "region": "Eastern Europe",
+      "regime": "national",
+      "codes": [
+        "DBN (Derzhavni Budivelni Normy) series"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Ministry of Communities and Territories Development"
+    },
+    "UG": {
+      "name": "Uganda",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "US": {
+      "name": "United States",
+      "region": "Northern America",
+      "regime": "icc",
+      "codes": [
+        "International Building Code (IBC)",
+        "International Residential Code (IRC)"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021",
+        "irc-2021"
+      ],
+      "confidence": "high",
+      "url": "https://codes.iccsafe.org/",
+      "subdivisions": [
+        {
+          "slug": "california",
+          "name": "California",
+          "authority": "California Building Standards Commission",
+          "note": "Title 24 is the California Building Standards Code, an amended IBC/IRC. Local jurisdictions amend it further."
+        },
+        {
+          "slug": "texas",
+          "name": "Texas",
+          "authority": "Municipal building departments",
+          "note": "Adoption is by municipality; there is no statewide commercial code for all building types."
+        },
+        {
+          "slug": "florida",
+          "name": "Florida",
+          "authority": "Florida Building Commission",
+          "note": "The Florida Building Code carries wind-borne debris and high-velocity hurricane zone provisions the IBC does not."
+        },
+        {
+          "slug": "new-york",
+          "name": "New York",
+          "authority": "NYS Division of Building Standards and Codes",
+          "note": "New York City has its own Construction Codes, separate from the state code."
+        }
+      ]
+    },
+    "UY": {
+      "name": "Uruguay",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "UZ": {
+      "name": "Uzbekistan",
+      "region": "Central Asia",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "VA": {
+      "name": "Vatican City",
+      "region": "Southern Europe",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "VC": {
+      "name": "Saint Vincent and the Grenadines",
+      "region": "Caribbean",
+      "regime": "icc-derived",
+      "codes": [
+        "National code derived from the IBC"
+      ],
+      "rule_packs": [
+        "baseline",
+        "ibc-2021"
+      ],
+      "confidence": "medium"
+    },
+    "VE": {
+      "name": "Venezuela",
+      "region": "South America",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "VN": {
+      "name": "Vietnam",
+      "region": "South-Eastern Asia",
+      "regime": "national",
+      "codes": [
+        "QCVN national technical regulations"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Ministry of Construction"
+    },
+    "VU": {
+      "name": "Vanuatu",
+      "region": "Melanesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "WS": {
+      "name": "Samoa",
+      "region": "Polynesia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "XK": {
+      "name": "Kosovo",
+      "region": "Southern Europe",
+      "regime": "eurocode",
+      "codes": [
+        "EN Eurocodes (EN 1990-1999)",
+        "National building regulations and national annexes"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "url": "https://eurocodes.jrc.ec.europa.eu/"
+    },
+    "YE": {
+      "name": "Yemen",
+      "region": "Western Asia",
+      "regime": "unknown",
+      "codes": [],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "none"
+    },
+    "ZA": {
+      "name": "South Africa",
+      "region": "Southern Africa",
+      "regime": "national",
+      "codes": [
+        "National Building Regulations and Building Standards Act",
+        "SANS 10400 series"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "medium",
+      "authority": "Local municipality building control",
+      "url": "https://www.sabs.co.za/"
+    },
+    "ZM": {
+      "name": "Zambia",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    },
+    "ZW": {
+      "name": "Zimbabwe",
+      "region": "Eastern Africa",
+      "regime": "national",
+      "codes": [
+        "National building code"
+      ],
+      "rule_packs": [
+        "baseline"
+      ],
+      "confidence": "low"
+    }
+  }
+}

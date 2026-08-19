@@ -1,0 +1,298 @@
+"""The building model: what was designed, independent of how it is drawn.
+
+Exporters read this and write DXF, IFC or SVG. The rule engine reads this
+and derives facts to check. Neither one talks to the other, so adding a
+jurisdiction never touches a file format and adding a file format never
+touches a code rule.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Iterable
+
+from .geom import Point, Rect, is_vertical, segment_length
+
+
+class Function(str, Enum):
+    """What a space is for.
+
+    Deliberately generic. Occupancy classification -- IBC Group R-3, a
+    Eurocode fire compartment class, a BCP residential category -- is a
+    jurisdiction's opinion about these, and lives in its rule pack, not
+    here. That is what lets one plan be checked against several codes.
+    """
+
+    BEDROOM = "bedroom"
+    LIVING = "living"
+    DINING = "dining"
+    KITCHEN = "kitchen"
+    BATHROOM = "bathroom"
+    WC = "wc"
+    CORRIDOR = "corridor"
+    LOBBY = "lobby"
+    STAIR = "stair"
+    ENTRY = "entry"
+    STORAGE = "storage"
+    UTILITY = "utility"
+    GARAGE = "garage"
+    OFFICE = "office"
+    MEETING = "meeting"
+    CLASSROOM = "classroom"
+    RETAIL = "retail"
+    ASSEMBLY = "assembly"
+    BALCONY = "balcony"
+    COURTYARD = "courtyard"
+
+    @property
+    def is_circulation(self) -> bool:
+        return self in (Function.CORRIDOR, Function.LOBBY, Function.STAIR, Function.ENTRY)
+
+    @property
+    def is_habitable(self) -> bool:
+        """Habitable rooms are the ones daylight and ventilation rules bite on.
+
+        Almost every code draws this line, and draws it in roughly the same
+        place: rooms for living, sleeping, eating or working, but not
+        bathrooms, corridors, stores or garages.
+        """
+        return self in (
+            Function.BEDROOM,
+            Function.LIVING,
+            Function.DINING,
+            Function.KITCHEN,
+            Function.OFFICE,
+            Function.MEETING,
+            Function.CLASSROOM,
+            Function.RETAIL,
+            Function.ASSEMBLY,
+        )
+
+    @property
+    def is_wet(self) -> bool:
+        return self in (Function.BATHROOM, Function.WC, Function.KITCHEN, Function.UTILITY)
+
+
+class WallKind(str, Enum):
+    EXTERIOR = "exterior"
+    INTERIOR = "interior"
+    PARTY = "party"
+
+
+class OpeningKind(str, Enum):
+    DOOR = "door"
+    WINDOW = "window"
+    OPENING = "opening"  # an unframed gap, e.g. living into dining
+
+
+@dataclass(slots=True)
+class Space:
+    """A room, as an axis-aligned rectangle on one storey."""
+
+    id: str
+    name: str
+    function: Function
+    rect: Rect
+    storey: int
+    occupants: int | None = None  # set by the rule engine, not by the layout
+
+    @property
+    def area(self) -> int:
+        return self.rect.area
+
+    @property
+    def width(self) -> int:
+        return self.rect.short_side
+
+    @property
+    def length(self) -> int:
+        return self.rect.long_side
+
+
+@dataclass(slots=True)
+class Wall:
+    """A wall centreline, with a thickness either side of it."""
+
+    id: str
+    start: Point
+    end: Point
+    thickness: int
+    kind: WallKind
+    storey: int
+    height: int
+    fire_rating_minutes: int = 0
+    # The spaces this wall separates. One id means it faces outside.
+    separates: tuple[str, ...] = ()
+
+    @property
+    def length(self) -> int:
+        return segment_length(self.start, self.end)
+
+    @property
+    def vertical(self) -> bool:
+        return is_vertical(self.start, self.end)
+
+    @property
+    def is_exterior(self) -> bool:
+        return self.kind is WallKind.EXTERIOR
+
+
+@dataclass(slots=True)
+class Opening:
+    """A door or window, positioned along its wall's centreline."""
+
+    id: str
+    wall: str
+    kind: OpeningKind
+    offset: int  # from the wall's start point, to the opening's near edge
+    width: int
+    height: int
+    sill: int = 0
+    is_egress: bool = False
+    leaf_thickness: int = 45  # a door leaf eats into its own clear width
+
+    @property
+    def clear_width(self) -> int:
+        """What a person actually fits through.
+
+        Codes measure a doorway's clear width with the door open at 90
+        degrees, so the leaf and its stops come off the structural opening.
+        Windows have no leaf in the way of anyone walking.
+        """
+        if self.kind is OpeningKind.DOOR:
+            return max(0, self.width - self.leaf_thickness)
+        return self.width
+
+
+@dataclass(slots=True)
+class Stair:
+    """A flight, described by the numbers every code has an opinion about."""
+
+    id: str
+    storey: int
+    rect: Rect
+    riser_height: int
+    tread_depth: int
+    risers: int
+    width: int
+    headroom: int = 2100
+    handrails: int = 1
+    flights: int = 1  # 2 means a half-turn stair, doubling back on a landing
+
+    @property
+    def rise_total(self) -> int:
+        return self.riser_height * self.risers
+
+
+@dataclass(slots=True)
+class Storey:
+    index: int
+    name: str
+    elevation: int          # of the finished floor, above site datum
+    height: int             # floor to floor
+    spaces: list[Space] = field(default_factory=list)
+    walls: list[Wall] = field(default_factory=list)
+    openings: list[Opening] = field(default_factory=list)
+    stairs: list[Stair] = field(default_factory=list)
+
+    @property
+    def floor_area(self) -> int:
+        """Gross area of everything enclosed on this storey."""
+        return sum(s.area for s in self.spaces)
+
+    def space(self, space_id: str) -> Space | None:
+        return next((s for s in self.spaces if s.id == space_id), None)
+
+    def wall(self, wall_id: str) -> Wall | None:
+        return next((w for w in self.walls if w.id == wall_id), None)
+
+    def openings_on(self, wall_id: str) -> list[Opening]:
+        return [o for o in self.openings if o.wall == wall_id]
+
+    def openings_of(self, space_id: str) -> list[Opening]:
+        """Every opening in a wall that bounds this space."""
+        wall_ids = {w.id for w in self.walls if space_id in w.separates}
+        return [o for o in self.openings if o.wall in wall_ids]
+
+
+@dataclass(slots=True)
+class Plot:
+    """The piece of land, and what the local authority says about its edges."""
+
+    rect: Rect
+    # Setbacks in millimetres, per side, as the jurisdiction requires them.
+    setback_front: int = 0
+    setback_rear: int = 0
+    setback_left: int = 0
+    setback_right: int = 0
+    # Which side the road is on -- 'south' means the plot fronts southwards.
+    road_side: str = "south"
+
+    @property
+    def area(self) -> int:
+        return self.rect.area
+
+    @property
+    def buildable(self) -> Rect:
+        """The envelope left after setbacks, measured from the road side."""
+        front, rear = self.setback_front, self.setback_rear
+        left, right = self.setback_left, self.setback_right
+        if self.road_side == "south":
+            return self.rect.inset_sides(left, front, right, rear)
+        if self.road_side == "north":
+            return self.rect.inset_sides(left, rear, right, front)
+        if self.road_side == "west":
+            return self.rect.inset_sides(front, left, rear, right)
+        if self.road_side == "east":
+            return self.rect.inset_sides(rear, left, front, right)
+        raise ValueError(f"road_side must be a compass point, got {self.road_side!r}")
+
+
+@dataclass(slots=True)
+class Building:
+    """A complete design, ready to draw or to check."""
+
+    name: str
+    plot: Plot
+    storeys: list[Storey] = field(default_factory=list)
+    jurisdiction: str = ""        # e.g. 'PK-PB-lahore', resolved by codes.registry
+    use: str = "residential"      # the brief's word for it; codes map it themselves
+    parking_spaces: int = 0
+    metadata: dict[str, str] = field(default_factory=dict)
+
+    # -- aggregate quantities every code asks for in some form -----------
+    @property
+    def gross_floor_area(self) -> int:
+        return sum(s.floor_area for s in self.storeys)
+
+    @property
+    def footprint(self) -> int:
+        """Ground-storey area -- what site coverage is measured against."""
+        return self.storeys[0].floor_area if self.storeys else 0
+
+    @property
+    def coverage_ratio(self) -> float:
+        return self.footprint / self.plot.area if self.plot.area else 0.0
+
+    @property
+    def floor_area_ratio(self) -> float:
+        return self.gross_floor_area / self.plot.area if self.plot.area else 0.0
+
+    @property
+    def height(self) -> int:
+        return sum(s.height for s in self.storeys)
+
+    @property
+    def storey_count(self) -> int:
+        return len(self.storeys)
+
+    def all_spaces(self) -> Iterable[Space]:
+        for storey in self.storeys:
+            yield from storey.spaces
+
+    def spaces_by_function(self, function: Function) -> list[Space]:
+        return [s for s in self.all_spaces() if s.function is function]
+
+    def storey(self, index: int) -> Storey | None:
+        return next((s for s in self.storeys if s.index == index), None)

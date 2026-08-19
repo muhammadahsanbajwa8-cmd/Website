@@ -1,0 +1,536 @@
+"""From tiles to walls, doors and windows.
+
+The solver leaves an exact tiling of the envelope. This module reads the
+adjacencies in that tiling and gives them substance: where two tiles meet
+there is an interior wall, where a tile meets open air there is an exterior
+wall, and where a room meets circulation there is a doorway.
+
+Sizes here -- a 900 mm door leaf, a window at 15% of floor area -- are
+ordinary practice chosen to clear most codes comfortably. They are starting
+points, not permissions. The rule engine checks them afterwards against the
+jurisdiction that actually applies, and will say so when a default is not
+enough.
+"""
+
+from __future__ import annotations
+
+import itertools
+import math
+
+from ..geom import EPS, Point, Rect
+from ..model import (
+    Building,
+    Function,
+    Opening,
+    OpeningKind,
+    Plot,
+    Space,
+    Stair,
+    Storey,
+    Wall,
+    WallKind,
+)
+from ..program import SpaceProgram
+from .solver import Cell, Layout
+
+EXTERIOR_THICKNESS = 230   # one brick, rendered both faces
+INTERIOR_THICKNESS = 115   # half brick
+PARTY_THICKNESS = 230
+
+# Structural door widths. The clear width a code measures is narrower by the
+# leaf thickness -- see Opening.clear_width.
+DOOR_WIDTHS = {
+    Function.BATHROOM: 810,
+    Function.WC: 810,
+    Function.STORAGE: 760,
+    Function.UTILITY: 760,
+}
+DEFAULT_DOOR_WIDTH = 915
+ENTRY_DOOR_WIDTH = 1000
+DOOR_HEIGHT = 2100
+
+# In anything but a house, every door is on somebody's way out, and egress
+# rules apply to all of them rather than to the front door alone. A store
+# cupboard sized like a house's fails IBC 1010.1.1 the moment it is drawn in
+# an office, so non-residential work starts from a wider leaf.
+NON_RESIDENTIAL_MIN_DOOR = 965
+
+WINDOW_HEAD = 2100
+WINDOW_SILL = 900
+WET_WINDOW_WIDTH = 600
+WET_WINDOW_HEIGHT = 600
+WET_WINDOW_SILL = 1500
+
+# Glazing as a share of floor area. Most codes land between 8% and 12% for
+# daylight; 15% leaves headroom and is what a designer would draw anyway.
+GLAZING_RATIO = 0.15
+
+# Stair defaults, kept comfortable. The riser actually used is derived from
+# the storey height, and the going from the space available, so both are
+# facts about the design rather than assumptions -- and both get checked.
+TARGET_RISER = 175
+MIN_GOING = 250
+LANDING_DEPTH = 900
+
+
+def _interval_overlap(a0: int, a1: int, b0: int, b1: int) -> tuple[int, int] | None:
+    lo, hi = max(a0, b0), min(a1, b1)
+    return (lo, hi) if hi - lo > EPS else None
+
+
+def _subtract(span: tuple[int, int], covered: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """What is left of a span once the covered parts are removed."""
+    remaining = [span]
+    for c0, c1 in sorted(covered):
+        next_remaining: list[tuple[int, int]] = []
+        for r0, r1 in remaining:
+            if c1 <= r0 or c0 >= r1:
+                next_remaining.append((r0, r1))
+                continue
+            if c0 > r0:
+                next_remaining.append((r0, c0))
+            if c1 < r1:
+                next_remaining.append((c1, r1))
+        remaining = next_remaining
+    return [(a, b) for a, b in remaining if b - a > EPS]
+
+
+def _walls_for_storey(
+    cells: list[Cell], storey_index: int, height: int
+) -> tuple[list[Wall], dict[tuple[str, str], str]]:
+    """Every wall on one floor, and an index of which rooms each separates."""
+    walls: list[Wall] = []
+    between: dict[tuple[str, str], str] = {}
+    counter = itertools.count(1)
+
+    def wall_id() -> str:
+        return f"W{storey_index}-{next(counter):03d}"
+
+    # Interior walls: one per pair of tiles that share a face.
+    for a, b in itertools.combinations(cells, 2):
+        edge = a.rect.shared_edge(b.rect)
+        if edge is None:
+            continue
+        kind = WallKind.INTERIOR
+        wall = Wall(
+            id=wall_id(),
+            start=edge[0],
+            end=edge[1],
+            thickness=INTERIOR_THICKNESS,
+            kind=kind,
+            storey=storey_index,
+            height=height,
+            separates=(a.key, b.key),
+        )
+        walls.append(wall)
+        between[(a.key, b.key)] = wall.id
+        between[(b.key, a.key)] = wall.id
+
+    # Exterior walls: the parts of a tile's edge that no neighbour covers.
+    for cell in cells:
+        rect = cell.rect
+        faces = (
+            ("left", rect.x0, (rect.y0, rect.y1), True),
+            ("right", rect.x1, (rect.y0, rect.y1), True),
+            ("bottom", rect.y0, (rect.x0, rect.x1), False),
+            ("top", rect.y1, (rect.x0, rect.x1), False),
+        )
+        for _, position, span, vertical in faces:
+            covered: list[tuple[int, int]] = []
+            for other in cells:
+                if other is cell:
+                    continue
+                o = other.rect
+                if vertical:
+                    if abs(o.x1 - position) > EPS and abs(o.x0 - position) > EPS:
+                        continue
+                    overlap = _interval_overlap(span[0], span[1], o.y0, o.y1)
+                else:
+                    if abs(o.y1 - position) > EPS and abs(o.y0 - position) > EPS:
+                        continue
+                    overlap = _interval_overlap(span[0], span[1], o.x0, o.x1)
+                if overlap:
+                    covered.append(overlap)
+            for lo, hi in _subtract(span, covered):
+                start = Point(position, lo) if vertical else Point(lo, position)
+                end = Point(position, hi) if vertical else Point(hi, position)
+                walls.append(
+                    Wall(
+                        id=wall_id(),
+                        start=start,
+                        end=end,
+                        thickness=EXTERIOR_THICKNESS,
+                        kind=WallKind.EXTERIOR,
+                        storey=storey_index,
+                        height=height,
+                        separates=(cell.key,),
+                    )
+                )
+
+    return walls, between
+
+
+def _clear_rect(cell: Cell, walls: list[Wall]) -> Rect:
+    """The room inside its walls -- what a code measures when it says 'area'.
+
+    Tiles meet on wall centrelines, so each room gives up half the thickness
+    of every wall around it. Reporting the tile area instead would overstate
+    every room in the building by a few percent, which is exactly the kind
+    of error that clears a minimum on paper and fails it on site.
+    """
+    rect = cell.rect
+    sides = {"left": 0, "right": 0, "bottom": 0, "top": 0}
+    for wall in walls:
+        if cell.key not in wall.separates:
+            continue
+        half = wall.thickness // 2
+        if wall.vertical:
+            if abs(wall.start.x - rect.x0) <= EPS:
+                sides["left"] = max(sides["left"], half)
+            elif abs(wall.start.x - rect.x1) <= EPS:
+                sides["right"] = max(sides["right"], half)
+        else:
+            if abs(wall.start.y - rect.y0) <= EPS:
+                sides["bottom"] = max(sides["bottom"], half)
+            elif abs(wall.start.y - rect.y1) <= EPS:
+                sides["top"] = max(sides["top"], half)
+    return rect.inset_sides(sides["left"], sides["bottom"], sides["right"], sides["top"])
+
+
+def _centre_opening(wall: Wall, width: int) -> int:
+    """Offset that centres an opening on its wall, keeping a sane reveal."""
+    usable = wall.length - 300  # 150 mm of wall either side, minimum
+    if usable <= 0:
+        return 0
+    width = min(width, usable)
+    return max(0, (wall.length - width) // 2)
+
+
+def _openings_for_storey(
+    cells: list[Cell],
+    walls: list[Wall],
+    between: dict[tuple[str, str], str],
+    storey_index: int,
+    plot: Plot,
+    clear: dict[str, Rect],
+    warnings: list[str],
+    use: str = "residential",
+) -> list[Opening]:
+    """Doors onto circulation, a front door, and windows where light is due."""
+    openings: list[Opening] = []
+    counter = itertools.count(1)
+    by_key = {c.key: c for c in cells}
+    wall_by_id = {w.id: w for w in walls}
+
+    def opening_id() -> str:
+        return f"O{storey_index}-{next(counter):03d}"
+
+    circulation = {c.key for c in cells if c.function.is_circulation}
+
+    # -- internal doors --------------------------------------------------
+    for cell in cells:
+        if cell.function.is_circulation:
+            continue
+        targets = [
+            (key, between[(cell.key, key)])
+            for key in circulation
+            if (cell.key, key) in between
+        ]
+        if not targets:
+            # Nothing to open onto directly. Fall back to the largest
+            # neighbour so the room is at least reachable, and say so --
+            # a room entered through another room fails egress rules in
+            # most codes for anything but a suite.
+            neighbours = [
+                (other.key, between[(cell.key, other.key)])
+                for other in cells
+                if other.key != cell.key and (cell.key, other.key) in between
+            ]
+            if not neighbours:
+                warnings.append(
+                    f"{cell.name} does not touch any other room; it has no door."
+                )
+                continue
+            neighbours.sort(key=lambda kw: -wall_by_id[kw[1]].length)
+            targets = neighbours[:1]
+            warnings.append(
+                f"{cell.name} has no wall onto circulation, so its door opens "
+                f"into {by_key[targets[0][0]].name}. Check this against the "
+                "local rule on rooms entered through other rooms."
+            )
+
+        # Open onto the longest available wall, which keeps the door clear
+        # of corners and gives the room a usable swing.
+        targets.sort(key=lambda kw: -wall_by_id[kw[1]].length)
+        wall = wall_by_id[targets[0][1]]
+        width = DOOR_WIDTHS.get(cell.function, DEFAULT_DOOR_WIDTH)
+        if use != "residential":
+            width = max(width, NON_RESIDENTIAL_MIN_DOOR)
+        openings.append(
+            Opening(
+                id=opening_id(),
+                wall=wall.id,
+                kind=OpeningKind.DOOR,
+                offset=_centre_opening(wall, width),
+                width=min(width, max(0, wall.length - 300)),
+                height=DOOR_HEIGHT,
+            )
+        )
+
+    # -- circulation joins up ---------------------------------------------
+    # An entry hall opens into the corridor, and the corridor into the stair.
+    # These are usually unframed openings rather than doors, but they carry
+    # the whole egress route: without them the plan is a set of rooms with no
+    # way out, and every travel distance is uncomputable.
+    circulation_cells = [c for c in cells if c.function.is_circulation]
+    for a, b in itertools.combinations(circulation_cells, 2):
+        wall_id = between.get((a.key, b.key))
+        if wall_id is None:
+            continue
+        wall = wall_by_id[wall_id]
+        width = min(1200, max(0, wall.length - 300))
+        if width <= 0:
+            continue
+        openings.append(
+            Opening(
+                id=opening_id(),
+                wall=wall.id,
+                kind=OpeningKind.OPENING,
+                offset=_centre_opening(wall, width),
+                width=width,
+                height=DOOR_HEIGHT,
+            )
+        )
+
+    # -- the front door --------------------------------------------------
+    road_edge = {
+        "south": lambda w: not w.vertical and w.start.y == min(c.rect.y0 for c in cells),
+        "north": lambda w: not w.vertical and w.start.y == max(c.rect.y1 for c in cells),
+        "west": lambda w: w.vertical and w.start.x == min(c.rect.x0 for c in cells),
+        "east": lambda w: w.vertical and w.start.x == max(c.rect.x1 for c in cells),
+    }[plot.road_side]
+
+    entry_keys = [c.key for c in cells if c.function in (Function.ENTRY, Function.LOBBY)]
+    if not entry_keys:
+        entry_keys = [c.key for c in cells if c.function.is_circulation]
+
+    front_candidates = [
+        w
+        for w in walls
+        if w.is_exterior and road_edge(w) and set(w.separates) & set(entry_keys)
+    ]
+    if not front_candidates:
+        front_candidates = [w for w in walls if w.is_exterior and road_edge(w)]
+    if front_candidates and storey_index == 0:
+        wall = max(front_candidates, key=lambda w: w.length)
+        openings.append(
+            Opening(
+                id=opening_id(),
+                wall=wall.id,
+                kind=OpeningKind.DOOR,
+                offset=_centre_opening(wall, ENTRY_DOOR_WIDTH),
+                width=min(ENTRY_DOOR_WIDTH, max(0, wall.length - 300)),
+                height=DOOR_HEIGHT,
+                is_egress=True,
+            )
+        )
+    elif storey_index == 0:
+        warnings.append(
+            "No exterior wall faces the road, so no front door was placed."
+        )
+
+    # -- a second way out -------------------------------------------------
+    # Above about fifty occupants every code wants two exits, remote from
+    # each other. A house rarely reaches that; anything else reaches it at
+    # the first floor of any size, so non-residential plans get a second
+    # door at the far end of the circulation from the first.
+    if use != "residential" and storey_index == 0:
+        placed_walls = {o.wall for o in openings if o.is_egress}
+        candidates = [
+            w
+            for w in walls
+            if w.is_exterior
+            and w.id not in placed_walls
+            and set(w.separates) & set(entry_keys)
+        ]
+        if candidates and placed_walls:
+            first = next(w for w in walls if w.id in placed_walls)
+            # Remote means remote: take the exterior wall furthest from the
+            # door already placed, not merely a different one.
+            far = max(
+                candidates,
+                key=lambda w: abs(w.start.x - first.start.x)
+                + abs(w.start.y - first.start.y),
+            )
+            width = min(ENTRY_DOOR_WIDTH, max(0, far.length - 300))
+            if width > 0:
+                openings.append(
+                    Opening(
+                        id=opening_id(),
+                        wall=far.id,
+                        kind=OpeningKind.DOOR,
+                        offset=_centre_opening(far, width),
+                        width=width,
+                        height=DOOR_HEIGHT,
+                        is_egress=True,
+                    )
+                )
+        elif not candidates:
+            warnings.append(
+                "Only one exit could be placed: the circulation touches the "
+                "outside in one place only. Above roughly fifty occupants a "
+                "second, remote exit is required almost everywhere."
+            )
+
+    # -- windows ---------------------------------------------------------
+    for cell in cells:
+        exterior = [w for w in walls if w.is_exterior and cell.key in w.separates]
+        if not exterior:
+            if cell.function.is_habitable:
+                warnings.append(
+                    f"{cell.name} has no exterior wall, so it has no window. "
+                    "Habitable rooms need daylight almost everywhere."
+                )
+            continue
+        if cell.function.is_circulation and cell.function is not Function.STAIR:
+            continue
+
+        wall = max(exterior, key=lambda w: w.length)
+        # Order matters: a kitchen is both wet and habitable, and it is the
+        # habitable half that decides how much daylight it is owed.
+        if cell.function.is_habitable:
+            floor_area = clear[cell.key].area
+            glazed = int(floor_area * GLAZING_RATIO)
+            height = WINDOW_HEAD - WINDOW_SILL
+            width = max(900, min(glazed // height, max(0, wall.length - 600)))
+            sill = WINDOW_SILL
+        elif cell.function.is_wet:
+            width = min(WET_WINDOW_WIDTH, max(0, wall.length - 300))
+            height, sill = WET_WINDOW_HEIGHT, WET_WINDOW_SILL
+        else:
+            width = min(900, max(0, wall.length - 300))
+            height, sill = WINDOW_HEAD - WINDOW_SILL, WINDOW_SILL
+
+        if width <= 0:
+            continue
+        openings.append(
+            Opening(
+                id=opening_id(),
+                wall=wall.id,
+                kind=OpeningKind.WINDOW,
+                offset=_centre_opening(wall, width),
+                width=width,
+                height=height,
+                sill=sill,
+            )
+        )
+
+    return openings
+
+
+def _stairs_for_storey(
+    cells: list[Cell],
+    storey_index: int,
+    storey_height: int,
+    clear: dict[str, Rect],
+    warnings: list[str],
+) -> list[Stair]:
+    """Work the flight out from the height it has to climb and the run it has.
+
+    Nothing here is assumed. The number of risers is whatever it takes to
+    reach the next floor at a comfortable rise; the going is whatever the
+    space allows once a landing is taken out. If that produces a steep
+    stair, the geometry says so honestly and the rule engine fails it --
+    which is the point.
+    """
+    stairs: list[Stair] = []
+    for cell in cells:
+        if cell.function is not Function.STAIR:
+            continue
+        rect = clear[cell.key]
+        risers = max(2, round(storey_height / TARGET_RISER))
+        riser = storey_height // risers
+        goings = max(1, risers - 1)
+        run_available = max(0, rect.long_side - LANDING_DEPTH)
+
+        # One straight flight if the run is there. If it is not, the stair
+        # turns back on itself -- which is what anyone would draw, and the
+        # only way a seventeen-riser flight fits a three-metre room without
+        # becoming a ladder.
+        flights = 1
+        going = run_available // goings
+        width = rect.short_side
+        if going < MIN_GOING and rect.short_side >= 2 * 900:
+            flights = 2
+            per_flight = -(-goings // 2)
+            going = run_available // max(1, per_flight)
+            width = rect.short_side // 2
+
+        if going < MIN_GOING:
+            warnings.append(
+                f"{cell.name} is too small for the {risers} risers it has to "
+                f"climb: the going works out at {going} mm. Give it more room "
+                "or the stair will fail the local pitch rule."
+            )
+
+        stairs.append(
+            Stair(
+                id=f"S{storey_index}-{cell.key}",
+                storey=storey_index,
+                rect=rect,
+                riser_height=riser,
+                tread_depth=going,
+                risers=risers,
+                width=width,
+                flights=flights,
+            )
+        )
+    return stairs
+
+
+def build_building(
+    program: SpaceProgram, plot: Plot, layout: Layout, name: str = "", jurisdiction: str = ""
+) -> Building:
+    """Assemble the full model: spaces, walls, openings and stairs."""
+    building = Building(
+        name=name or program.name,
+        plot=plot,
+        jurisdiction=jurisdiction,
+        use=program.use,
+    )
+    warnings = layout.warnings
+
+    for index in range(layout.storeys):
+        cells = layout.for_storey(index)
+        if not cells:
+            continue
+        height = layout.storey_height
+        walls, between = _walls_for_storey(cells, index, height)
+        clear = {cell.key: _clear_rect(cell, walls) for cell in cells}
+        openings = _openings_for_storey(
+            cells, walls, between, index, plot, clear, warnings, program.use
+        )
+        stairs = _stairs_for_storey(cells, index, height, clear, warnings)
+
+        storey = Storey(
+            index=index,
+            name="Ground floor" if index == 0 else f"Floor {index}",
+            elevation=index * height,
+            height=height,
+            spaces=[
+                Space(
+                    id=cell.key,
+                    name=cell.name,
+                    function=cell.function,
+                    rect=clear[cell.key],
+                    storey=index,
+                )
+                for cell in cells
+            ],
+            walls=walls,
+            openings=openings,
+            stairs=stairs,
+        )
+        building.storeys.append(storey)
+
+    return building
