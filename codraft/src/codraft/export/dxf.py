@@ -14,20 +14,52 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
+from ..annotate import dimension_storey, room_dimension_text
 from ..model import Building, Function
-from ..units import fmt_area, fmt_len
+from ..symbols import NAMES, symbol
+from ..units import fmt_area
 from ._plan import storey_walls
 
+SHEETS = ("architectural", "electrical", "plumbing")
+
 # Layer name, then an AutoCAD colour index.
+# Layer names follow the AIA/NCS convention, so the file drops into an
+# office standard rather than arriving with layers called "stuff".
 LAYERS = {
     "A-WALL-EXTR": 7,    # white/black -- exterior walls
     "A-WALL-INTR": 8,    # grey -- interior walls
     "A-DOOR": 3,         # green
     "A-GLAZ": 4,         # cyan
     "A-AREA-IDEN": 2,    # yellow -- room names
-    "A-ANNO-DIMS": 1,    # red
+    "A-ANNO-DIMS": 1,    # red -- dimensions
     "A-SITE-BNDY": 5,    # blue -- plot boundary
     "A-SITE-SETB": 6,    # magenta -- setback lines
+    "E-LITE": 2,         # lighting points and switches
+    "E-POWR": 32,        # socket outlets
+    "E-CIRC": 42,        # circuit and switch-leg runs
+    "E-ANNO": 7,
+    "P-SANR": 7,         # sanitary fittings
+    "P-SANR-WAST": 8,    # waste and vent pipework
+    "P-DOMW-CWTR": 5,    # cold water
+    "P-DOMW-HWTR": 1,    # hot water
+    "P-ANNO": 7,
+}
+
+RUN_LAYERS = {
+    "circuit_light": "E-CIRC",
+    "circuit_power": "E-CIRC",
+    "switch_leg": "E-CIRC",
+    "cold": "P-DOMW-CWTR",
+    "hot": "P-DOMW-HWTR",
+    "waste": "P-SANR-WAST",
+    "vent": "P-SANR-WAST",
+}
+
+FIXTURE_LAYERS = {
+    "light_ceiling": "E-LITE", "light_wall": "E-LITE", "fan_ceiling": "E-LITE",
+    "switch": "E-LITE", "switch_2": "E-LITE", "exhaust_fan": "E-LITE",
+    "socket": "E-POWR", "socket_protected": "E-POWR",
+    "socket_appliance": "E-POWR", "distribution_board": "E-POWR",
 }
 
 
@@ -58,7 +90,16 @@ class _Writer:
         self.tag(50, float(start))
         self.tag(51, float(end))
 
-    def text(self, x, y, height, value: str, layer: str, centred: bool = True) -> None:
+    def circle(self, cx, cy, radius, layer: str) -> None:
+        self.tag(0, "CIRCLE")
+        self.tag(8, layer)
+        self.tag(10, float(cx))
+        self.tag(20, float(cy))
+        self.tag(30, 0.0)
+        self.tag(40, float(radius))
+
+    def text(self, x, y, height, value: str, layer: str, centred: bool = True,
+             rotation: float = 0.0) -> None:
         self.tag(0, "TEXT")
         self.tag(8, layer)
         self.tag(10, float(x))
@@ -66,6 +107,8 @@ class _Writer:
         self.tag(30, 0.0)
         self.tag(40, float(height))
         self.tag(1, value)
+        if rotation:
+            self.tag(50, float(rotation))
         if centred:
             self.tag(72, 1)      # horizontally centred
             self.tag(11, float(x))
@@ -109,14 +152,69 @@ def _tables(w: _Writer) -> None:
     w.tag(0, "ENDSEC")
 
 
-def write_dxf(building: Building, path: str | Path, storey_index: int | None = None) -> Path:
-    """Write one storey, or every storey side by side, as a DXF plan.
+def _polyline(w: _Writer, points, layer: str, dx: int = 0) -> None:
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        w.line(x0 + dx, y0, x1 + dx, y1, layer)
+
+
+def _symbol(w: _Writer, kind: str, x: int, y: int, rotation: int, layer: str,
+            dx: int = 0) -> None:
+    geometry = symbol(kind, x + dx, y, rotation)
+    for line in geometry.lines:
+        w.line(line.x0, line.y0, line.x1, line.y1, layer)
+    for circle in geometry.circles:
+        w.circle(circle.cx, circle.cy, circle.r, layer)
+    for arc in geometry.arcs:
+        w.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, layer)
+    for label in geometry.labels:
+        w.text(label.x, label.y, label.height, label.text, layer)
+
+
+def _dimensions(w: _Writer, storey, footprint, dx: int, system: str) -> None:
+    """Dimension chains, drawn as lines and text.
+
+    Not DXF DIMENSION entities: those are associative and carry a style
+    that every CAD program interprets slightly differently. Exploded lines
+    and text look identical everywhere and cannot be accidentally
+    re-measured against geometry they were not taken from.
+    """
+    for dim in dimension_storey(storey, footprint, system):
+        w.line(dim.line.x0 + dx, dim.line.y0, dim.line.x1 + dx, dim.line.y1,
+               "A-ANNO-DIMS")
+        for witness in dim.witness:
+            w.line(witness.x0 + dx, witness.y0, witness.x1 + dx, witness.y1,
+                   "A-ANNO-DIMS")
+        for tick in dim.ticks:
+            w.line(tick.x0 + dx, tick.y0, tick.x1 + dx, tick.y1, "A-ANNO-DIMS")
+        height = 260 if dim.is_overall else 230
+        offset = 140
+        if dim.vertical:
+            w.text(dim.text_x + dx - offset, dim.text_y, height, dim.text,
+                   "A-ANNO-DIMS", rotation=90)
+        else:
+            w.text(dim.text_x + dx, dim.text_y + offset, height, dim.text,
+                   "A-ANNO-DIMS")
+
+
+def write_dxf(
+    building: Building,
+    path: str | Path,
+    storey_index: int | None = None,
+    sheet: str = "architectural",
+    services: dict[int, object] | None = None,
+    footprint=None,
+    system: str = "metric",
+) -> Path:
+    """Write one sheet as a DXF.
 
     Storeys are laid out left to right with a gap between them, which is how
     a drawing sheet shows them and means the whole building opens in one
     view rather than as overlapping plans at the same coordinates.
     """
     path = Path(path)
+    if sheet not in SHEETS:
+        raise ValueError(f"unknown sheet {sheet!r}; choose from {', '.join(SHEETS)}")
+
     w = _Writer()
     _header(w)
     _tables(w)
@@ -134,62 +232,111 @@ def write_dxf(building: Building, path: str | Path, storey_index: int | None = N
     plot = building.plot
     step = plot.rect.w + 5000
     text_height = 250
+    architectural = sheet == "architectural"
 
     for column, storey in enumerate(storeys):
         dx = column * step
+        bounds = footprint or _storey_bounds(storey)
 
-        def sx(value: int) -> int:
-            return value + dx
-
-        # Site: the plot boundary, and the line setbacks hold the building to.
-        w.rectangle(
-            type(plot.rect)(sx(plot.rect.x), plot.rect.y, plot.rect.w, plot.rect.h),
-            "A-SITE-BNDY",
-        )
-        buildable = plot.buildable
-        w.rectangle(
-            type(buildable)(sx(buildable.x), buildable.y, buildable.w, buildable.h),
-            "A-SITE-SETB",
-        )
+        if architectural:
+            # Site: the plot boundary, and the line setbacks hold it to.
+            w.rectangle(
+                type(plot.rect)(plot.rect.x + dx, plot.rect.y, plot.rect.w, plot.rect.h),
+                "A-SITE-BNDY",
+            )
+            buildable = plot.buildable
+            w.rectangle(
+                type(buildable)(buildable.x + dx, buildable.y, buildable.w, buildable.h),
+                "A-SITE-SETB",
+            )
 
         for wall, drawn in storey_walls(storey):
             layer = "A-WALL-EXTR" if wall.is_exterior else "A-WALL-INTR"
             for seg in drawn.faces:
-                w.line(sx(seg.x0), seg.y0, sx(seg.x1), seg.y1, layer)
+                w.line(seg.x0 + dx, seg.y0, seg.x1 + dx, seg.y1, layer)
             for seg in drawn.jambs:
-                w.line(sx(seg.x0), seg.y0, sx(seg.x1), seg.y1, layer)
+                w.line(seg.x0 + dx, seg.y0, seg.x1 + dx, seg.y1, layer)
+            if not architectural:
+                continue
             for seg in drawn.door_leaves:
-                w.line(sx(seg.x0), seg.y0, sx(seg.x1), seg.y1, "A-DOOR")
+                w.line(seg.x0 + dx, seg.y0, seg.x1 + dx, seg.y1, "A-DOOR")
             for arc in drawn.door_swings:
-                w.arc(sx(arc.cx), arc.cy, arc.radius, arc.start_deg, arc.end_deg, "A-DOOR")
+                w.arc(arc.cx + dx, arc.cy, arc.radius, arc.start_deg, arc.end_deg,
+                      "A-DOOR")
             for seg in drawn.window_lines:
-                w.line(sx(seg.x0), seg.y0, sx(seg.x1), seg.y1, "A-GLAZ")
+                w.line(seg.x0 + dx, seg.y0, seg.x1 + dx, seg.y1, "A-GLAZ")
 
         for space in storey.spaces:
             centre = space.rect.centre
-            w.text(sx(centre.x), centre.y + text_height, text_height,
+            w.text(centre.x + dx, centre.y + text_height, text_height,
                    space.name.upper(), "A-AREA-IDEN")
-            w.text(sx(centre.x), centre.y - text_height * 1.4, text_height * 0.8,
-                   fmt_area(space.area), "A-AREA-IDEN")
-            if space.function is not Function.STAIR:
-                w.text(
-                    sx(centre.x), centre.y - text_height * 2.6, text_height * 0.7,
-                    f"{fmt_len(space.rect.w)} x {fmt_len(space.rect.h)}",
-                    "A-ANNO-DIMS",
-                )
+            if architectural:
+                w.text(centre.x + dx, centre.y - text_height * 1.4,
+                       text_height * 0.8, fmt_area(space.area), "A-AREA-IDEN")
+                if space.area >= 5_000_000:
+                    w.text(centre.x + dx, centre.y - text_height * 2.6,
+                           text_height * 0.7, room_dimension_text(space, system),
+                           "A-ANNO-DIMS")
 
-        # The stair, drawn as its treads.
-        for stair in storey.stairs:
-            _draw_stair(w, stair, dx)
+        if architectural:
+            for stair in storey.stairs:
+                _draw_stair(w, stair, dx)
+            _dimensions(w, storey, bounds, dx, system)
+        else:
+            plan = (services or {}).get(storey.index)
+            if plan is not None:
+                for run in plan.runs:
+                    _polyline(w, run.points, RUN_LAYERS.get(run.kind, "E-CIRC"), dx)
+                for fixture in plan.fixtures:
+                    _symbol(
+                        w, fixture.kind, fixture.x, fixture.y, fixture.rotation,
+                        FIXTURE_LAYERS.get(fixture.kind, "P-SANR"), dx,
+                    )
 
-        title = f"{storey.name.upper()}  --  {fmt_area(storey.floor_area)}"
-        w.text(sx(plot.rect.centre.x), plot.rect.y - 1500, text_height * 1.6,
+        title = f"{storey.name.upper()}  --  {sheet.upper()}"
+        w.text(bounds.centre.x + dx, bounds.y0 - 5800, text_height * 1.6,
                title, "A-ANNO-DIMS")
+
+    if not architectural and services:
+        _dxf_legend(w, building, services, sheet, step * len(storeys))
 
     w.tag(0, "ENDSEC")
     w.tag(0, "EOF")
     path.write_text(w.out.getvalue(), encoding="ascii", errors="replace")
     return path
+
+
+def _dxf_legend(w: _Writer, building, services, sheet: str, x: int) -> None:
+    """A legend column beside the plans."""
+    seen: list[str] = []
+    notes: list[str] = []
+    for plan in services.values():
+        for kind, _ in plan.schedule():
+            if kind not in seen:
+                seen.append(kind)
+        for note in plan.notes + plan.warnings:
+            if note not in notes:
+                notes.append(note)
+
+    y = building.plot.rect.y1
+    w.text(x + 600, y, 400, f"{sheet.upper()} LEGEND", "E-ANNO")
+    y -= 900
+    for kind in sorted(seen, key=lambda k: NAMES.get(k, k)):
+        _symbol(w, kind, x + 600, y, 0, "E-ANNO")
+        w.text(x + 2200, y, 240, NAMES.get(kind, kind), "E-ANNO")
+        y -= 900
+    y -= 400
+    for note in notes:
+        w.text(x + 600, y, 220, note[:110], "E-ANNO")
+        y -= 500
+
+
+def _storey_bounds(storey):
+    from ..geom import Rect
+
+    xs = [s.rect.x0 for s in storey.spaces] + [s.rect.x1 for s in storey.spaces]
+    ys = [s.rect.y0 for s in storey.spaces] + [s.rect.y1 for s in storey.spaces]
+    return Rect(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
 
 def _draw_stair(w: _Writer, stair, dx: int) -> None:

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import __version__, codes
 from .export import write_dxf, write_ifc, write_model_json, write_svg
+from .services import design_electrical, design_plumbing
 from .geom import Rect
 from .layout import LayoutError, build_building, solve
 from .model import Plot
@@ -41,6 +42,52 @@ FORMATS = {
     # Revit walls and rooms, rather than importing IFC geometry.
     "json": write_model_json,
 }
+
+# Which formats can carry a services sheet. IFC and the JSON model describe
+# the building, not a drawing of it, so they are written once.
+SHEET_FORMATS = {"dxf", "svg"}
+SHEETS = ("architectural", "electrical", "plumbing")
+
+SERVICES_WORDS = (
+    "electrical", "electric", "wiring", "plumbing", "sanitary", "services",
+    "mep", "m&e",
+)
+
+
+def _wants_services(brief_text: str, requested: str | None) -> list[str]:
+    """Work out which sheets to draw.
+
+    An explicit --sheets wins. Otherwise the brief is read for a mention of
+    services, and failing that the question is put to the person running
+    the command -- which is the point at which it is cheapest to answer.
+    """
+    if requested:
+        return [s.strip().lower() for s in requested.split(",") if s.strip()]
+
+    lowered = (brief_text or "").lower()
+    asked = [w for w in SERVICES_WORDS if w in lowered]
+    if asked:
+        sheets = ["architectural"]
+        if any(w in lowered for w in ("electric", "wiring", "services", "mep", "m&e")):
+            sheets.append("electrical")
+        if any(w in lowered for w in ("plumb", "sanitary", "services", "mep", "m&e")):
+            sheets.append("plumbing")
+        return sheets
+
+    if not sys.stdin.isatty():
+        return ["architectural"]
+
+    print("Electrical and plumbing layouts can be drawn from this plan too.")
+    print("They are schematic -- fittings, points and what connects to what --")
+    print("and they do not size a cable or a pipe. Add them? [y/N] ", end="")
+    try:
+        answer = input().strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return ["architectural"]
+    if answer in ("y", "yes"):
+        return list(SHEETS)
+    return ["architectural"]
 
 
 def _fail(message: str) -> int:
@@ -163,25 +210,82 @@ def cmd_plan(args) -> int:
             print(f"  - {item}")
         print()
 
-    # -- 4. draw it -------------------------------------------------------
+    # -- 4. services, if they are wanted ----------------------------------
+    brief_text = " ".join(args.brief) if args.brief else ""
+    sheets = _wants_services(brief_text, args.sheets)
+    for name in sheets:
+        if name not in SHEETS:
+            return _fail(
+                f"unknown sheet {name!r}; choose from {', '.join(SHEETS)}"
+            )
+    if "architectural" not in sheets:
+        sheets.insert(0, "architectural")
+
+    services: dict[str, dict[int, object]] = {}
+    service_warnings: list[str] = []
+    if "electrical" in sheets:
+        services["electrical"] = {
+            st.index: design_electrical(building, st.index)
+            for st in building.storeys
+        }
+    if "plumbing" in sheets:
+        services["plumbing"] = {
+            st.index: design_plumbing(building, st.index)
+            for st in building.storeys
+        }
+    for discipline, plans in services.items():
+        for plan in plans.values():
+            for warning in plan.warnings:
+                service_warnings.append(f"{discipline}: {warning}")
+
+    # -- 5. draw it -------------------------------------------------------
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     stem = args.name or "plan"
     written: list[Path] = []
-    for name in args.formats.split(","):
-        name = name.strip().lower()
+
+    formats = [f.strip().lower() for f in args.formats.split(",") if f.strip()]
+    for name in formats:
         if name not in FORMATS:
             return _fail(
                 f"unknown format {name!r}; choose from {', '.join(sorted(FORMATS))}"
             )
-        written.append(FORMATS[name](building, out / f"{stem}.{name}"))
+
+    for name in formats:
+        writer = FORMATS[name]
+        if name not in SHEET_FORMATS:
+            # IFC and the JSON model describe the building itself, so there
+            # is one of each however many sheets are drawn.
+            written.append(writer(building, out / f"{stem}.{name}"))
+            continue
+        for sheet in sheets:
+            suffix = "" if sheet == "architectural" else f"-{sheet}"
+            written.append(
+                writer(
+                    building,
+                    out / f"{stem}{suffix}.{name}",
+                    sheet=sheet,
+                    services=services.get(sheet),
+                    footprint=layout.envelope,
+                    system=args.units,
+                )
+            )
+
     print("Written:")
     for p in written:
         print(f"  {p}  ({p.stat().st_size:,} bytes)")
     print()
 
+    if service_warnings:
+        print("From the services layout:")
+        for warning in service_warnings:
+            print(f"  - {warning}")
+        print()
+
     # -- 5. check it ------------------------------------------------------
-    report = codes.check(building, jurisdiction, layout.warnings)
+    report = codes.check(
+        building, jurisdiction, layout.warnings + service_warnings
+    )
     if args.json:
         (out / f"{stem}-report.json").write_text(
             json.dumps(report.to_dict(), indent=2), encoding="utf-8"
@@ -325,6 +429,14 @@ def build_parser() -> argparse.ArgumentParser:
                       help="which side the plot fronts a road (default: south)")
     plan.add_argument("--out", default="out", help="output directory (default: out)")
     plan.add_argument("--name", help="base filename (default: plan)")
+    plan.add_argument(
+        "--sheets",
+        help="comma separated: architectural, electrical, plumbing. "
+             "Omit to read the brief for a mention of services, and to be "
+             "asked if it does not mention any.",
+    )
+    plan.add_argument("--units", default="metric", choices=("metric", "imperial"),
+                      help="units for dimensions on the drawings (default: metric)")
     plan.add_argument("--formats", default="dxf,ifc,svg",
                       help="comma separated: dxf, ifc, svg, json (default: dxf,ifc,svg)")
     plan.add_argument("--json", action="store_true", help="also write the report as JSON")

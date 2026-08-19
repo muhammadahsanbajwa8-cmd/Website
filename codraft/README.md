@@ -21,9 +21,10 @@ Written:
 Result: 1 failed of 99 checked (0 violations, 1 warnings); 0 could not be checked
 ```
 
-It writes DXF for AutoCAD, IFC4 for Revit, ArchiCAD, Tekla and Solibri, SVG to
-look at, and a compliance report where every finding cites the clause it came
-from.
+It writes **dimensioned** DXF for AutoCAD, IFC4 for Revit, ArchiCAD, Tekla and
+Solibri, SVG to look at, and a compliance report where every finding cites the
+clause it came from. Ask for them and it draws **electrical and plumbing**
+layouts from the same plan.
 
 ---
 
@@ -90,6 +91,14 @@ PYTHONPATH=src python3 -m codraft.cli plan "..."
 ```bash
 # Draw and check
 codraft plan "3 bed 2 bath double storey house on a 40x60 ft plot in Lahore"
+
+# Add services. Say so in the brief, ask for the sheets, or answer the
+# question it asks you when the brief does not mention them.
+codraft plan "3 bed house with electrical and plumbing in Lahore" --plot 40x60ft
+codraft plan "3 bed house in Lahore" --plot 40x60ft --sheets architectural,electrical,plumbing
+
+# Dimensions in feet and inches rather than millimetres
+codraft plan "3 bed house in Texas" --plot 50x100ft --units imperial
 codraft plan "small office for 30 people on a 30m x 40m plot in Dubai"
 codraft plan "5 marla house in Karachi" --road north
 codraft plan "clinic with 4 consulting rooms" --plot 25mx30m --location Nairobi
@@ -127,6 +136,8 @@ The layers are kept strictly apart, which is the whole design:
 program/   a brief becomes a structured list of spaces to provide
 layout/    that list becomes exact geometry, by arithmetic not by guesswork
 codes/     that geometry is checked against rules that cite their source
+services/  electrical and plumbing layouts are derived from that geometry
+annotate   dimension chains are read off the same wall centrelines
 export/    the result is written as DXF, IFC, SVG and JSON
 ```
 
@@ -141,6 +152,14 @@ rules; neither asks a model what a corridor should measure.
 **Everything is integer millimetres.** A wall that is 3500 long is 3500 in the
 DXF, in the IFC and in the report. Imperial input converts through `Decimal`, so
 32 in is exactly 813 mm rather than 812.9999999999999.
+
+**Dimensions are the geometry, read along an axis.** They are derived from the
+same wall centrelines the solver produced, so they cannot drift from what is
+drawn. Each face carries a chain of running dimensions plus an overall, and the
+chains are checked to close before they are returned — a chain that does not add
+up to its overall is the one arithmetic error a drawing set must never contain,
+because it is found by a builder with a tape measure rather than by anyone in
+the office.
 
 **The layout is a corridor spine, not a sliced rectangle.** Rooms hang off both
 sides of the circulation. That is how small buildings are actually planned, and
@@ -192,6 +211,43 @@ height assumes a slab thickness, and travel distance ignores furniture.
 
 ---
 
+## Electrical and plumbing
+
+Two more sheets come off the same plan, drawn with the architecture greyed back
+so the services read on top of it:
+
+**Electrical** — ceiling lights on a grid sized to the room, fans in habitable
+rooms, a switch beside every door with its leg drawn to what it controls,
+socket outlets spread along the wall with the fewest openings, extract fans in
+wet rooms, and a distribution board by the entrance with circuits routed back
+to it along the circulation spine.
+
+**Plumbing** — WCs, basins, showers, baths, sinks and washing machine points
+drawn **at their real sizes**, packed along the wall by the width each one
+actually needs, with a single soil-and-vent stack serving the floor and cold,
+hot and waste runs drawn orthogonally back to it.
+
+Both check themselves and say what is wrong rather than drawing over it:
+
+```
+From the services layout:
+  - plumbing: Bathroom leaves about 213 mm of clear floor between the
+    fittings. Codes commonly want 600 mm in front of a WC and to use a
+    basin. The fittings fit on the walls; a person does not fit between them.
+```
+
+That warning is the point. A 3.8 m² bathroom can hold a WC, a basin and a
+shower on its walls and still be a room nobody can stand up in, and the
+drawing alone will not tell you.
+
+**What these sheets are not.** They are schematic: they say what goes where and
+what connects to what, which is a real stage of design work and the ceiling of
+what can honestly be produced from a plan. Cable sizes, breaker ratings,
+earthing and bonding, load calculations, pipe diameters, falls, flow rates,
+vent sizing and trap seals are all absent, because none of them can be read off
+a floor plan. A licensed electrical and plumbing engineer does that, and every
+sheet says so in its notes block.
+
 ## Getting it into Revit
 
 Two routes, and they are not equivalent:
@@ -230,23 +286,27 @@ the Approved Documents, which do not apply in Scotland at all.
 python3 -m unittest discover -s tests -t .
 ```
 
-39 tests. The ones worth knowing about: the solver's tiles must fill the
+59 tests. The ones worth knowing about: the solver's tiles must fill the
 footprint exactly and never overlap (walls are derived from those adjacencies,
-so a gap becomes a wall with nothing behind it); no room may ever be left
-without a route to an exit; the rule sandbox must refuse six different escape
-attempts; every reference in the IFC must resolve to a defined instance; and
-`Somalia` must not resolve to Mali, which it did until word-boundary matching
-replaced substring matching.
+so a gap becomes a wall with nothing behind it); every dimension chain must add
+up to its overall; no room may ever be left without a route to an exit; every
+services fixture must land inside the room it serves and every run must be
+orthogonal; a bathroom too small for its fittings must produce a warning rather
+than a drawing with a basin inside a bath; the rule sandbox must refuse six
+different escape attempts; every reference in the IFC must resolve to a defined
+instance; and `Somalia` must not resolve to Mali, which it did until
+word-boundary matching replaced substring matching.
 
 ---
 
 ## What it does not do
 
 Plan generation is one slice of a permit set. There is no structural sizing, no
-MEP, no site survey, no soil or utility data, no fire strategy beyond egress
-geometry, no energy modelling, no accessibility review beyond door widths, and
-no cost. Rooms are rectangles on an orthogonal grid; there are no curved walls,
-splayed corners or double-height spaces.
+engineered MEP (the services sheets are schematic — see above), no site survey,
+no soil or utility data, no fire strategy beyond egress geometry, no energy
+modelling, no accessibility review beyond door widths, and no cost. Rooms are
+rectangles on an orthogonal grid; there are no curved walls, splayed corners or
+double-height spaces.
 
 It is a co-pilot that takes a competent professional from a brief to a checked,
 dimensioned starting point in seconds. It is not a replacement for the stamp,

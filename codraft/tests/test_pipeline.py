@@ -112,6 +112,55 @@ class TestExports(unittest.TestCase):
         # drawn over solid walls.
         self.assertEqual(text.count("IFCOPENINGELEMENT("), text.count("IFCRELVOIDSELEMENT("))
 
+    def test_every_sheet_writes_valid_dxf_and_svg(self):
+        from codraft.services import design_electrical, design_plumbing
+
+        services = {
+            "electrical": {
+                st.index: design_electrical(self.building, st.index)
+                for st in self.building.storeys
+            },
+            "plumbing": {
+                st.index: design_plumbing(self.building, st.index)
+                for st in self.building.storeys
+            },
+        }
+        for sheet in ("architectural", "electrical", "plumbing"):
+            dxf = write_dxf(
+                self.building, self.out / f"{sheet}.dxf", sheet=sheet,
+                services=services.get(sheet),
+            ).read_text()
+            self.assertTrue(dxf.startswith("0\nSECTION\n"), sheet)
+            self.assertTrue(dxf.rstrip().endswith("EOF"), sheet)
+            self.assertEqual(dxf.count("0\nSECTION\n"), dxf.count("0\nENDSEC\n"), sheet)
+
+            path = write_svg(
+                self.building, self.out / f"{sheet}.svg", sheet=sheet,
+                services=services.get(sheet),
+            )
+            root = ET.parse(path).getroot()
+            self.assertTrue(root.tag.endswith("svg"), sheet)
+
+    def test_services_sheets_actually_draw_their_symbols(self):
+        from codraft.services import design_plumbing
+
+        services = {
+            st.index: design_plumbing(self.building, st.index)
+            for st in self.building.storeys
+        }
+        text = write_svg(
+            self.building, self.out / "p-plumb.svg", sheet="plumbing",
+            services=services,
+        ).read_text()
+        # A sheet that draws the architecture and forgets the fittings is
+        # the failure mode worth a test: it looks right and says nothing.
+        self.assertIn("run-waste", text)
+        self.assertIn("Plumbing legend", text)
+
+    def test_an_unknown_sheet_is_refused(self):
+        with self.assertRaises(ValueError):
+            write_svg(self.building, self.out / "x.svg", sheet="structural")
+
     def test_ifc_instance_references_all_resolve(self):
         import re
         text = write_ifc(self.building, self.out / "p2.ifc").read_text()
