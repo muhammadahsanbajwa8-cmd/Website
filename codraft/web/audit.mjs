@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-const design = new Function(readFileSync('chat/engine.js','utf8') + '\nreturn design;')();
+const design = new Function(readFileSync('engine.js','utf8') + '\nreturn design;')();
 const states = [['WA','R20'],['WA','R40'],['VIC',null],['NSW',null],['QLD',null]];
 const lots = [[10000,28000],[12000,32000],[15000,30000],[18000,35000],[20000,40000],[9000,24000]];
 let n=0, refused=0, bad=[], worst=1e9;

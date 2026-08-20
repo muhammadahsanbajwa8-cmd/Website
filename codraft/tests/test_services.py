@@ -138,7 +138,13 @@ class TestPlumbing(unittest.TestCase):
     def test_a_cramped_bathroom_is_reported_not_hidden(self):
         # A bathroom too small for its fittings must produce a warning
         # rather than a drawing with a basin inside a bath.
-        building = _building(plot=(9000, 14000))
+        #
+        # 7.5 x 12 m, not the 9 x 14 this used to use: interleaving the band
+        # so each bedroom pairs with the robe or ensuite that opens off it
+        # gave the rooms enough length that 9 x 14 now lays out cleanly, and
+        # a test that passes because the plan improved is testing nothing.
+        # At 7.5 x 12 the bathroom is genuinely down to 97 mm of clear floor.
+        building = _building(plot=(7500, 12000))
         warned = False
         for storey in building.storeys:
             plan = design_plumbing(building, storey.index)

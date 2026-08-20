@@ -368,6 +368,40 @@ a window it takes the outer half — which half that is depends on which side of
 the passage the band sits, since the outside is the low edge on one side and the
 high edge on the other.
 
+*Which forces the band to be interleaved.* Rooms pair with their neighbour in
+the band's list. Left in program order the bedrooms sit together, none of them
+can pair, every bedroom takes a full slice of the band's length, and a floor
+with four of them runs out of house. So each room needing a window is sat next
+to one that does not: bedroom against the outside wall, robe or ensuite inboard,
+which is how these plans are drawn anyway. The entry, stair and living room keep
+their place at the road end — move the stair away from the entry and the floor
+above has no route out.
+
+**What zoning cost, and what is still open.** Sweeping 360 combinations of
+state, lot, storeys and bedrooms (`web/audit.mjs`), habitable rooms with no
+external wall went to **zero** — that was the point. Rooms coming out under a
+usable proportion went the other way, from 66 before zoning to 89 after, because
+the correctness fix removes a degree of freedom: bedrooms could previously pair
+with each other, which packed them tightly at the cost of leaving one windowless.
+Interleaving recovers most of it (170 → 89) and the smallest habitable room in
+the sweep is 5.1 m², against 6.0 before and 3.4 immediately after zoning.
+
+The rest is a real limit rather than a tuning problem. On a 16 m-wide house a
+single spine leaves 7.4 m bands, and a bedroom spanning one is 12 m² at 1.7 m
+across — a corridor with a bed in it. A band is only ever two rooms deep, so a
+one-corridor house wants to be about 12 m wide, and capping the frontage there
+does measurably improve proportions. It also starves the double garage and
+shrinks the rear yard below what a pool and its barrier need, which are real
+requirements where the proportions are a preference. So the cap stays at 16 m
+and the solver reports the band instead:
+
+> The band on one side of the passage is 8706 mm deep and its rooms want about
+> 4112 mm. They span it anyway, so they come out long and narrow. This is the
+> limit of a single spine: a house this wide wants a second passage or an
+> L-shaped plan.
+
+Drawing that second passage is the next structural piece.
+
 **Openings are the most worked-over part of a house**, and a plan that draws a
 rectangle in a wall has described almost none of it. `codraft plan` writes a
 door and window schedule beside the drawings:

@@ -165,6 +165,21 @@ function buildProgram(a) {
 }
 
 const HABITABLE = new Set(["bedroom","living","dining","kitchen","office"]);
+
+// A room that needs daylight needs an external wall. Only one room in a
+// shared slice of a band touches the outside, so this decides both what may
+// be paired and which half of a pair goes against the wall.
+const needsLight = r => HABITABLE.has(r.fn);
+
+// Which wing of the house a room belongs to. A project home is planned in
+// zones, not by area: garage and entry across the frontage, living through
+// the middle to the alfresco, bedrooms down one side off the passage.
+const SLEEP_WING = new Set(["bedroom"]);
+const LIVE_WING = new Set(["living","dining","kitchen","alfresco","office"]);
+const wing = r => SLEEP_WING.has(r.fn) ? "sleep" : LIVE_WING.has(r.fn) ? "live" : "either";
+
+// An ensuite or a walk-in robe opens off a bedroom, not off the living room.
+const BEDSIDE = new Set(["ensuite","wir","bathroom","bath","linen"]);
 const WET = new Set(["bathroom","wc","kitchen","utility"]);
 const CIRC = new Set(["corridor","entry","stair","lobby"]);
 const target = r => tileArea(r.minArea);
@@ -226,7 +241,10 @@ function apportion(spans, floors, total) {
   return sizes;
 }
 
-function stack(rooms, band, alongY) {
+// `outerLow` says which edge of the band is the outside wall: true when it is
+// the low edge (band.x for a vertical band, band.y for a horizontal one),
+// false when the passage is on that side instead.
+function stack(rooms, band, alongY, outerLow = true) {
   if (!rooms.length) return [];
   const span = alongY ? band.h : band.w, depth = alongY ? band.w : band.h;
   const rows = [];
@@ -235,7 +253,11 @@ function stack(rooms, band, alongY) {
     const thin = s > 0 && depth / s > 2.2;
     if (thin && !r.solo && i + 1 < rooms.length) {
       const n = rooms[i + 1], nt = target(n) || 1, ns = Math.floor(nt / Math.max(1, depth));
-      if (!n.solo && ns > 0 && depth / ns > 2.2 &&
+      // Two rooms that both need daylight can never share a slice: one of
+      // them would be against the passage with no external wall, which is
+      // how a bedroom ends up in the middle of the plan.
+      const bothNeedLight = needsLight(r) && needsLight(n);
+      if (!n.solo && ns > 0 && depth / ns > 2.2 && !bothNeedLight &&
           tileW(r.minWidth) + tileW(n.minWidth) <= depth && depth >= 2 * (MIN_DIM + WALL_ALLOW)) {
         rows.push({ rooms: [r, n], t: t + nt }); i += 2; continue;
       }
@@ -260,7 +282,14 @@ function stack(rooms, band, alongY) {
       placed.push({ r: row.rooms[0], rect: alongY
         ? { x: band.x, y: cursor, w: band.w, h: s } : { x: cursor, y: band.y, w: s, h: band.h } });
     } else {
-      const [a, b] = row.rooms, ta = target(a) || 1, tb = target(b) || 1;
+      let [a, b] = row.rooms;
+      // The outer slot has the external wall. Give it to whichever of the two
+      // needs daylight; grouping has already refused to pair two that do.
+      if (needsLight(b) && !needsLight(a)) { const t = a; a = b; b = t; }
+      // When the low edge is the passage, the outer room is the second one
+      // placed, so swap again to keep it against the wall.
+      if (!outerLow) { const t = a; a = b; b = t; }
+      const ta = target(a) || 1, tb = target(b) || 1;
       let da = Math.floor(depth * ta / (ta + tb));
       da = Math.max(tileW(a.minWidth) || MIN_DIM, Math.min(depth - (tileW(b.minWidth) || MIN_DIM), da));
       const db = depth - da;
@@ -277,15 +306,115 @@ function stack(rooms, band, alongY) {
   return placed;
 }
 
+/* ---- the frontage, set out around the passage ---- */
+// `over` is the x range the passage occupies, when there is one. The entry is
+// the only thing joining the street frontage to the rest of the house, so it
+// has to sit over that range. Getting this wrong is not cosmetic: every room
+// behind the front door then fails the rule that it can be walked out of.
+function placeFront(front, strip, over) {
+  if (!front.length) return [];
+  const entry = front.find(r => r.key === "entry" && r.fn === "entry")
+             || front.find(r => r.fn === "entry");
+  if (!over || !entry) {
+    const ordered = front.slice().sort((a, b) =>
+      (a.fn === "garage" ? 0 : 1) - (b.fn === "garage" ? 0 : 1));
+    return stack(ordered, strip, false).map(p => ({ ...p, at: 0 }));
+  }
+
+  const [lo, hi] = over;
+  let others = front.filter(r => r !== entry);
+  let slotW = Math.max(tileW(entry.minWidth) || 0, hi - lo, MIN_DIM + WALL_ALLOW);
+  if (entry.minArea)
+    slotW = Math.max(slotW, Math.ceil(tileArea(entry.minArea) / Math.max(1, strip.h)));
+
+  const leftMin = others.length ? MIN_DIM + WALL_ALLOW : 0;
+  let slotX = Math.floor((lo + hi) / 2) - Math.floor(slotW / 2);
+  slotX = Math.max(strip.x + leftMin, Math.min(strip.x + strip.w - slotW, slotX));
+  if (slotX < strip.x) { slotX = strip.x; slotW = Math.min(slotW, strip.w); }
+
+  let leftW = slotX - strip.x;
+  let rightW = (strip.x + strip.w) - (slotX + slotW);
+
+  // The portico is the roofed bit in front of the door. It belongs against the
+  // entry, not wherever there was frontage going spare -- put it at the far
+  // end and the front door has no covered approach and nothing can reach it.
+  let portico = others.find(r => r.fn === "entry" && r !== entry) || null;
+  let porticoRect = null;
+  if (portico) {
+    let want = Math.max(tileW(portico.minWidth) || 0, MIN_DIM + WALL_ALLOW);
+    if (portico.minArea)
+      want = Math.max(want, Math.ceil(tileArea(portico.minArea) / Math.max(1, strip.h)));
+    const onLeft = leftW >= rightW;
+    const available = onLeft ? leftW : rightW;
+    let take = Math.min(want, Math.max(0, available - (MIN_DIM + WALL_ALLOW)));
+    if (take < MIN_DIM + WALL_ALLOW) take = Math.min(want, available);
+    if (take > 0) {
+      if (onLeft) { porticoRect = { x: slotX - take, y: strip.y, w: take, h: strip.h }; leftW -= take; }
+      else { porticoRect = { x: slotX + slotW, y: strip.y, w: take, h: strip.h }; rightW -= take; }
+      others = others.filter(r => r !== portico);
+    } else portico = null;
+  }
+
+  // The garage takes whichever side can hold it; the rest follow on the other,
+  // which is how these frontages read -- garage, front door, theatre, store.
+  const garage = others.find(r => r.fn === "garage") || null;
+  const left = [], right = [];
+  if (garage) {
+    const gw = tileW(garage.minWidth) || MIN_DIM;
+    if (leftW >= gw && leftW >= rightW) left.push(garage);
+    else if (rightW >= gw) right.push(garage);
+    else if (leftW >= rightW) left.push(garage);
+    else right.push(garage);
+  }
+  let leftArea = left.reduce((t, r) => t + (target(r) || 1), 0);
+  let rightArea = right.reduce((t, r) => t + (target(r) || 1), 0);
+  for (const r of others.filter(r => r !== garage)
+                        .sort((a, b) => (target(b) || 0) - (target(a) || 0))) {
+    const leftRoom = leftW * strip.h - leftArea;
+    const rightRoom = rightW * strip.h - rightArea;
+    if ((leftRoom >= rightRoom && leftW > 0) || rightW <= 0) { left.push(r); leftArea += target(r) || 1; }
+    else { right.push(r); rightArea += target(r) || 1; }
+  }
+
+  const placed = [{ r: entry, rect: { x: slotX, y: strip.y, w: slotW, h: strip.h } }];
+  if (left.length && leftW > 0)
+    placed.push(...stack(left, { x: strip.x, y: strip.y, w: leftW, h: strip.h }, false));
+  let rightX = slotX + slotW;
+  if (porticoRect && porticoRect.x >= slotX + slotW) rightX = porticoRect.x + porticoRect.w;
+  if (right.length && rightW > 0)
+    placed.push(...stack(right, { x: rightX, y: strip.y, w: rightW, h: strip.h }, false));
+  if (portico && porticoRect) placed.push({ r: portico, rect: porticoRect });
+  return placed.map(p => ({ ...p, at: 0 }));
+}
+
 /* ---- one storey ---- */
 function layoutStorey(rooms, env, storeyIndex) {
   if (!rooms.length) return [];
-  let cells = [], spineX = null, envelope = env;
+  let cells = [], spineX = null, envelope = env, strip = null, frontRooms = [];
 
   if (storeyIndex === 0) {
-    const front = rooms.filter(r => r.zone === "front");
+    let front = rooms.filter(r => r.zone === "front");
     const garage = front.find(r => r.fn === "garage");
     if (garage && front.length >= 2) {
+      // The frontage carries these rooms side by side, so it can only take as
+      // many as its width allows at a usable size. A theatre across the front
+      // is right on a 16 m frontage; on a 10 m one, behind the garage and the
+      // front door, it comes out 1.5 m wide. Send it to the passage instead.
+      const evicted = [];
+      while (front.length > 2) {
+        const need = front.reduce((t, r) => t + (tileW(r.minWidth) || MIN_DIM), 0);
+        if (need <= env.w) break;
+        const movable = front.filter(r => r.fn !== "garage" && r.fn !== "entry");
+        if (!movable.length) break;
+        let loose = movable[0];
+        for (const r of movable)
+          if ((r.priority ?? 5) > (loose.priority ?? 5) ||
+              ((r.priority ?? 5) === (loose.priority ?? 5) &&
+               (target(r) || 0) > (target(loose) || 0))) loose = r;
+        front = front.filter(r => r !== loose);
+        evicted.push(loose);
+      }
+      for (const r of evicted) r.zone = "";
       const widthShare = Math.max(tileW(garage.minWidth), 5600);
       let depth = Math.max(6000 + WALL_ALLOW, Math.ceil(target(garage) / widthShare));
       depth = Math.min(depth, Math.floor(env.h / 3));
@@ -293,22 +422,25 @@ function layoutStorey(rooms, env, storeyIndex) {
       if (frontArea < env.w * depth * 0.75)
         depth = Math.min(Math.max(6000 + WALL_ALLOW, Math.ceil(frontArea / env.w)), Math.floor(env.h / 3));
       if (depth >= 5000 && env.h - depth >= MIN_DIM * 3) {
-        const strip = { x: env.x, y: env.y, w: env.w, h: depth };
-        front.sort((a, b) => (a.fn === "garage" ? 0 : 1) - (b.fn === "garage" ? 0 : 1));
-        cells = stack(front, strip, false).map(p => ({ ...p, at: 0 }));
-        const entry = cells.find(c => c.r.key === "entry") || cells.find(c => c.r.fn === "entry");
-        if (entry) spineX = entry.rect.x + Math.floor(entry.rect.w / 2);
+        // Size the strip only. Where the entry goes depends on where the
+        // passage behind it lands, and that is not known yet -- lay the
+        // frontage out first and the passage runs into the back of the
+        // garage, leaving every room behind the front door with no way out.
+        strip = { x: env.x, y: env.y, w: env.w, h: depth };
+        frontRooms = front;
+        spineX = strip.x + Math.floor(strip.w / 2);
         envelope = { x: env.x, y: env.y + depth, w: env.w, h: env.h - depth };
         rooms = rooms.filter(r => r.zone !== "front");
       }
     }
   }
-  if (!rooms.length) return cells;
+  if (!rooms.length) return strip ? placeFront(frontRooms, strip, null) : [];
 
   const corridor = rooms.find(r => r.fn === "corridor");
   const others = rooms.filter(r => r !== corridor);
   if (!corridor || others.length <= 2)
-    return cells.concat(stack(rooms, envelope, envelope.h >= envelope.w).map(p => ({ ...p, at: storeyIndex })));
+    return (strip ? placeFront(frontRooms, strip, null) : [])
+      .concat(stack(rooms, envelope, envelope.h >= envelope.w).map(p => ({ ...p, at: storeyIndex })));
 
   let vertical = envelope.h >= envelope.w;
   if (spineX != null) vertical = true;
@@ -316,10 +448,34 @@ function layoutStorey(rooms, env, storeyIndex) {
   const cross = vertical ? envelope.w : envelope.h;
   if (cw >= cross - 2 * MIN_DIM) cw = Math.max(1000, Math.floor((cross - 2 * MIN_DIM) / 3));
 
-  // balance the two bands, then pull the spine to the entry if there is one
-  const sorted = others.slice().sort((a, b) => target(b) - target(a));
+  // Rooms go to a wing before they go to a band. Bedrooms take one side of
+  // the passage and the living rooms the other, which is how these houses are
+  // actually planned; splitting by area instead mixes them and a bedroom ends
+  // up behind a kitchen with no external wall.
   const L = [], Rr = []; let la = 0, ra = 0;
-  for (const r of sorted) { if (la <= ra) { L.push(r); la += target(r) || 1; } else { Rr.push(r); ra += target(r) || 1; } }
+  const byArea = rs => rs.slice().sort((a, b) => target(b) - target(a));
+  const sleep = others.filter(r => wing(r) === "sleep");
+  const live = others.filter(r => wing(r) === "live");
+  let spare = others.filter(r => wing(r) === "either");
+
+  if (!sleep.length || !live.length) {
+    // Nothing to zone -- an upper floor of bedrooms, say. Balance by area.
+    for (const r of byArea(others)) {
+      if (la <= ra) { L.push(r); la += target(r) || 1; }
+      else { Rr.push(r); ra += target(r) || 1; }
+    }
+  } else {
+    L.push(...sleep); la = sleep.reduce((t, r) => t + (target(r) || 1), 0);
+    Rr.push(...live);  ra = live.reduce((t, r) => t + (target(r) || 1), 0);
+    // The ensuite and the robe follow the bedrooms, because they open off one.
+    const follows = spare.filter(r => BEDSIDE.has(String(r.key).replace(/[0-9_].*$/, "")));
+    spare = spare.filter(r => !follows.includes(r));
+    for (const r of follows) { L.push(r); la += target(r) || 1; }
+    for (const r of byArea(spare)) {
+      if (la <= ra) { L.push(r); la += target(r) || 1; }
+      else { Rr.push(r); ra += target(r) || 1; }
+    }
+  }
   const usable = cross - cw;
   const run = vertical ? envelope.h : envelope.w;
 
@@ -334,6 +490,7 @@ function layoutStorey(rooms, env, storeyIndex) {
     for (const r of rs) d = Math.max(d, tileW(r.minWidth) || 0);
     return Math.max(MIN_DIM + WALL_ALLOW, d);
   };
+
   const minL = bandDepth(L), minR = bandDepth(Rr);
   const balanced = Math.floor(usable * la / Math.max(1, la + ra));
 
@@ -353,18 +510,49 @@ function layoutStorey(rooms, env, storeyIndex) {
   ld = Math.max(MIN_DIM, Math.min(usable - MIN_DIM, ld));
   const rd = usable - ld;
 
-  const order = rs => rs.slice().sort((a, b) =>
-    ({entry:0, stair:1, living:2}[a.fn] ?? 5) - ({entry:0, stair:1, living:2}[b.fn] ?? 5));
+  // Rooms pair across the band with their NEIGHBOUR in this list, and two
+  // rooms that both need daylight may not pair -- the inner one would have no
+  // window. Left in program order the bedrooms sit together, none of them can
+  // pair, every bedroom takes a full slice of the band's length and a floor
+  // with four of them runs out of house. Interleaving them with the robes and
+  // ensuites means each bedroom pairs with the service room that opens off
+  // it: bedroom against the outside wall, robe inboard.
+  //
+  // The entry, stair and living room keep their place at the road end -- move
+  // the stair away from the entry and the floor above has no route out.
+  const rank = r => ({entry:0, stair:1, living:2}[r.fn] ?? 5);
+  const interleave = rs => {
+    const lit = rs.filter(needsLight), unlit = rs.filter(r => !needsLight(r));
+    if (!lit.length || !unlit.length) return rs;
+    const out = [];
+    while (lit.length || unlit.length) {
+      if (lit.length) out.push(lit.shift());
+      if (unlit.length) out.push(unlit.shift());
+    }
+    return out;
+  };
+  const order = rs => {
+    const sorted = rs.slice().sort((a, b) => rank(a) - rank(b));
+    return sorted.filter(r => rank(r) < 5)
+      .concat(interleave(sorted.filter(r => rank(r) >= 5)));
+  };
   let placed = [], corridorRect;
   if (vertical) {
     corridorRect = { x: envelope.x + ld, y: envelope.y, w: cw, h: envelope.h };
-    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true)
-      .concat(stack(order(Rr), { x: corridorRect.x + cw, y: envelope.y, w: rd, h: envelope.h }, true));
+    // The left band's outside wall is its low edge; the right band's is its
+    // high edge, because the passage is on its low side.
+    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true, true)
+      .concat(stack(order(Rr), { x: corridorRect.x + cw, y: envelope.y, w: rd, h: envelope.h }, true, false));
   } else {
     corridorRect = { x: envelope.x, y: envelope.y + ld, w: envelope.w, h: cw };
-    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false)
-      .concat(stack(order(Rr), { x: envelope.x, y: corridorRect.y + cw, w: envelope.w, h: rd }, false));
+    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false, true)
+      .concat(stack(order(Rr), { x: envelope.x, y: corridorRect.y + cw, w: envelope.w, h: rd }, false, false));
   }
+  // Now the passage is fixed, set the frontage out around it, with the front
+  // door over the passage rather than wherever it happened to land.
+  cells = strip
+    ? placeFront(frontRooms, strip, vertical ? [corridorRect.x, corridorRect.x + cw] : null)
+    : [];
   return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })),
                       [{ r: corridor, rect: corridorRect, at: storeyIndex }]);
 }

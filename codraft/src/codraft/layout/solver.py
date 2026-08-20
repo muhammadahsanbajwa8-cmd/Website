@@ -81,6 +81,13 @@ _MAX_ASPECT = 2.2
 # Wider than this and the roof spans, the corridor runs and the structure all
 # start costing more than the frontage is worth. Project homes cluster just
 # under it.
+#
+# Narrowing it to 12 m would suit the corridor -- a band is really only two
+# rooms deep, so a single spine wants about that -- and measurably improves
+# room proportions. It also starves the double garage and shrinks the rear
+# yard below what a pool and its barrier need. Those are real requirements
+# and the room proportions are a preference, so this stays where it is, and
+# a band too deep for its rooms is reported instead.
 MAX_FRONTAGE = 16000
 
 
@@ -509,7 +516,45 @@ def _order_for_road(
         return 5
 
     ordered = sorted(rooms, key=rank)
+    # The entry, the stair and the living room are placed at the road end for
+    # a reason -- the stair has to reach the entry, or the floor above it has
+    # no route out. Only the ordinary rooms after them get reordered.
+    head = [kr for kr in ordered if rank(kr) < 5]
+    tail = _interleave_for_pairing([kr for kr in ordered if rank(kr) >= 5])
+    ordered = head + tail
     return ordered if road_first else list(reversed(ordered))
+
+
+def _interleave_for_pairing(
+    rooms: list[tuple[str, SpaceRequirement]],
+) -> list[tuple[str, SpaceRequirement]]:
+    """Sit each room that needs a window next to one that does not.
+
+    Rooms are paired across the band with their NEIGHBOUR in this list, and
+    two rooms that both need daylight may not pair -- the inner one would have
+    no external wall. Left in program order the bedrooms sit together and none
+    of them can pair, so every bedroom takes a full slice of the band's length
+    and a floor with four of them runs out of house. Interleaving them with
+    the robes, ensuites and linen means each bedroom pairs with the service
+    room that opens off it: bedroom against the outside wall, robe inboard,
+    which is how these plans are drawn anyway.
+
+    Only the ordinary rooms are passed here. The entry, stair and living room
+    are placed at the road end by rank and must stay there: move the stair
+    away from the entry and the floor above it has no route out.
+    """
+    lit = [kr for kr in rooms if kr[1].needs_exterior_wall]
+    unlit = [kr for kr in rooms if not kr[1].needs_exterior_wall]
+    if not lit or not unlit:
+        return rooms
+
+    out: list[tuple[str, SpaceRequirement]] = []
+    while lit or unlit:
+        if lit:
+            out.append(lit.pop(0))
+        if unlit:
+            out.append(unlit.pop(0))
+    return out
 
 
 # Which rooms live across the street frontage. The template says so
@@ -546,6 +591,32 @@ def _front_zone(
     if garage is None or len(front) < 2:
         return [], None, envelope, rooms
 
+    # The frontage carries these rooms side by side, so it can only take as
+    # many as its width allows at a usable size. The template says a theatre
+    # belongs across the front, and on a 16 m frontage it does; on a 10 m one,
+    # behind the garage and the front door, there is nothing left for it and
+    # it comes out 1.5 m wide. Send it back to the passage instead -- a
+    # theatre off the hallway is an ordinary plan, a 1.5 m one is not.
+    evicted: list[tuple[str, SpaceRequirement]] = []
+    _KEEP = (Function.GARAGE, Function.ENTRY)
+    while len(front) > 2:
+        needed = sum(_tile_width(r) or _ABSOLUTE_MIN_DIM for _, r in front)
+        if needed <= envelope.w:
+            break
+        movable = [kr for kr in front if kr[1].function not in _KEEP]
+        if not movable:
+            break
+        # Give up the least insistent room first, largest of those, since it
+        # is the one costing the frontage most.
+        loose = max(movable, key=lambda kr: (kr[1].priority, _target(kr[1]) or 0))
+        front.remove(loose)
+        evicted.append(loose)
+        warnings.append(
+            f"{loose[1].name} was moved off the street frontage: at "
+            f"{envelope.w} mm wide it cannot carry the garage, the entry and "
+            f"{loose[1].name} at a usable size. It opens off the passage instead."
+        )
+
     # The strip has to be deep enough for the garage, which is the room
     # with a dimension that cannot be negotiated.
     # Deep enough for the garage, which is the one room whose dimensions
@@ -579,7 +650,7 @@ def _front_zone(
         else Rect(envelope.x, envelope.y, envelope.w, envelope.h - depth)
     )
 
-    rest = [(k, r) for k, r in rooms if not _is_front(r)]
+    rest = [(k, r) for k, r in rooms if not _is_front(r)] + evicted
     return front, strip, remainder, rest
 
 
@@ -792,6 +863,43 @@ def _layout_storey(
             depth = max(depth, _tile_width(r) or 0)
         return max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE, depth)
 
+    left_target = sum(_target(r) or 1 for _, r in left_rooms)
+    right_target = sum(_target(r) or 1 for _, r in right_rooms)
+    usable = cross - corridor_width
+    run = envelope.h if corridor_vertical else envelope.w
+
+    def _band_depth(band: list[tuple[str, SpaceRequirement]]) -> int:
+        """How deep this side has to be before its rooms are usable.
+
+        Deep enough to hold their area along the run, and never narrower than
+        the widest room's own minimum. Without this the spine can be pulled
+        hard against one side and leave a handful of rooms fighting over a
+        couple of metres.
+        """
+        if not band:
+            return 0
+        area = sum(_target(r) or 0 for _, r in band)
+        depth = -(-area // max(1, run))
+        for _, r in band:
+            depth = max(depth, _tile_width(r) or 0)
+        return max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE, depth)
+
+    # Zoning decides which side a room belongs on; the run decides how many
+    # a side can actually hold. Every room takes a slice of the band's LENGTH,
+    # and rooms that need daylight cannot double up across its depth -- the
+    # inner one would have no window. So a wing with more rooms than its run
+    # can give a usable slice to has to shed some to the other side, or every
+    # room on it comes out a metre and a half long. Minor bedrooms one side
+    # and the master the other is how a real plan resolves exactly this.
+    def _run_needed(band: list[tuple[str, SpaceRequirement]], depth: int) -> int:
+        total = 0
+        for _, r in band:
+            area_run = -(-(_target(r) or 0) // max(1, depth))
+            total += max(_tile_width(r) or _ABSOLUTE_MIN_DIM, area_run)
+        return total
+
+    left_target = sum(_target(r) or 1 for _, r in left_rooms)
+    right_target = sum(_target(r) or 1 for _, r in right_rooms)
     min_left, min_right = _band_depth(left_rooms), _band_depth(right_rooms)
     balanced = usable * left_target // max(1, left_target + right_target)
 
@@ -816,6 +924,30 @@ def _layout_storey(
         )
     left_depth = max(_ABSOLUTE_MIN_DIM, min(usable - _ABSOLUTE_MIN_DIM, left_depth))
     right_depth = usable - left_depth
+
+    # A room that spans the full depth of a band is as deep as the band. Where
+    # a band is much deeper than its rooms want to be, they come out the shape
+    # of a corridor -- plenty of area, and 1.7 m across. Rooms pair across the
+    # depth to avoid that, but two rooms that both need a window cannot pair,
+    # so a wing of bedrooms runs out of partners. That is the limit of a
+    # single spine: a house much past 14 m wide wants two of them, or an L.
+    # Say so rather than draw the result and leave it to be noticed.
+    for band, band_depth, side in ((left_rooms, left_depth, "one"),
+                                   (right_rooms, right_depth, "the other")):
+        lit = [r for _, r in band if r.needs_exterior_wall]
+        if not lit or band_depth <= 0:
+            continue
+        wanted = min(
+            (_target(r) // max(1, _tile_width(r) or _ABSOLUTE_MIN_DIM)) for r in lit
+        )
+        if wanted and band_depth > wanted * 2:
+            warnings.append(
+                f"The band on {side} side of the passage is {band_depth} mm "
+                f"deep and its rooms want about {wanted} mm. They span it "
+                "anyway, so they come out long and narrow. This is the limit "
+                "of a single spine: a house this wide wants a second passage "
+                "or an L-shaped plan."
+            )
 
     road_first = plot.road_side in ("south", "west")
     left_rooms = _order_for_road(left_rooms, road_first)

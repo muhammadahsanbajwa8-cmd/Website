@@ -1,7 +1,5 @@
+node_modules/
+node_modules
+out/
 __pycache__/
 *.pyc
-.venv/
-dist/
-build/
-*.egg-info/
-out/
