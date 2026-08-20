@@ -210,8 +210,18 @@ def write_dxf(
     services: dict[int, object] | None = None,
     footprint=None,
     system: str = "metric",
+    title=None,
+    sheet_no: int = 1,
+    sheet_of: int = 1,
+    sheet_size: str = "A3",
 ) -> Path:
     """Write one sheet as a DXF.
+
+    The sheet arguments are accepted and ignored. A DXF carries model-space
+    geometry at full size -- it has no paper, so it has no scale and no title
+    block, and CAD lays those out in its own paper space. Taking the
+    arguments keeps one call signature across the writers; pretending to
+    honour them would be worse than not having them.
 
     Storeys are laid out left to right with a gap between them, which is how
     a drawing sheet shows them and means the whole building opens in one

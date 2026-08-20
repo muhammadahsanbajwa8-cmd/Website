@@ -26,6 +26,7 @@ from .schedule import (
     opening_specification,
     schedule,
 )
+from .sheet import TitleBlock
 from .services import design_electrical, design_plumbing
 from .geom import Point, Rect
 from .ingest import PdfError, read_pdf
@@ -367,6 +368,27 @@ def cmd_plan(args) -> int:
     stem = args.name or "plan"
     written: list[Path] = []
 
+    # One plan to a sheet, which is how a set is issued and what makes the
+    # "sheet n of m" in the title block mean anything. Two storeys side by
+    # side on one page forces the scale down a step for no reason.
+    pages: list[tuple[str, int | None, str]] = []
+    for sheet in sheets:
+        stem_part = "" if sheet == "architectural" else f"-{sheet}"
+        if sheet == "elevations" or len(building.storeys) == 1:
+            pages.append((sheet, None, stem_part))
+            continue
+        for storey in building.storeys:
+            slug = storey.name.lower().replace(" ", "-")
+            pages.append((sheet, storey.index, f"{stem_part}-{slug}"))
+
+    title_block = TitleBlock(
+        project=args.project or building.name or "",
+        client=args.client or "",
+        address=args.address or "",
+        job_number=args.job or "",
+        drawn_by=args.drawn_by or "",
+    )
+
     formats = [f.strip().lower() for f in args.formats.split(",") if f.strip()]
     for name in formats:
         if name not in FORMATS:
@@ -381,16 +403,20 @@ def cmd_plan(args) -> int:
             # is one of each however many sheets are drawn.
             written.append(writer(building, out / f"{stem}.{name}"))
             continue
-        for sheet in sheets:
-            suffix = "" if sheet == "architectural" else f"-{sheet}"
+        for number, (sheet, storey_index, suffix) in enumerate(pages, start=1):
             written.append(
                 writer(
                     building,
                     out / f"{stem}{suffix}.{name}",
+                    storey_index=storey_index,
                     sheet=sheet,
                     services=services.get(sheet),
                     footprint=layout.envelope,
                     system=args.units,
+                    title=title_block,
+                    sheet_no=number,
+                    sheet_of=len(pages),
+                    sheet_size=args.sheet,
                 )
             )
     if "elevations" in sheets:
@@ -915,6 +941,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma separated: architectural, electrical, plumbing. "
              "Omit to read the brief for a mention of services, and to be "
              "asked if it does not mention any.",
+    )
+    plan.add_argument(
+        "--sheet", default="A3",
+        help="paper size for the drawn sheets (default: A3). The scale is "
+             "then the largest standard one that fits; a drawing that will "
+             "not fit at 1:2000 is refused rather than drawn at an odd ratio.",
+    )
+    plan.add_argument(
+        "--project", default="",
+        help="project name for the title block",
+    )
+    plan.add_argument(
+        "--client", default="",
+        help="client name for the title block. Left blank it is ruled "
+             "through on the sheet rather than filled in with a guess.",
+    )
+    plan.add_argument(
+        "--address", default="",
+        help="site address for the title block",
+    )
+    plan.add_argument(
+        "--job", default="",
+        help="job number for the title block",
+    )
+    plan.add_argument(
+        "--drawn-by", default="", dest="drawn_by",
+        help="who drew it, for the title block and the revision row",
     )
     plan.add_argument(
         "--zone",

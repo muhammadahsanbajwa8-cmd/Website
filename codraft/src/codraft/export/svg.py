@@ -18,6 +18,14 @@ from pathlib import Path
 
 from ..annotate import dimension_storey, room_dimension_text
 from .elevation import elevations as build_elevations
+from ..sheet import (
+    MARGIN,
+    TITLE_BLOCK_WIDTH,
+    Frame,
+    SheetError,
+    TitleBlock,
+    fit_scale,
+)
 from ..model import Building, Function
 from ..symbols import NAMES, footprint, symbol
 from ..units import fmt_area
@@ -94,6 +102,22 @@ STYLE = """
   .legend-item { font: 250px system-ui, sans-serif; fill: #3a352d; }
   .note { font: 235px system-ui, sans-serif; fill: #6b6357; }
   .note-strong { font: 600 250px system-ui, sans-serif; fill: #8c1c1c; }
+
+  /* Sheet furniture. Drawn in millimetres of PAPER, outside the scaled
+     group, so a title block reads the same at 1:50 and at 1:200 -- which is
+     the whole point of it being on the sheet rather than in the drawing. */
+  .tb-border { fill: none; stroke: #14110d; stroke-width: 0.7; }
+  .tb-rule { stroke: #14110d; stroke-width: 0.25; }
+  .tb-hair { stroke: #9aa0a6; stroke-width: 0.15; }
+  .tb-label { font: 500 2.1px "IBM Plex Mono", ui-monospace, monospace;
+              fill: #8a8577; letter-spacing: 0.12px; }
+  .tb-value { font: 600 3.2px system-ui, sans-serif; fill: #14110d; }
+  .tb-big { font: 700 5.4px system-ui, sans-serif; fill: #14110d; }
+  .tb-scale { font: 700 6.6px "IBM Plex Mono", ui-monospace, monospace;
+              fill: #14110d; }
+  .tb-small { font: 2.4px system-ui, sans-serif; fill: #6b6357; }
+  .tb-warn { font: 600 2.4px system-ui, sans-serif; fill: #8c1c1c; }
+  .tb-blank { stroke: #c9c4bb; stroke-width: 0.3; }
 """
 
 
@@ -243,28 +267,31 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
             canvas.line(s.x0 + dx, s.y0, s.x1 + dx, s.y1, "glaz")
 
 
-def _draw_elevation(canvas: _Canvas, view, dx: int) -> None:
-    """One elevation: walls, roof, openings and the levels up the side."""
+def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
+    """One elevation: walls, roof, openings and the levels up the side.
+
+    `dy` shifts the whole view so several can be stacked in rows on a sheet.
+    """
     for line in view.roof:
-        canvas.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "elev-roof")
+        canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy, "elev-roof")
     for line in view.outline:
-        canvas.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "elev-wall")
+        canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy, "elev-wall")
 
     for panel in view.panels:
         cls = "elev-door" if panel.kind == "door" else "elev-glaz"
         canvas.add(
-            f'<rect class="{cls}" x="{panel.x + dx}" y="{panel.y}" '
+            f'<rect class="{cls}" x="{panel.x + dx}" y="{panel.y + dy}" '
             f'width="{panel.width}" height="{panel.height}"/>'
         )
-        canvas.saw(panel.x + dx, panel.y)
-        canvas.saw(panel.x + dx + panel.width, panel.y + panel.height)
+        canvas.saw(panel.x + dx, panel.y + dy)
+        canvas.saw(panel.x + dx + panel.width, panel.y + dy + panel.height)
         if panel.label:
             canvas.text(panel.x + dx + panel.width // 2,
-                        panel.y + panel.height + 250, panel.label, "elev-code")
+                        panel.y + dy + panel.height + 250, panel.label, "elev-code")
 
     if view.ground:
         g = view.ground
-        canvas.line(g.x0 + dx, g.y0, g.x1 + dx, g.y1, "elev-ground")
+        canvas.line(g.x0 + dx, g.y0 + dy, g.x1 + dx, g.y1 + dy, "elev-ground")
 
     # Levels run off to the left of the drawing, as a sheet sets them out.
     left = min((l.x0 for l in view.outline), default=0) + dx
@@ -274,13 +301,13 @@ def _draw_elevation(canvas: _Canvas, view, dx: int) -> None:
         if level.y in seen:
             continue
         seen.add(level.y)
-        canvas.line(left - 2600, level.y, right + 400, level.y, "elev-level")
+        canvas.line(left - 2600, level.y + dy, right + 400, level.y + dy, "elev-level")
         canvas.add(
-            f'<g transform="translate({left - 2500},{level.y}) scale(1,-1)">'
+            f'<g transform="translate({left - 2500},{level.y + dy}) scale(1,-1)">'
             f'<text class="elev-level-text" y="-120">'
             f'{html.escape(level.label)}</text></g>'
         )
-        canvas.saw(left - 2600, level.y, 400)
+        canvas.saw(left - 2600, level.y + dy, 400)
 
 
 def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -> None:
@@ -370,6 +397,101 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines
 
 
+def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
+                 scale_note: str) -> str:
+    """Draw the box down the right edge, in paper millimetres.
+
+    y here runs DOWN from the top of the sheet, like SVG's own axis: this is
+    furniture on the page, not geometry in the building, and flipping it
+    would only make the arithmetic harder to read.
+    """
+    x = frame.title_x
+    w = TITLE_BLOCK_WIDTH
+    top = MARGIN
+    bottom = frame.height - MARGIN
+    out: list[str] = []
+    esc = html.escape
+
+    def line(x0, y0, x1, y1, cls="tb-rule"):
+        out.append(f'<line class="{cls}" x1="{x0:.2f}" y1="{y0:.2f}" '
+                   f'x2="{x1:.2f}" y2="{y1:.2f}"/>')
+
+    def text(tx, ty, value, cls):
+        out.append(f'<text class="{cls}" x="{tx:.2f}" y="{ty:.2f}">{esc(value)}</text>')
+
+    # Sheet border, and the block itself.
+    out.append(f'<rect class="tb-border" x="{MARGIN}" y="{MARGIN}" '
+               f'width="{frame.width - MARGIN * 2}" '
+               f'height="{frame.height - MARGIN * 2}"/>')
+    line(x, top, x, bottom, "tb-border")
+
+    cursor = top + 9
+    text(x + 4, cursor, sheet_name.upper(), "tb-big")
+    cursor += 4
+    text(x + 4, cursor, "codraft", "tb-small")
+    cursor += 4
+    line(x, cursor, x + w, cursor)
+
+    # The named fields. An empty one is ruled through: an obviously empty box
+    # is worth more than a plausible invention.
+    for label, value in block.rows():
+        # Wrap rather than truncate. A site address cut off at "Lot 55 Purple
+        # Court, Baldi" still looks like an address, which is the worst thing
+        # a field on a drawing can do -- it reads as complete and is not.
+        lines = _wrap(value, 26)[:2] if value else []
+        cursor += 8.5 + (3.4 if len(lines) > 1 else 0)
+        text(x + 4, cursor - 4.0 - (3.4 if len(lines) > 1 else 0), label, "tb-label")
+        if lines:
+            for i, piece in enumerate(lines):
+                text(x + 4, cursor - 0.6 - (len(lines) - 1 - i) * 3.4,
+                     piece, "tb-value")
+            if len(_wrap(value, 26)) > 2:
+                # Two lines is what the box holds. Say that the rest is not
+                # shown rather than let it look like the whole of it.
+                text(x + w - 5, cursor - 0.6, "...", "tb-small")
+        else:
+            line(x + 4, cursor - 1.6, x + w - 5, cursor - 1.6, "tb-blank")
+        line(x, cursor, x + w, cursor, "tb-hair")
+
+    # Scale and sheet number, which are the two things read most often.
+    cursor += 11
+    text(x + 4, cursor - 6.0, "SCALE", "tb-label")
+    text(x + 4, cursor - 0.8, f"1:{frame.scale}", "tb-scale")
+    text(x + 40, cursor - 6.0, "SHEET", "tb-label")
+    text(x + 40, cursor - 0.8, f"{sheet_no} of {sheet_of}", "tb-scale")
+    text(x + 4, cursor + 3.4, f"at {frame.size}. {scale_note}", "tb-small")
+    cursor += 7
+    line(x, cursor, x + w, cursor)
+
+    # Revisions, newest last, the way a drawing set reads them.
+    cursor += 5
+    text(x + 4, cursor, "REVISIONS", "tb-label")
+    cursor += 1.5
+    line(x, cursor, x + w, cursor, "tb-hair")
+    for revision in block.revisions[-6:]:
+        cursor += 5
+        text(x + 4, cursor - 1.4, revision.mark, "tb-value")
+        text(x + 10, cursor - 1.4, revision.date, "tb-small")
+        text(x + 28, cursor - 1.4, revision.description[:24], "tb-small")
+        if revision.by:
+            text(x + w - 12, cursor - 1.4, revision.by[:4], "tb-small")
+        line(x, cursor, x + w, cursor, "tb-hair")
+
+    # The disclaimer sits at the foot of the block, where a drawing set puts
+    # its status. It is the same sentence the report ends with, because a
+    # sheet gets separated from its report and has to carry it alone.
+    foot = bottom - 15
+    line(x, foot - 4, x + w, foot - 4, "tb-hair")
+    text(x + 4, foot, "NOT FOR CONSTRUCTION", "tb-warn")
+    for i, chunk in enumerate(_wrap(
+        "Concept only. Not a compliance certificate. A registered building "
+        "surveyor certifies; an engineer designs the footings and lintels.",
+        46,
+    )[:4]):
+        text(x + 4, foot + 3.4 + i * 3.0, chunk, "tb-small")
+    return "".join(out)
+
+
 def write_svg(
     building: Building,
     path: str | Path,
@@ -378,6 +500,10 @@ def write_svg(
     services: dict[int, object] | None = None,
     footprint=None,
     system: str = "metric",
+    title: TitleBlock | None = None,
+    sheet_no: int = 1,
+    sheet_of: int = 1,
+    sheet_size: str = "A3",
 ) -> Path:
     """Write one sheet. `services` maps a storey index to its ServicesPlan."""
     path = Path(path)
@@ -393,7 +519,11 @@ def write_svg(
         raise ValueError(f"the building has no storey {storey_index}")
 
     if sheet == "elevations":
-        return _write_elevations(building, path)
+        return _write_elevations(
+            building, path,
+            title or TitleBlock(project=building.name or ""),
+            sheet_no, sheet_of, sheet_size,
+        )
 
     margin = 3000
     ghost = sheet != "architectural"
@@ -467,62 +597,137 @@ def write_svg(
     if not canvas.has_content:
         raise ValueError("nothing was drawn on this sheet")
 
-    width = int(canvas.maxx - canvas.minx) + margin * 2
-    height = int(canvas.maxy - canvas.miny) + margin * 2
-    offset_x = int(-canvas.minx) + margin
-    offset_y = int(canvas.maxy) + margin
-
+    content_w = int(canvas.maxx - canvas.minx) + margin * 2
+    content_h = int(canvas.maxy - canvas.miny) + margin * 2
     body = "\n".join(canvas.parts)
+    return _write_sheet(
+        path, body, content_w, content_h,
+        origin=(int(-canvas.minx) + margin, int(canvas.maxy) + margin),
+        title=title or TitleBlock(project=building.name or ""),
+        sheet_name=f"{sheet.title()} plan",
+        sheet_no=sheet_no, sheet_of=sheet_of, size=sheet_size,
+    )
+
+
+def _write_sheet(
+    path: Path,
+    body: str,
+    content_w: int,
+    content_h: int,
+    origin: tuple[int, int],
+    title: TitleBlock,
+    sheet_name: str,
+    sheet_no: int,
+    sheet_of: int,
+    size: str,
+) -> Path:
+    """Place a drawing on a real sheet, at a real scale, with a title block.
+
+    The drawing group is scaled by 1/frame.scale, so every line weight and
+    text size in STYLE -- all of them in real millimetres -- lands at a
+    sensible size on paper without a second set of numbers to keep in step.
+    A 40 mm wall stroke becomes 0.4 mm of ink at 1:100, which is a pen width;
+    300 mm room text becomes 3 mm, which is drawing text.
+    """
+    frame = fit_scale(content_w, content_h, size=size)
+
+    # Centre the drawing in the window rather than jamming it into a corner.
+    drawn_w = content_w / frame.scale
+    drawn_h = content_h / frame.scale
+    # Both measured from the top-left, which is where SVG's own axis starts
+    # and where the title block is drawn from. The frame's margins are
+    # symmetric, so centring in the window is the same arithmetic either way.
+    pad_x = frame.x + (frame.w - drawn_w) / 2
+    pad_y_top = MARGIN + (frame.h - drawn_h) / 2
+
+    # Read right to left, the way SVG composes them: flip the canvas's y-up
+    # geometry to y-down and shift it into a box of content_w x content_h,
+    # divide by the scale to turn real millimetres into paper ones, then move
+    # that box into the window. The inner pair is exactly the transform this
+    # writer used before there was a sheet, kept intact so the drawing itself
+    # is unchanged -- only where it lands is new.
+    ox, oy = origin
+    place = (
+        f"translate({pad_x:.3f},{pad_y_top:.3f}) "
+        f"scale({1 / frame.scale:.6f}) "
+        f"translate({ox},{oy}) scale(1,-1)"
+    )
+    covers_w, covers_h = frame.covers_mm()
+    scale_note = (
+        f"window {frame.w} x {frame.h} mm holds "
+        f"{covers_w / 1000:.1f} x {covers_h / 1000:.1f} m"
+    )
+
     svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {frame.width} {frame.height}" '
         f'width="100%" style="max-width:100%;height:auto">'
         f"<style>{STYLE}</style>"
-        f'<rect class="sheet" x="0" y="0" width="{width}" height="{height}"/>'
-        f'<g transform="translate({offset_x},{offset_y}) scale(1,-1)">'
-        f"{body}</g></svg>"
+        f'<rect class="sheet" x="0" y="0" width="{frame.width}" '
+        f'height="{frame.height}"/>'
+        f'<g transform="{place}">{body}</g>'
+        f"{_title_block(frame, title, sheet_name, sheet_no, sheet_of, scale_note)}"
+        f"</svg>"
     )
     path.write_text(svg, encoding="utf-8")
     return path
 
 
-def _write_elevations(building: Building, path: Path) -> Path:
+def _write_elevations(
+    building: Building,
+    path: Path,
+    title: TitleBlock | None = None,
+    sheet_no: int = 1,
+    sheet_of: int = 1,
+    sheet_size: str = "A3",
+) -> Path:
     """All four elevations on one sheet, numbered from the street."""
     views = build_elevations(building)
     canvas = _Canvas()
     margin = 3500
 
-    cursor = 0
-    for view in views:
-        width = max((l.x1 for l in view.roof + view.outline), default=0)
-        left = min((l.x0 for l in view.roof + view.outline), default=0)
-        dx = cursor - left
-        _draw_elevation(canvas, view, dx)
-        canvas.text(
-            (left + width) // 2 + dx, -2400,
-            f"{view.title}  1:100", "title",
-        )
-        cursor += (width - left) + 9000
+    # Two by two, not four in a row. Four abreast makes the drawing 106 m
+    # wide against 26 m tall, and the sheet then scales to the width: 1:500,
+    # where a 2 x 2 block of the same views fits at 1:200. Same paper, same
+    # information, two and a half times the size.
+    spans = [
+        (min((l.x0 for l in v.roof + v.outline), default=0),
+         max((l.x1 for l in v.roof + v.outline), default=0))
+        for v in views
+    ]
+    column_w = max((right - left for left, right in spans), default=0) + 9000
+    row_h = max(
+        (max((l.y1 for l in v.roof + v.outline), default=0) for v in views),
+        default=0,
+    ) + 9000
 
+    for index, (view, (left, right)) in enumerate(zip(views, spans)):
+        column, row = index % 2, index // 2
+        dx = column * column_w - left
+        dy = -row * row_h
+        _draw_elevation(canvas, view, dx, dy)
+        canvas.text((left + right) // 2 + dx, dy - 2400, view.title, "title")
+
+    notes_top = -((len(views) + 1) // 2 - 1) * row_h - 4200
     for index, note in enumerate(views[0].notes):
         canvas.add(
-            f'<g transform="translate({0},{-4200 - index * 700}) scale(1,-1)">'
+            f'<g transform="translate({0},{notes_top - index * 700}) scale(1,-1)">'
             f'<text class="elev-note">{html.escape(note)}</text></g>'
         )
-        canvas.saw(0, 4200 + index * 700, 9000)
+        # Register where the note actually IS. Sawing the positive y
+        # instead pushed the sheet bounds 13 m the wrong way and left
+        # the notes themselves outside them.
+        canvas.saw(0, notes_top - index * 700, 3000)
 
-    width = int(canvas.maxx - canvas.minx) + margin * 2
-    height = int(canvas.maxy - canvas.miny) + margin * 2
-    body = "\n".join(canvas.parts)
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
-        f'width="100%" style="max-width:100%;height:auto">'
-        f"<style>{STYLE}</style>"
-        f'<rect class="sheet" x="0" y="0" width="{width}" height="{height}"/>'
-        f'<g transform="translate({int(-canvas.minx) + margin},'
-        f'{int(canvas.maxy) + margin}) scale(1,-1)">{body}</g></svg>'
+    content_w = int(canvas.maxx - canvas.minx) + margin * 2
+    content_h = int(canvas.maxy - canvas.miny) + margin * 2
+    return _write_sheet(
+        path, "\n".join(canvas.parts), content_w, content_h,
+        origin=(int(-canvas.minx) + margin, int(canvas.maxy) + margin),
+        title=title or TitleBlock(project=building.name or ""),
+        sheet_name="Elevations",
+        sheet_no=sheet_no, sheet_of=sheet_of, size=sheet_size,
     )
-    path.write_text(svg, encoding="utf-8")
-    return path
 
 
 def _bounds(storey):

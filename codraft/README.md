@@ -454,6 +454,62 @@ distance cannot be worked out — a boundary not orthogonal to the wall — it i
 left unknown and reported, rather than assumed to be zero.
 
 
+**The sheets are real paper at a real scale.** A drawing is issued at a stated
+scale on a stated sheet, and a builder measures off it with a scale rule. So
+`codraft plan` puts one plan on one A3, picks the largest of the conventional
+scales that fits, and draws a title block down the right edge:
+
+```
+$ codraft plan "4 bed 2 bath house in Perth" --plot 15mx30m --zone R20 \
+      --storeys 2 --elevations --project "THE MURRAY" --job CD-0001
+
+  out/plan-ground-floor.svg    1:200   sheet 1 of 3
+  out/plan-floor-1.svg         1:200   sheet 2 of 3
+  out/plan-elevations.svg      1:200   sheet 3 of 3
+```
+
+Two rules govern it, and both are the survey reader's rule pointed the other
+way. codraft can read an existing PDF because a drawing whose stated scale
+does not match its geometry produces confident millimetres that are wrong;
+emitting one would be the same fault from the other side.
+
+**The scale printed is the scale drawn.** The number in the title block is the
+divisor actually applied to the geometry, and `tests/test_sheet.py` parses the
+SVG back to assert it — reads the title block, reads the transform on the
+drawing group, and requires `scale == 1/printed`. Writing this test found the
+elevation views each carrying a hard-coded "1:100" in their own titles while
+the sheet around them was issued at 1:500. The sheet states the scale, once.
+
+**Only scales a rule can measure.** 1:50, 1:100, 1:200 and the rest of the
+conventional set. A drawing at 1:137 cannot be measured — no rule has that
+edge — so where nothing standard fits, the sheet is refused with what it would
+need, rather than drawn at a ratio invented to make it fit.
+
+Everything in the drawing is already in real millimetres, so scaling the group
+by 1/scale lands the line weights and text where they should be without a
+second set of numbers to keep in step: a 40 mm wall stroke becomes 0.4 mm of
+ink at 1:100, which is a pen width, and 300 mm room text becomes 3 mm, which is
+drawing text. The title block is drawn outside that group, in paper
+millimetres, so it reads the same at every scale.
+
+**The title block invents nothing.** Client, site address and job number are
+not functions of the design — a lot's street address is not a function of its
+dimensions — so unsupplied fields are ruled through rather than filled in. An
+obviously empty box is worth more than a plausible invention. Long values wrap
+instead of truncating: "Lot 55 Purple Court, Baldi" still reads as an address
+and is not one. The only history assumed is a single revision A, "First
+issue", which is a fact about a drawing being generated now.
+
+Each sheet also carries **NOT FOR CONSTRUCTION** and the one-line status,
+because a sheet gets separated from its report and has to say what it is on its
+own.
+
+DXF is unaffected: it carries model-space geometry at full size, so it has no
+paper, no scale and no title block. The writer accepts the sheet arguments and
+ignores them, which keeps one signature across the writers — pretending to
+honour them would be worse than not having them.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 
