@@ -1,0 +1,25 @@
+{
+  "title": "Queensland Development Code, Parts MP1.1 and MP1.2",
+  "publisher": "Queensland Department of Housing and Public Works",
+  "edition": "QDC MP1.1 / MP1.2",
+  "url": "https://www.business.qld.gov.au/industries/building-property-development/building-construction/laws-codes-standards/queensland-development-code",
+  "disclaimer": "PLANNING SITING STANDARDS, NOT BUILDING CODE. MP1.1 and MP1.2 set siting for single detached Class 1a dwellings and associated Class 10 structures, split by lot size -- and codraft does not assert which part applies to which size, because the two are commonly cited the wrong way round. Check the part directly. A new Queensland Housing Code was proposed to commence 1 September 2026 and to REPLACE both parts, changing height, setbacks, privacy, parking, site cover and private open space; confirm what is in force on the application date. A local planning scheme may vary siting, and a siting dispensation can be sought from the council.",
+  "applies_to_uses": ["residential"],
+  "parameters": { "occupant_load_factors": {} },
+  "site": {
+    "$comment": "Indicative. Site cover under the QDC excludes eaves, sun shading and below-ground basements.",
+    "max_coverage_ratio": { "default": 0.50 },
+    "setback_front_mm": { "default": 6000 },
+    "setback_rear_mm": { "default": 3000 },
+    "setback_left_mm": { "default": 1500 },
+    "setback_right_mm": { "default": 1500 }
+  },
+  "rules": [
+    { "id": "qld.site.cover", "title": "Site cover",
+      "clause": "QDC MP1.1 / MP1.2 (site cover)",
+      "scope": "building", "severity": "violation", "confidence": "medium",
+      "assert": "coverage_ratio <= 0.50",
+      "message": "Site cover is {coverage_ratio}; the QDC caps it at 50%.",
+      "note": "Site cover excludes eaves and sun shading devices, so the figure checked here is conservative." }
+  ]
+}

@@ -76,6 +76,10 @@ FRAME_ALLOWANCE = 0.85
 TARGET_RISER = 175
 MIN_GOING = 250
 LANDING_DEPTH = 900
+# Codes put a floor under the landing, not at 900. When a stair is a little
+# short of the run its going needs, taking the landing down towards that
+# floor is what a designer does before redrawing the plan.
+MIN_LANDING = 750
 
 
 def _interval_overlap(a0: int, a1: int, b0: int, b1: int) -> tuple[int, int] | None:
@@ -503,32 +507,41 @@ def _stairs_for_storey(
         risers = max(2, -(-storey_height // target_riser))
         riser = storey_height // risers
         goings = max(1, risers - 1)
-        run_available = max(0, rect.long_side - LANDING_DEPTH)
-
         # One straight flight if the run is there. If it is not, the stair
         # turns back on itself -- which is what anyone would draw, and the
-        # only way a seventeen-riser flight fits a three-metre room without
+        # only way an eighteen-riser flight fits a three-metre room without
         # becoming a ladder.
         flights = 1
-        going = run_available // goings
         width = rect.short_side
+        per_flight = goings
+        if rect.long_side - LANDING_DEPTH < goings * going_min and rect.short_side >= 2 * 900:
+            flights = 2
+            per_flight = -(-goings // 2)
+            width = rect.short_side // 2
+
+        # Tighten the landing towards its own minimum before letting the
+        # going drop below what the code allows. A designer does this before
+        # redrawing the plan, and it is the difference between a 235 mm
+        # going that fails and a 240 mm one that does not.
+        landing = LANDING_DEPTH
+        going = 0
+        for candidate in range(LANDING_DEPTH, MIN_LANDING - 1, -25):
+            landing = candidate
+            going = max(0, rect.long_side - candidate) // max(1, per_flight)
+            if going >= going_min:
+                break
         if going_max:
             # A going longer than the code allows is not generosity, it is a
             # violation. The spare run becomes a deeper landing instead.
             going = min(going, going_max)
-        if going < going_min and rect.short_side >= 2 * 900:
-            flights = 2
-            per_flight = -(-goings // 2)
-            going = run_available // max(1, per_flight)
-            if going_max:
-                going = min(going, going_max)
-            width = rect.short_side // 2
+        run_available = max(0, rect.long_side - landing)
 
         if going < going_min:
             warnings.append(
                 f"{cell.name} is too small for the {risers} risers it has to "
-                f"climb: the going works out at {going} mm. Give it more room "
-                "or the stair will fail the local pitch rule."
+                f"climb: even with the landing cut to {landing} mm the going "
+                f"works out at {going} mm, against the {going_min} mm minimum. "
+                "Give it more room."
             )
 
         stairs.append(

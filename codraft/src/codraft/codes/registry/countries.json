@@ -639,19 +639,34 @@
           "rule_packs": [
             "baseline",
             "au-ncc-housing",
-            "au-ncc-vol1"
+            "au-ncc-vol1",
+            "au-nsw-codes-sepp"
           ],
           "note": "New South Wales did not adopt the NCC 2022 livable housing provisions on the national timetable, so that pack is not applied here. Apartment (Class 2) work is also governed by the Apartment Design Guide under SEPP 65, which sets room sizes and solar access the NCC does not -- and which is not encoded."
         },
         {
           "slug": "victoria",
           "name": "Victoria",
+          "rule_packs": [
+            "baseline",
+            "au-ncc-housing",
+            "au-ncc-livable",
+            "au-ncc-vol1",
+            "au-vic-rescode"
+          ],
           "authority": "Victorian Building Authority; municipal building surveyor",
           "note": "Victoria adopted the livable housing provisions. ResCode (Clauses 54 and 55 of the planning scheme) sets setbacks, site coverage, overlooking and overshadowing, none of which are in the NCC or encoded here."
         },
         {
           "slug": "queensland",
           "name": "Queensland",
+          "rule_packs": [
+            "baseline",
+            "au-ncc-housing",
+            "au-ncc-livable",
+            "au-ncc-vol1",
+            "au-qld-qdc"
+          ],
           "authority": "Queensland Building and Construction Commission; building certifier",
           "note": "Much of Queensland is in a cyclonic wind region, and the Queensland Development Code adds state variations. Neither is encoded."
         },
@@ -662,14 +677,16 @@
           "rule_packs": [
             "baseline",
             "au-ncc-housing",
-            "au-ncc-vol1"
+            "au-ncc-vol1",
+            "au-wa-rcodes"
           ],
           "note": "Western Australia deferred the livable housing provisions, so that pack is not applied here. The R-Codes set setbacks, site coverage and open space, and are not encoded."
         },
         {
           "slug": "sa",
           "name": "South Australia",
-          "authority": "SA Office of the Technical Regulator; relevant authority"
+          "authority": "SA Office of the Technical Regulator; relevant authority",
+          "note": "No South Australian planning pack is encoded. Setbacks and site cover come from the Planning and Design Code, which governs and must be checked directly."
         },
         {
           "slug": "tasmania",

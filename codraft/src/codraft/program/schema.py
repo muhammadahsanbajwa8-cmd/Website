@@ -142,6 +142,42 @@ class SpaceProgram:
     def unplaced(self) -> list[SpaceRequirement]:
         return [s for s in self.spaces if s.storey is None]
 
+    def size_stair_for(self, riser_max_mm: int, going_min_mm: int,
+                       flights: int = 2, landing_mm: int = 900,
+                       flight_width_mm: int = 1000) -> bool:
+        """Give the stair the room the code's limits actually require.
+
+        Riser and going minimums plus the storey height fix how much run a
+        stair needs; the room it sits in has to be at least that. Leaving it
+        to a template default means a plan that is fine in one jurisdiction
+        fails on stair pitch in another, having never been given the space
+        to comply.
+
+        Returns True if the requirement was raised.
+        """
+        stair = next((s for s in self.spaces if s.function is Function.STAIR), None)
+        if stair is None or self.storeys < 2 or riser_max_mm <= 0 or going_min_mm <= 0:
+            return False
+
+        risers = max(2, -(-self.storey_height // riser_max_mm))
+        goings = max(1, risers - 1)
+        per_flight = -(-goings // max(1, flights))
+        run = per_flight * going_min_mm + landing_mm
+        width = flights * flight_width_mm + (flights - 1) * 100
+
+        # A little over, so rounding in the layout does not eat the margin.
+        needed_area = int(run * width * 1.05)
+        raised = False
+        if needed_area > stair.min_area:
+            stair.min_area = needed_area
+            raised = True
+        if width > stair.min_width:
+            stair.min_width = width
+            raised = True
+        if stair.preferred_area and stair.preferred_area < stair.min_area:
+            stair.preferred_area = stair.min_area
+        return raised
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,

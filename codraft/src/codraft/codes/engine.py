@@ -274,11 +274,18 @@ def design_parameters(jurisdiction: Jurisdiction, use: str = "residential") -> d
     return design
 
 
-def site_parameters(jurisdiction: Jurisdiction, use: str = "residential") -> dict:
+def site_parameters(
+    jurisdiction: Jurisdiction, use: str = "residential", zone: str | None = None
+) -> dict:
     """Planning controls the solver can build to: setbacks, coverage, height.
 
     These are the rules it is better to design within than to be failed by,
     so they are handed to the solver before layout as well as checked after.
+
+    `zone` is the density or land-use code the lot carries -- R20 in Perth,
+    a residential zone elsewhere. Western Australia's controls are keyed by
+    it entirely: R20 and R60 are different buildings on the same lot, and
+    answering without it is answering a different question.
     """
     site: dict = {}
     for name in jurisdiction.rule_packs:
@@ -290,8 +297,12 @@ def site_parameters(jurisdiction: Jurisdiction, use: str = "residential") -> dic
             continue
         for key, value in pack.site.items():
             if isinstance(value, dict):
-                # Site controls are keyed by locality where they differ.
-                local = value.get(jurisdiction.locality or "") or value.get("default")
+                # Keyed by zone first, then locality, then a default.
+                local = (
+                    (value.get(zone) if zone else None)
+                    or value.get(jurisdiction.locality or "")
+                    or value.get("default")
+                )
                 if local is not None:
                     site[key] = local
             else:

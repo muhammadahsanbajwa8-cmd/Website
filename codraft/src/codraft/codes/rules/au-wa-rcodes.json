@@ -1,0 +1,40 @@
+{
+  "title": "WA Residential Design Codes (R-Codes) Volume 1",
+  "publisher": "Western Australian Planning Commission",
+  "edition": "State Planning Policy 7.3",
+  "url": "https://www.wa.gov.au/government/document-collections/state-planning-policy-73-residential-design-codes",
+  "disclaimer": "PLANNING, NOT BUILDING CODE. The R-Codes set what may be built on a lot -- setbacks, site cover, open space -- and are a separate instrument from the NCC, which sets how it must be built. Both apply. Controls are keyed by the R-code density of the lot, so the answer is wrong unless the right one is given: pass --zone R20 or whatever the certificate of title or local scheme says. Local Development Plans and structure plans routinely override these figures for a specific estate, and where one exists it governs. Boundary walls, overshadowing, visual privacy, garage width and street surveillance are not encoded.",
+  "applies_to_uses": ["residential"],
+  "parameters": { "occupant_load_factors": {} },
+  "site": {
+    "$comment": "Keyed by R-code. Confirm against the lot's Local Development Plan, which commonly varies these.",
+    "max_coverage_ratio": {
+      "R20": 0.50, "R25": 0.50, "R30": 0.55, "R40": 0.60,
+      "R60": 0.70, "R80": 0.75, "default": 0.50
+    },
+    "min_outdoor_living_m2": {
+      "R20": 30, "R25": 30, "R30": 24, "R40": 20,
+      "R60": 16, "R80": 12, "default": 30
+    },
+    "setback_front_mm": {
+      "R20": 6000, "R25": 6000, "R30": 4000, "R40": 4000,
+      "R60": 2000, "R80": 2000, "default": 6000
+    },
+    "setback_rear_mm": { "default": 1000 },
+    "setback_left_mm": { "default": 1000 },
+    "setback_right_mm": { "default": 1000 }
+  },
+  "rules": [
+    { "id": "wa.site.cover", "title": "Site cover", "clause": "R-Codes Vol 1, Part C (site cover)",
+      "scope": "building", "severity": "violation", "confidence": "medium",
+      "assert": "coverage_ratio <= 0.50",
+      "message": "Site cover is {coverage_ratio} of the lot; R20 allows 0.50. Denser R-codes allow more.",
+      "note": "The default checked here is the R20 figure. Pass the lot's actual R-code so the right limit is applied." },
+    { "id": "wa.setback.front", "title": "Primary street setback",
+      "clause": "R-Codes Vol 1, Part C (street setbacks)",
+      "scope": "building", "severity": "violation", "confidence": "medium",
+      "assert": "setback_front_mm >= 4000",
+      "message": "The primary street setback is {setback_front_mm} mm. R20 requires 6 m; the denser codes reduce it, and averaging with neighbours may apply.",
+      "note": "The R-Codes permit averaging against adjoining lots, which is not modelled." }
+  ]
+}

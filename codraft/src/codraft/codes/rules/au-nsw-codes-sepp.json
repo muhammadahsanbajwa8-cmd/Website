@@ -1,0 +1,30 @@
+{
+  "title": "NSW Codes SEPP, Housing Code (complying development)",
+  "publisher": "NSW Department of Planning, Housing and Infrastructure",
+  "edition": "SEPP (Exempt and Complying Development Codes) 2008, as amended",
+  "url": "https://legislation.nsw.gov.au/view/html/inforce/current/epi-2008-0572",
+  "disclaimer": "PLANNING, NOT BUILDING CODE, AND ONLY ONE PATHWAY. The Housing Code applies to COMPLYING DEVELOPMENT -- a fast-track certifier pathway available in R1, R2, R3, R4 and RU5 zones on lots meeting its criteria. A house that does not qualify goes to the council under the LEP and DCP instead, and the numbers there are different. This pack is thin because the Code's setbacks are driven by lot width, building height and the setbacks of the two nearest dwellings, none of which a lot size alone establishes. Landscaped area, building height plane, privacy and BASIX are not encoded.",
+  "applies_to_uses": ["residential"],
+  "parameters": { "occupant_load_factors": {} },
+  "site": {
+    "$comment": "Indicative only. The Code sets side and rear setbacks by lot width and wall height, and the front setback by averaging the two nearest dwellings.",
+    "max_coverage_ratio": { "default": 0.50 },
+    "setback_front_mm": { "default": 4500 },
+    "setback_rear_mm": { "default": 3000 },
+    "setback_left_mm": { "default": 900 },
+    "setback_right_mm": { "default": 900 }
+  },
+  "rules": [
+    { "id": "nsw.setback.side", "title": "Side setback",
+      "clause": "Codes SEPP 2008, cl 3.10 (minimum setbacks)",
+      "scope": "building", "severity": "warning", "confidence": "low",
+      "assert": "setback_left_mm >= 900 and setback_right_mm >= 900",
+      "message": "Side setbacks are {setback_left_mm} and {setback_right_mm} mm; 900 mm is the smallest the Code allows, and it rises with lot width and wall height.",
+      "note": "Confirm the figure for this lot's width and the proposed wall height." },
+    { "id": "nsw.setback.rear", "title": "Rear setback",
+      "clause": "Codes SEPP 2008, cl 3.10",
+      "scope": "building", "severity": "warning", "confidence": "low",
+      "assert": "setback_rear_mm >= 3000",
+      "message": "The rear setback is {setback_rear_mm} mm; the Code's minimum rises from 3 m with lot size." }
+  ]
+}

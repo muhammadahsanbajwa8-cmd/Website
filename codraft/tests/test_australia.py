@@ -20,6 +20,10 @@ def _plan(place, bedrooms=4, plot=(15000, 32000)):
         program.storey_height = max(
             program.storey_height, int(design["ceiling_height_mm"]) + 200
         )
+    program.size_stair_for(
+        int(design.get("stair_riser_max_mm", 0) or 0),
+        int(design.get("stair_going_min_mm", 0) or 0),
+    )
     site = {
         k: v for k, v in codes.site_parameters(jurisdiction, program.use).items()
         if not k.startswith("$")
@@ -50,12 +54,17 @@ class TestAustralianJurisdictions(unittest.TestCase):
         self.assertNotIn("au-ncc-livable", resolve("Perth").rule_packs)
 
     def test_the_ncc_supplies_no_site_controls(self):
-        # Setbacks and coverage come from the council's planning scheme, not
-        # the NCC. Supplying them from the code pack would be inventing law.
+        # Setbacks and coverage are planning, not building code. They must
+        # come from a planning pack; an NCC pack supplying them would be
+        # inventing law from the wrong instrument.
+        for name in ("au-ncc-housing", "au-ncc-livable", "au-ncc-vol1"):
+            self.assertEqual(
+                codes.load_pack(name).site, {},
+                f"{name} supplies site controls, which are not in the NCC",
+            )
+        # They do reach the solver, from the state's planning pack.
         site = codes.site_parameters(resolve("Melbourne"), "residential")
-        self.assertEqual(
-            {k: v for k, v in site.items() if not k.startswith("$")}, {}
-        )
+        self.assertIn("max_coverage_ratio", site)
 
 
 class TestDesignTargets(unittest.TestCase):

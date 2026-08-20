@@ -1,0 +1,32 @@
+{
+  "title": "Victoria ResCode, Clause 54 (one dwelling on a lot)",
+  "publisher": "Victorian Government, Department of Transport and Planning",
+  "edition": "as amended by VC282, 8 September 2025",
+  "url": "https://www.planning.vic.gov.au/guides-and-resources/guides/planning-practice-notes/understanding-the-residential-development-provisions",
+  "disclaimer": "PLANNING, NOT BUILDING CODE. Clause 54 sits in every Victorian planning scheme and governs a single dwelling on a lot; Clause 55 governs two or more. Amendment VC282 reshaped Clause 54 from 8 September 2025 -- street setbacks were reduced and the assessment of dwellings on small lots changed -- so CONFIRM WHICH VERSION APPLIES to the application date. Under the amended scheme a local variation applies only where it is MORE permissive than the state standard. Overlooking, overshadowing, daylight to existing windows, walls on boundaries and neighbourhood character are not encoded.",
+  "applies_to_uses": ["residential"],
+  "parameters": { "occupant_load_factors": {} },
+  "site": {
+    "$comment": "State standards under the amended Clause 54. A local schedule may be more permissive.",
+    "max_coverage_ratio": { "default": 0.60 },
+    "min_outdoor_living_m2": { "default": 25 },
+    "setback_front_mm": { "default": 6000 },
+    "setback_rear_mm": { "default": 3000 },
+    "setback_left_mm": { "default": 1000 },
+    "setback_right_mm": { "default": 1000 }
+  },
+  "rules": [
+    { "id": "vic.site.coverage", "title": "Site coverage",
+      "clause": "Clause 54, Standard A5 (site coverage)",
+      "scope": "building", "severity": "violation", "confidence": "medium",
+      "assert": "coverage_ratio <= 0.60",
+      "message": "Site coverage is {coverage_ratio}; Clause 54 caps it at 60%.",
+      "note": "Some zones and schedules set a lower figure." },
+    { "id": "vic.setback.street", "title": "Street setback",
+      "clause": "Clause 54, Standard A3 (street setback)",
+      "scope": "building", "severity": "warning", "confidence": "low",
+      "assert": "setback_front_mm >= 4000",
+      "message": "The street setback is {setback_front_mm} mm. Post-VC282 the state standard is commonly 6 m, reducing to 4 m in some cases.",
+      "note": "The standard is partly set by the setbacks of adjoining dwellings, which is not modelled." }
+  ]
+}

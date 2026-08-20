@@ -134,6 +134,7 @@ The layers are kept strictly apart, which is the whole design:
 
 ```
 ingest/    an existing PDF drawing is read back into geometry
+library/   the builder's range, and whether a design goes on a block
 program/   a brief becomes a structured list of spaces to provide
 layout/    that list becomes exact geometry, by arithmetic not by guesswork
 codes/     that geometry is checked against rules that cite their source
@@ -301,6 +302,57 @@ plan is drawn *trying* to comply, and the engine still checks whether it
 managed. Nine became zero, and the same brief now produces a materially
 different building in each place.
 
+## Fit the builder's range first, generate second
+
+A volume builder does not want a house invented for every enquiry. They sell a
+catalogue — "The Murray", "The Hamilton" — and the real question on a block is
+which of their designs will go on it.
+
+```
+$ codraft fit --lot 20mx36m --location Perth --zone R20
+
+Planning     : max_coverage_ratio=0.5, min_outdoor_living_m2=30, setback_front=6000
+Buildable    : 18000 x 29000 mm (522 m²) after setbacks
+
+DESIGN                     VERDICT    COVER  SPARE W  SPARE D
+the-murray                 fits       36.1%     4410     3810   score 72
+starter-4b-single          fits       17.4%     9085    14168   score 35
+starter-3b-single          no                                   407 mm too wide:
+                                                                it needs 8407 mm and
+                                                                the setbacks leave 8000
+```
+
+A "no" carries the number, because 407 mm over is a conversation with the
+council and four metres over is a different design. `--generate` falls back to
+designing one for the block when nothing in the range goes, and `--save` keeps
+it for the next block like it.
+
+A library is one JSON file per design in a directory — versionable, diffable,
+reviewable, which matters when the thing being edited is what the company
+sells. A design needs only a name, a width across the frontage and a depth to
+be fittable; the full model is optional and only needed to draw and code-check
+it. `codraft library seed` writes a starter range so the engine works before a
+single design has been extracted.
+
+**A fit is a fit on footprint and planning only.** It says the design goes
+inside the setbacks and under the site cover. It says nothing about the NCC —
+that is `codraft plan` on the chosen design.
+
+## Planning is a different instrument from the building code
+
+Setbacks, site cover and open space are not in the NCC. They come from state
+planning codes, and codraft keeps them in separate packs that say so:
+
+| Pack | Instrument |
+|---|---|
+| `au-wa-rcodes` | R-Codes (SPP 7.3) — **keyed by R-code**, so pass `--zone R20` |
+| `au-vic-rescode` | ResCode Clause 54, as amended by VC282 (8 Sep 2025) |
+| `au-nsw-codes-sepp` | Codes SEPP Housing Code — the complying-development pathway only |
+| `au-qld-qdc` | QDC MP1.1 / MP1.2 — a new Queensland Housing Code was proposed for 1 Sep 2026 |
+
+South Australia, Tasmania, the ACT and the NT have no pack, and borrow nobody
+else's — there is a test for that.
+
 ## Reading drawings that already exist
 
 `codraft survey` reads a PDF plan and reports what can be recovered from it:
@@ -376,7 +428,7 @@ the Approved Documents, which do not apply in Scotland at all.
 python3 -m unittest discover -s tests -t .
 ```
 
-79 tests. The ones worth knowing about: the solver's tiles must fill the
+98 tests. The ones worth knowing about: the solver's tiles must fill the
 footprint exactly and never overlap (walls are derived from those adjacencies,
 so a gap becomes a wall with nothing behind it); every dimension chain must add
 up to its overall; no room may ever be left without a route to an exit; every
