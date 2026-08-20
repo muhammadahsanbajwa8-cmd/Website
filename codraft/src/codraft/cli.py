@@ -26,7 +26,7 @@ from .geom import Point, Rect
 from .ingest import PdfError, read_pdf
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
-from .layout import LayoutError, build_building, solve
+from .layout import LayoutError, build_building, place_pool, solve
 from .model import Plot, Roof
 from .program import (
     PROGRAM_JSON_SCHEMA,
@@ -277,6 +277,24 @@ def cmd_plan(args) -> int:
         program, plot, layout, name=program.name,
         jurisdiction=jurisdiction.key, design=design,
     )
+    if args.pool or (brief is not None and brief.pool):
+        size = (args.pool_size or "8mx4m").lower().replace("×", "x")
+        pl, _, pw = size.partition("x")
+        try:
+            pool_l, pool_w = mm(pl.strip()), mm(pw.strip())
+        except UnitError:
+            return _fail("pool size looks like --pool-size 8mx4m")
+        pool, pool_warnings = place_pool(plot, layout.envelope, pool_l, pool_w)
+        building.pool = pool
+        layout.warnings.extend(pool_warnings)
+        if pool:
+            print(f"Pool         : {pool.rect.w} x {pool.rect.h} mm in the rear "
+                  f"yard, {pool.barrier_height_mm} mm barrier at "
+                  f"{pool.barrier_offset_mm} mm offset")
+        else:
+            print("Pool         : will not fit -- see the notes below")
+        print()
+
     building.roof = Roof(
         pitch_degrees=float(design.get("roof_pitch_degrees", 25.0)),
         overhang_mm=int(design.get("roof_overhang_mm", 600)),
@@ -878,6 +896,9 @@ def build_parser() -> argparse.ArgumentParser:
                       help="units for dimensions on the drawings (default: metric)")
     plan.add_argument("--formats", default="dxf,ifc,svg",
                       help="comma separated: dxf, ifc, svg, json (default: dxf,ifc,svg)")
+    plan.add_argument("--pool", action="store_true",
+                      help="put a pool in the rear yard, with its barrier")
+    plan.add_argument("--pool-size", help="pool size, e.g. 8mx4m (default 8mx4m)")
     plan.add_argument("--elevations", action="store_true",
                       help="also draw the four elevations")
     plan.add_argument("--json", action="store_true", help="also write the report as JSON")

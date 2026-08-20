@@ -104,6 +104,7 @@ class Brief:
     """What could be read out of a sentence, and what could not."""
 
     program: SpaceProgram
+    pool: bool = False
     plot_width: int | None = None
     plot_depth: int | None = None
     location: str | None = None
@@ -249,8 +250,13 @@ def parse_brief(text: str) -> Brief:
             "rules will be applied. Name a city, state or country."
         )
 
+    wants_pool = bool(re.search(r"\bpool\b|\bspa\b|\bplunge\b", lowered))
+    if wants_pool:
+        understood.append("pool: yes")
+
     return Brief(
         program=program,
+        pool=wants_pool,
         plot_width=plot[0] if plot else None,
         plot_depth=plot[1] if plot else None,
         location=location,

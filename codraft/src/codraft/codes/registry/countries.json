@@ -404,7 +404,8 @@
         "baseline",
         "au-ncc-housing",
         "au-ncc-livable",
-        "au-ncc-vol1"
+        "au-ncc-vol1",
+        "au-pool-barrier"
       ],
       "publisher": "Australian Building Codes Board",
       "url": "https://ncc.abcb.gov.au/",
@@ -626,7 +627,8 @@
         "baseline",
         "au-ncc-housing",
         "au-ncc-livable",
-        "au-ncc-vol1"
+        "au-ncc-vol1",
+        "au-pool-barrier"
       ],
       "confidence": "high",
       "authority": "State and territory building authorities; council or private building surveyors",
@@ -640,6 +642,7 @@
             "baseline",
             "au-ncc-housing",
             "au-ncc-vol1",
+            "au-pool-barrier",
             "au-nsw-codes-sepp"
           ],
           "note": "New South Wales did not adopt the NCC 2022 livable housing provisions on the national timetable, so that pack is not applied here. Apartment (Class 2) work is also governed by the Apartment Design Guide under SEPP 65, which sets room sizes and solar access the NCC does not -- and which is not encoded."
@@ -652,6 +655,7 @@
             "au-ncc-housing",
             "au-ncc-livable",
             "au-ncc-vol1",
+            "au-pool-barrier",
             "au-vic-rescode"
           ],
           "authority": "Victorian Building Authority; municipal building surveyor",
@@ -665,6 +669,7 @@
             "au-ncc-housing",
             "au-ncc-livable",
             "au-ncc-vol1",
+            "au-pool-barrier",
             "au-qld-qdc"
           ],
           "authority": "Queensland Building and Construction Commission; building certifier",
@@ -678,6 +683,7 @@
             "baseline",
             "au-ncc-housing",
             "au-ncc-vol1",
+            "au-pool-barrier",
             "au-wa-rcodes"
           ],
           "note": "Western Australia deferred the livable housing provisions, so that pack is not applied here. The R-Codes set setbacks, site coverage and open space, and are not encoded."

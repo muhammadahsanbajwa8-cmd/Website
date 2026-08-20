@@ -9,5 +9,9 @@ bedroom below the size that was asked for.
 
 from .solver import solve, LayoutError, Cell, Layout
 from .walls import build_building
+from .site import place_pool, rear_yard
 
-__all__ = ["solve", "LayoutError", "Cell", "Layout", "build_building"]
+__all__ = [
+    "solve", "LayoutError", "Cell", "Layout", "build_building",
+    "place_pool", "rear_yard",
+]

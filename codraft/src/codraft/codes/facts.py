@@ -36,24 +36,25 @@ class FactSet:
     doors: list[dict] = field(default_factory=list)
     windows: list[dict] = field(default_factory=list)
     stairs: list[dict] = field(default_factory=list)
+    pools: list[dict] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
 
     # Rule packs read more naturally in the singular -- "scope": "space" --
     # so both forms resolve to the same collection.
     _ALIASES = {
         "storey": "storeys", "space": "spaces", "door": "doors",
-        "window": "windows", "stair": "stairs",
+        "window": "windows", "stair": "stairs", "pool": "pools",
     }
 
     def scope(self, name: str) -> list[dict]:
         if name == "building":
             return [self.building]
         attribute = self._ALIASES.get(name, name)
-        if attribute in ("storeys", "spaces", "doors", "windows", "stairs"):
+        if attribute in ("storeys", "spaces", "doors", "windows", "stairs", "pools"):
             return getattr(self, attribute)  # type: ignore[no-any-return]
         raise KeyError(
             f"unknown rule scope {name!r}; expected building, storey, "
-            "space, door, window or stair"
+            "space, door, window, stair or pool"
         )
 
 
@@ -328,6 +329,33 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
             }
         )
         total_occupants += storey_occupants
+
+    if building.pool is not None:
+        pool = building.pool
+        facts.pools.append(
+            {
+                "id": "pool",
+                "area_m2": round(pool.area / 1_000_000, 2),
+                "width_mm": pool.rect.short_side,
+                "length_mm": pool.rect.long_side,
+                "water_depth_mm": pool.water_depth_mm,
+                "needs_barrier": pool.needs_barrier,
+                "barrier_height_mm": pool.barrier_height_mm,
+                "non_climbable_zone_mm": pool.non_climbable_zone_mm,
+                "barrier_gap_below_mm": pool.barrier_gap_below_mm,
+                "barrier_offset_mm": pool.barrier_offset_mm,
+                "gates": pool.gates,
+                "gate_self_closing": pool.gate_self_closing,
+                "gate_self_latching": pool.gate_self_latching,
+                "gate_swings_outward": pool.gate_swings_outward,
+            }
+        )
+        facts.assumptions.append(
+            "Pool barrier hardware -- the self-closing hinge, the latch and "
+            "its height -- is taken as specified, not verified. It cannot be "
+            "read off a plan, and it is where barrier inspections actually "
+            "fail."
+        )
 
     plot = building.plot
     facts.building = {

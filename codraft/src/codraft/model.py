@@ -204,6 +204,52 @@ class Stair:
 
 
 @dataclass(slots=True)
+class Pool:
+    """A swimming pool and the barrier that has to go round it.
+
+    The barrier is not an accessory to the pool: in every Australian state
+    it is the regulated part. A pool that is not enclosed by a compliant
+    barrier is an offence, and the barrier is what gets inspected -- in
+    Western Australia every four years for the life of the pool.
+
+    The figures carried here are the ones a barrier is judged on, so they
+    can be checked rather than assumed: AS 1926.1 sets 1200 mm minimum
+    height above finished ground level with a 900 mm non-climbable zone
+    outside it, and gates that close and latch themselves and swing away
+    from the water.
+    """
+
+    rect: Rect
+    water_depth_mm: int = 1500
+    barrier_height_mm: int = 1200
+    non_climbable_zone_mm: int = 900
+    barrier_gap_below_mm: int = 100
+    gates: int = 1
+    gate_self_closing: bool = True
+    gate_self_latching: bool = True
+    gate_swings_outward: bool = True
+    barrier_offset_mm: int = 1000   # barrier set back from the water's edge
+
+    @property
+    def area(self) -> int:
+        return self.rect.area
+
+    @property
+    def barrier(self) -> Rect:
+        """The line the barrier runs on."""
+        offset = self.barrier_offset_mm
+        return Rect(
+            self.rect.x - offset, self.rect.y - offset,
+            self.rect.w + offset * 2, self.rect.h + offset * 2,
+        )
+
+    @property
+    def needs_barrier(self) -> bool:
+        """Barriers are required above 300 mm of water, spas included."""
+        return self.water_depth_mm > 300
+
+
+@dataclass(slots=True)
 class Roof:
     """The roof, to the level of detail an elevation needs.
 
@@ -382,6 +428,7 @@ class Building:
     jurisdiction: str = ""        # e.g. 'PK-PB-lahore', resolved by codes.registry
     use: str = "residential"      # the brief's word for it; codes map it themselves
     roof: Roof | None = None
+    pool: Pool | None = None
     parking_spaces: int = 0
     metadata: dict[str, str] = field(default_factory=dict)
 

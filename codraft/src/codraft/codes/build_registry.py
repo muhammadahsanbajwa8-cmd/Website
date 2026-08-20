@@ -115,7 +115,8 @@ REGIMES = {
             "NCC Volume One (Class 2 to 9)",
             "NCC Volume Three, Plumbing Code of Australia",
         ],
-        "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1"],
+        "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable",
+                       "au-ncc-vol1", "au-pool-barrier"],
         "publisher": "Australian Building Codes Board",
         "url": "https://ncc.abcb.gov.au/",
         "authority": "State and territory building authorities; council or "
@@ -634,7 +635,7 @@ SUBDIVISIONS = {
         {"slug": "nsw", "name": "New South Wales",
          "authority": "NSW Department of Planning, Housing and Infrastructure; "
                       "council or private certifier",
-         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-nsw-codes-sepp"],
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-pool-barrier", "au-nsw-codes-sepp"],
          "note": "New South Wales did not adopt the NCC 2022 livable housing "
                  "provisions on the national timetable, so that pack is not "
                  "applied here. Apartment (Class 2) work is also governed by "
@@ -642,14 +643,14 @@ SUBDIVISIONS = {
                  "sizes and solar access the NCC does not -- and which is not "
                  "encoded."},
         {"slug": "victoria", "name": "Victoria",
-         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1", "au-vic-rescode"],
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1", "au-pool-barrier", "au-vic-rescode"],
          "authority": "Victorian Building Authority; municipal building surveyor",
          "note": "Victoria adopted the livable housing provisions. ResCode "
                  "(Clauses 54 and 55 of the planning scheme) sets setbacks, "
                  "site coverage, overlooking and overshadowing, none of which "
                  "are in the NCC or encoded here."},
         {"slug": "queensland", "name": "Queensland",
-         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1", "au-qld-qdc"],
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1", "au-pool-barrier", "au-qld-qdc"],
          "authority": "Queensland Building and Construction Commission; "
                       "building certifier",
          "note": "Much of Queensland is in a cyclonic wind region, and the "
@@ -657,7 +658,7 @@ SUBDIVISIONS = {
                  "is encoded."},
         {"slug": "wa", "name": "Western Australia",
          "authority": "WA Building and Energy; permit authority",
-         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-wa-rcodes"],
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-pool-barrier", "au-wa-rcodes"],
          "note": "Western Australia deferred the livable housing provisions, "
                  "so that pack is not applied here. The R-Codes set setbacks, "
                  "site coverage and open space, and are not encoded."},

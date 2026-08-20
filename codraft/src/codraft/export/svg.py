@@ -28,6 +28,10 @@ SHEETS = ("architectural", "electrical", "plumbing", "elevations")
 STYLE = """
   .sheet { fill: #fbfaf7; }
   .plot { fill: none; stroke: #9aa0a6; stroke-width: 20; stroke-dasharray: 400 200; }
+  .pool { fill: #d6ecf7; stroke: #1565c0; stroke-width: 26; }
+  .pool-barrier { fill: none; stroke: #b8860b; stroke-width: 30; stroke-dasharray: 240 120; }
+  .pool-ncz { fill: none; stroke: #b03030; stroke-width: 12; stroke-dasharray: 90 110; }
+  .pool-text { font: 600 260px system-ui, sans-serif; fill: #1565c0; text-anchor: middle; }
   .setback { fill: none; stroke: #b4508c; stroke-width: 12; stroke-dasharray: 150 150; }
   .room { fill: #ffffff; }
   .room-wet { fill: #eef4fa; }
@@ -191,6 +195,16 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
     if not ghost:
         canvas.rect(plot.rect, "plot", dx)
         canvas.rect(plot.buildable, "setback", dx)
+        pool = building.pool
+        if pool is not None and storey.index == 0:
+            canvas.rect(pool.barrier.inset(-pool.non_climbable_zone_mm),
+                        "pool-ncz", dx)
+            canvas.rect(pool.barrier, "pool-barrier", dx)
+            canvas.rect(pool.rect, "pool", dx)
+            centre = pool.rect.centre
+            canvas.text(centre.x + dx, centre.y, "POOL", "pool-text", dy=-90)
+            canvas.text(centre.x + dx, centre.y,
+                        f"{pool.rect.w} x {pool.rect.h}", "area", dy=260)
 
     for space in storey.spaces:
         canvas.rect(space.rect, "ghost-room" if ghost else _fill(space.function), dx)
