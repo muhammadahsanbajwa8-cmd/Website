@@ -329,13 +329,44 @@ other puts every room out by 30–40 mm, which is enough to fail a minimum the
 design would otherwise have met. The state's pack declares which, as regional
 practice rather than as code.
 
-**The front zone.** A project home does not hang its garage off the same passage
-as the bedrooms. The garage, portico, entry, theatre and store sit across the
-street frontage — the template says which rooms those are explicitly, because a
-theatre and a living room are the same *function* and only one belongs there —
-and the passage runs back from the entry into the house. Before that existed the
-back half of the plan had no route to the front door, and fifteen rooms failed
-the egress check.
+**Zones, not areas.** A project home is not planned by fitting rooms to a
+balance sheet of floor area — it is planned in zones, and the solver plans in
+the same ones:
+
+- **the front zone** across the street frontage: garage, portico, entry,
+  theatre, store. The template says which rooms those are explicitly, because a
+  theatre and a living room are the same *function* and only one belongs there.
+- **the living zone** through the middle to the alfresco: living, dining,
+  kitchen, walk-in pantry.
+- **the bedroom wing** down one side, off the passage, with the ensuite and the
+  walk-in robe following the bedrooms because they open off one.
+
+The service rooms — bathroom, laundry, WC, linen — have no wing of their own and
+go wherever the balance needs them.
+
+Two properties fall out of zoning, and both are code matters rather than taste:
+every habitable room reaches an external wall, so it can have a window; and
+every room reaches the front door, so it can be walked out of. Splitting the
+passage's two bands by area instead mixes the zones, and a bedroom ends up
+behind a kitchen with no external wall — which is a violation of the NCC light
+and ventilation rules, not an infelicity. `tests/test_zoning.py` asserts both
+properties directly, because both are easy to break again by tuning the packer.
+
+Two details carry more weight than they look:
+
+*The front door has to sit over the passage.* The passage is laid out first and
+the frontage set out around it, rather than the other way round. Put the entry
+wherever there happened to be frontage going spare and the passage runs into the
+back of the garage: every room behind the front door then fails the rule that it
+can be walked out of. On a 12 × 28 m block that was eighteen violations on one
+floor.
+
+*Only one room in a pair touches the outside.* Where two small rooms share a
+slice of a band, one of them is against the passage and has no external wall. So
+two rooms that both need daylight are never paired, and where one of a pair needs
+a window it takes the outer half — which half that is depends on which side of
+the passage the band sits, since the outside is the low edge on one side and the
+high edge on the other.
 
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:

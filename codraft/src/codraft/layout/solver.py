@@ -199,20 +199,78 @@ def _replicate_circulation(
     return placed
 
 
+# Which wing of the house a room belongs to. An Australian project home is
+# not planned by area -- it is planned in zones: the garage and entry across
+# the street frontage, the living zone through the middle to the alfresco,
+# and the bedrooms down one side off the passage. Splitting the corridor's
+# two bands by area instead mixes them, and a bedroom ends up behind a
+# kitchen with no external wall.
+_SLEEP_WING = {Function.BEDROOM}
+_LIVE_WING = {
+    Function.LIVING, Function.DINING, Function.KITCHEN,
+    Function.ALFRESCO, Function.OFFICE,
+}
+
+
+def _wing(req: SpaceRequirement) -> str:
+    """'sleep', 'live', or 'either' for the service rooms that follow."""
+    if req.function in _SLEEP_WING:
+        return "sleep"
+    if req.function in _LIVE_WING:
+        return "live"
+    return "either"
+
+
 def _band_split(
     rooms: list[tuple[str, SpaceRequirement]],
 ) -> tuple[list[tuple[str, SpaceRequirement]], list[tuple[str, SpaceRequirement]]]:
-    """Hang rooms off both sides of the corridor, keeping the sides even.
+    """Hang rooms off both sides of the corridor, by zone where there is one.
 
-    Longest-processing-time first: take the biggest room still unplaced and
-    give it to whichever side currently has less. It is a greedy rule, but
-    for the handful of rooms on one floor of a small building it lands
-    within a few percent of a perfect split, every time and instantly.
+    Bedrooms take one band and the living rooms the other, which is how these
+    houses are actually planned. The service rooms -- bathroom, ensuite, WIR,
+    laundry, WC, linen -- have no wing of their own, so they go wherever the
+    balance needs them, and the ensuite and WIR follow the bedrooms because
+    they open off one.
+
+    Where a floor has only one wing on it (an upper floor of bedrooms, say),
+    there is nothing to zone, so it falls back to longest-processing-time
+    first: take the biggest room still unplaced and give it to whichever side
+    has less. Greedy, but for the handful of rooms on one floor it lands
+    within a few percent of a perfect split, instantly.
     """
-    left: list[tuple[str, SpaceRequirement]] = []
-    right: list[tuple[str, SpaceRequirement]] = []
-    left_area = right_area = 0
-    for key, req in sorted(rooms, key=lambda kr: -_target(kr[1])):
+    sleep = [(k, r) for k, r in rooms if _wing(r) == "sleep"]
+    live = [(k, r) for k, r in rooms if _wing(r) == "live"]
+    spare = [(k, r) for k, r in rooms if _wing(r) == "either"]
+
+    if not sleep or not live:
+        # Nothing to zone -- balance by area across everything.
+        left: list[tuple[str, SpaceRequirement]] = []
+        right: list[tuple[str, SpaceRequirement]] = []
+        left_area = right_area = 0
+        for key, req in sorted(rooms, key=lambda kr: -_target(kr[1])):
+            target = _target(req) or 1
+            if left_area <= right_area:
+                left.append((key, req))
+                left_area += target
+            else:
+                right.append((key, req))
+                right_area += target
+        return left, right
+
+    left, right = sleep, live
+    left_area = sum(_target(r) or 1 for _, r in left)
+    right_area = sum(_target(r) or 1 for _, r in right)
+
+    # An ensuite or a walk-in robe opens off a bedroom, not off the living
+    # room. They belong to the sleep wing wherever it exists.
+    bedside = {"ensuite", "wir", "bath", "bathroom", "linen"}
+    follows = [kr for kr in spare if kr[0].split("_")[0] in bedside]
+    spare = [kr for kr in spare if kr not in follows]
+    for key, req in follows:
+        left.append((key, req))
+        left_area += _target(req) or 1
+
+    for key, req in sorted(spare, key=lambda kr: -_target(kr[1])):
         target = _target(req) or 1
         if left_area <= right_area:
             left.append((key, req))
@@ -281,7 +339,12 @@ def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_
                 _tile_width(req) + _tile_width(next_req) <= depth
                 and depth >= 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
             )
-            if next_thin and pair_depth_ok:
+            # Only one room in a pair touches the outside wall; the other is
+            # against the corridor. So two rooms that both need daylight can
+            # never share a slice -- one of them would come out windowless,
+            # which is how a bedroom ended up in the middle of the plan.
+            both_need_light = req.needs_exterior_wall and next_req.needs_exterior_wall
+            if next_thin and pair_depth_ok and not both_need_light:
                 rows.append(
                     _Row([(key, req), (next_key, next_req)],
                          target + next_target, depth)
@@ -362,8 +425,17 @@ def _stack(
     band: Rect,
     along_y: bool,
     warnings: list[str],
+    outer_low: bool = True,
 ) -> list[tuple[str, SpaceRequirement, Rect]]:
-    """Lay rooms along a band, sized by area and floored by their minimums."""
+    """Lay rooms along a band, sized by area and floored by their minimums.
+
+    `outer_low` says which edge of the band is the outside wall: True when it
+    is the low edge (band.x for a vertical band, band.y for a horizontal
+    one), False when the corridor is on that side instead. Only rows holding
+    two rooms care, and they care a great deal -- the room on the corridor
+    side has no external wall, so the one that needs a window has to take the
+    outer half.
+    """
     if not rooms:
         return []
 
@@ -394,6 +466,16 @@ def _stack(
         else:
             # Two abreast: split the band's depth between them by area.
             (key_a, req_a), (key_b, req_b) = row.rooms
+            # The outer slot is the one with an external wall. Give it to
+            # whichever of the two needs daylight; if neither does it makes no
+            # difference, and _group_rows has already refused to pair two that
+            # both do.
+            if req_b.needs_exterior_wall and not req_a.needs_exterior_wall:
+                (key_a, req_a), (key_b, req_b) = (key_b, req_b), (key_a, req_a)
+            if not outer_low:
+                # The low edge is the corridor here, so the outer room is the
+                # second one placed. Swap so it still lands against the wall.
+                (key_a, req_a), (key_b, req_b) = (key_b, req_b), (key_a, req_a)
             target_a = _target(req_a) or 1
             target_b = _target(req_b) or 1
             depth_a = depth * target_a // (target_a + target_b)
@@ -442,8 +524,16 @@ def _front_zone(
     envelope: Rect,
     plot: Plot,
     warnings: list[str],
-) -> tuple[list[Cell], Rect, list[tuple[str, SpaceRequirement]]]:
-    """Take the garage, portico and entry across the front of the house.
+) -> tuple[
+    list[tuple[str, SpaceRequirement]], Rect | None, Rect,
+    list[tuple[str, SpaceRequirement]],
+]:
+    """Size the strip the garage, portico and entry take across the front.
+
+    Returns the rooms bound for it, the strip, what is left behind it, and
+    the rooms bound for that. Sizing only -- the rooms are placed later, by
+    `_place_front`, because where the entry goes depends on where the passage
+    behind it lands, and that is not known yet.
 
     A project home does not hang its garage off the same passage as the
     bedrooms -- the garage, the portico and the entry sit across the street
@@ -454,7 +544,7 @@ def _front_zone(
     front = [(k, r) for k, r in rooms if _is_front(r)]
     garage = next((r for _, r in front if r.function is Function.GARAGE), None)
     if garage is None or len(front) < 2:
-        return [], envelope, rooms, None
+        return [], None, envelope, rooms
 
     # The strip has to be deep enough for the garage, which is the room
     # with a dimension that cannot be negotiated.
@@ -475,7 +565,7 @@ def _front_zone(
         )
         depth = min(depth, envelope.h // 3)
     if depth < 5000 or envelope.h - depth < _ABSOLUTE_MIN_DIM * 3:
-        return [], envelope, rooms, None
+        return [], None, envelope, rooms
 
     road_first = plot.road_side in ("south", "west")
     strip = (
@@ -489,26 +579,143 @@ def _front_zone(
         else Rect(envelope.x, envelope.y, envelope.w, envelope.h - depth)
     )
 
-    # Garage to one side, entry and portico beside it.
-    front.sort(key=lambda kr: 0 if kr[1].function is Function.GARAGE else 1)
-    placed = _stack(front, strip, along_y=False, warnings=warnings)
-    cells = [
+    rest = [(k, r) for k, r in rooms if not _is_front(r)]
+    return front, strip, remainder, rest
+
+
+def _place_front(
+    front: list[tuple[str, SpaceRequirement]],
+    strip: Rect,
+    over: tuple[int, int] | None,
+    warnings: list[str],
+) -> list[Cell]:
+    """Lay the front rooms across the strip, entry first if it must line up.
+
+    `over` is the x range the passage behind occupies, when there is one. The
+    entry is the only thing joining the street frontage to the rest of the
+    house, so it has to sit over that range -- otherwise the passage runs
+    into the back of the garage and the whole plan behind the front door has
+    no route to an exit. Getting this wrong is not a cosmetic fault: every
+    room on the floor then fails the rule that it can be walked out of.
+
+    Where there is no passage to meet, the rooms simply stack across the
+    frontage with the garage at one end.
+    """
+    entry = next(
+        (kr for kr in front
+         if kr[1].function is Function.ENTRY and kr[0].split("_")[0] == "entry"),
+        next((kr for kr in front if kr[1].function is Function.ENTRY), None),
+    )
+    if over is None or entry is None:
+        ordered = sorted(front, key=lambda kr: 0 if kr[1].function is Function.GARAGE else 1)
+        return [
+            Cell(key, req.name, req.function, rect, 0, req)
+            for key, req, rect in _stack(ordered, strip, along_y=False, warnings=warnings)
+        ]
+
+    # The entry's slot: wide enough for itself, and never narrower than the
+    # passage it has to hand onto.
+    lo, hi = over
+    others = [kr for kr in front if kr is not entry]
+    slot_w = max(_tile_width(entry[1]) or 0, hi - lo, _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
+    if entry[1].min_area:
+        slot_w = max(slot_w, -(-_tile_area(entry[1].min_area) // max(1, strip.h)))
+
+    # Centre it on the passage, then slide it back inside the strip. Both
+    # neighbours need room to exist, so the slot cannot sit flush to an end
+    # unless there is nothing to put there.
+    slot_x = (lo + hi) // 2 - slot_w // 2
+    left_min = _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE if others else 0
+    slot_x = max(strip.x + left_min, min(strip.x1 - slot_w, slot_x))
+    if slot_x < strip.x:
+        slot_x, slot_w = strip.x, min(slot_w, strip.w)
+
+    left_w = slot_x - strip.x
+    right_w = strip.x1 - (slot_x + slot_w)
+
+    # The portico is the roofed bit in front of the door. It belongs against
+    # the entry, not wherever there happened to be frontage going spare --
+    # put it at the far end and the front door has no covered approach, and
+    # nothing that comes through it can reach an exit.
+    portico = next(
+        (kr for kr in others
+         if kr[1].function is Function.ENTRY and kr is not entry),
+        None,
+    )
+    portico_rect: Rect | None = None
+    if portico is not None:
+        want = max(_tile_width(portico[1]) or 0, _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
+        if portico[1].min_area:
+            want = max(want, -(-_tile_area(portico[1].min_area) // max(1, strip.h)))
+        # Take it from the roomier side, and never so much that the side is
+        # left unable to hold anything.
+        on_left = left_w >= right_w
+        available = (left_w if on_left else right_w)
+        take = min(want, max(0, available - (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)))
+        if take < _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE:
+            take = min(want, available)
+        if take > 0:
+            if on_left:
+                portico_rect = Rect(slot_x - take, strip.y, take, strip.h)
+                left_w -= take
+            else:
+                portico_rect = Rect(slot_x + slot_w, strip.y, take, strip.h)
+                slot_x_after = slot_x + slot_w + take
+                right_w -= take
+            others = [kr for kr in others if kr is not portico]
+        else:
+            portico = None
+
+    # The garage takes whichever side can hold it; the rest follow on the
+    # other, which is how these frontages actually read -- garage, front
+    # door, then the theatre and the store.
+    garage = next((kr for kr in others if kr[1].function is Function.GARAGE), None)
+    left: list[tuple[str, SpaceRequirement]] = []
+    right: list[tuple[str, SpaceRequirement]] = []
+    if garage is not None:
+        garage_w = _tile_width(garage[1]) or _ABSOLUTE_MIN_DIM
+        if left_w >= garage_w and left_w >= right_w:
+            left.append(garage)
+        elif right_w >= garage_w:
+            right.append(garage)
+        elif left_w >= right_w:
+            left.append(garage)
+        else:
+            right.append(garage)
+    left_area = sum(_target(r) or 1 for _, r in left)
+    right_area = sum(_target(r) or 1 for _, r in right)
+    for key, req in sorted(
+        (kr for kr in others if kr is not garage), key=lambda kr: -(_target(kr[1]) or 0)
+    ):
+        # Send each remaining room to the side with more room going spare,
+        # measured against how much of that side is already spoken for.
+        left_room = left_w * strip.h - left_area
+        right_room = right_w * strip.h - right_area
+        if (left_room >= right_room and left_w > 0) or right_w <= 0:
+            left.append((key, req))
+            left_area += _target(req) or 1
+        else:
+            right.append((key, req))
+            right_area += _target(req) or 1
+
+    placed: list[tuple[str, SpaceRequirement, Rect]] = [
+        (entry[0], entry[1], Rect(slot_x, strip.y, slot_w, strip.h))
+    ]
+    if left and left_w > 0:
+        placed += _stack(left, Rect(strip.x, strip.y, left_w, strip.h), False, warnings)
+    right_x = slot_x + slot_w
+    if portico_rect is not None and portico_rect.x >= slot_x + slot_w:
+        right_x = portico_rect.x1
+    if right and right_w > 0:
+        placed += _stack(right, Rect(right_x, strip.y, right_w, strip.h), False, warnings)
+    if portico is not None and portico_rect is not None:
+        placed.append((portico[0], portico[1], portico_rect))
+    for key, req in left if left_w <= 0 else []:
+        warnings.append(f"{req.name} could not be fitted across the frontage.")
+    return [
         Cell(key, req.name, req.function, rect, 0, req)
         for key, req, rect in placed
     ]
-    rest = [(k, r) for k, r in rooms if not _is_front(r)]
-
-    # Where the passage behind must start. The entry is the only thing
-    # joining the street frontage to the rest of the house, so the spine has
-    # to meet it -- otherwise the back half of the plan has no route to the
-    # front door, which is exactly what happened before this existed.
-    entry = next(
-        (c for c in cells if c.function is Function.ENTRY
-         and c.requirement is not None and c.requirement.key == "entry"),
-        next((c for c in cells if c.function is Function.ENTRY), None),
-    )
-    spine = entry.rect.centre.x if entry else None
-    return cells, remainder, rest, spine
 
 
 def _layout_storey(
@@ -523,14 +730,15 @@ def _layout_storey(
     if not rooms:
         return []
 
-    front_cells: list[Cell] = []
-    spine_x: int | None = None
+    front_rooms: list[tuple[str, SpaceRequirement]] = []
+    strip: Rect | None = None
     if storey == 0:
-        front_cells, envelope, rooms, spine_x = _front_zone(
+        front_rooms, strip, envelope, rooms = _front_zone(
             rooms, envelope, plot, warnings
         )
         if not rooms:
-            return front_cells
+            return _place_front(front_rooms, strip, None, warnings) if strip else []
+    spine_x = strip.centre.x if strip is not None else None
 
     corridor = next((r for r in rooms if r[1].function is Function.CORRIDOR), None)
     others = [r for r in rooms if r is not corridor]
@@ -539,6 +747,7 @@ def _layout_storey(
     if corridor is None or len(others) <= 2:
         along_y = envelope.h >= envelope.w
         placed = _stack(rooms, envelope, along_y, warnings)
+        front_cells = _place_front(front_rooms, strip, None, warnings) if strip else []
         return front_cells + [
             Cell(key, req.name, req.function, rect, storey, req)
             for key, req, rect in placed
@@ -617,20 +826,34 @@ def _layout_storey(
         left_band = Rect(envelope.x, envelope.y, left_depth, envelope.h)
         corridor_rect = Rect(envelope.x + left_depth, envelope.y, corridor_width, envelope.h)
         right_band = Rect(corridor_rect.x1, envelope.y, right_depth, envelope.h)
-        placed = _stack(left_rooms, left_band, True, warnings)
-        placed += _stack(right_rooms, right_band, True, warnings)
+        # The left band's outside wall is its low edge; the right band's is
+        # its high edge, because the corridor is on its low side.
+        placed = _stack(left_rooms, left_band, True, warnings, outer_low=True)
+        placed += _stack(right_rooms, right_band, True, warnings, outer_low=False)
     else:
         left_band = Rect(envelope.x, envelope.y, envelope.w, left_depth)
         corridor_rect = Rect(envelope.x, envelope.y + left_depth, envelope.w, corridor_width)
         right_band = Rect(envelope.x, corridor_rect.y1, envelope.w, right_depth)
-        placed = _stack(left_rooms, left_band, False, warnings)
-        placed += _stack(right_rooms, right_band, False, warnings)
+        placed = _stack(left_rooms, left_band, False, warnings, outer_low=True)
+        placed += _stack(right_rooms, right_band, False, warnings, outer_low=False)
 
     for key, req, rect in placed:
         cells.append(Cell(key, req.name, req.function, rect, storey, req))
     cells.append(
         Cell(corridor[0], corridor[1].name, Function.CORRIDOR, corridor_rect, storey, corridor[1])
     )
+
+    # Now the passage is fixed, the frontage can be set out around it, with
+    # the front door over the passage rather than wherever it happened to
+    # land beside the garage.
+    front_cells: list[Cell] = []
+    if strip is not None:
+        meets = (
+            (corridor_rect.x, corridor_rect.x1)
+            if corridor_vertical
+            else None
+        )
+        front_cells = _place_front(front_rooms, strip, meets, warnings)
     return front_cells + cells
 
 
