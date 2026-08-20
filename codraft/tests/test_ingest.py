@@ -41,14 +41,46 @@ def _write(content: str, **kwargs) -> Path:
     return Path(handle.name)
 
 
-# A 200 pt line annotated "3000", so the scale must come out at 15 mm/pt.
+# At 1:100, one point is 100 * 25.4 / 72 = 35.2778 mm. So a 200 pt line is
+# 7056 mm, a 150 pt line is 5292 mm and a 100 pt line is 3528 mm. The sheet
+# states the scale AND carries dimensions that corroborate it, which is what
+# the reader now requires before it will measure anything.
 DIMENSIONED = """
 1 w
 100 100 m 300 100 l S
-BT /F1 10 Tf 190 108 Td (3000) Tj ET
-BT /F1 10 Tf 150 300 Td (Bedroom) Tj ET
+BT /F1 10 Tf 190 108 Td (7056) Tj ET
+100 200 m 250 200 l S
+BT /F1 10 Tf 165 208 Td (5292) Tj ET
+100 300 m 200 300 l S
+BT /F1 10 Tf 140 308 Td (3528) Tj ET
+BT /F1 10 Tf 400 500 Td (SCALE 1:100) Tj ET
+BT /F1 10 Tf 150 600 Td (Bedroom) Tj ET
 100 400 m 300 400 l S
 100 411 m 300 411 l S
+"""
+
+# States a scale, but nothing on the page corroborates it.
+UNCORROBORATED = """
+1 w
+100 100 m 300 100 l S
+BT /F1 10 Tf 190 108 Td (12345) Tj ET
+BT /F1 10 Tf 190 118 Td (23456) Tj ET
+BT /F1 10 Tf 190 128 Td (34567) Tj ET
+BT /F1 10 Tf 400 500 Td (SCALE 1:100) Tj ET
+"""
+
+# A site plan's worth of reduced levels, which look just like dimensions.
+LEVELS = """
+1 w
+100 100 m 300 100 l S
+BT /F1 10 Tf 190 108 Td (7056) Tj ET
+BT /F1 10 Tf 120 200 Td (33.03) Tj ET
+BT /F1 10 Tf 140 210 Td (32.85) Tj ET
+BT /F1 10 Tf 160 220 Td (33.25) Tj ET
+BT /F1 10 Tf 180 230 Td (32.59) Tj ET
+BT /F1 10 Tf 200 240 Td (33.11) Tj ET
+BT /F1 10 Tf 220 250 Td (32.94) Tj ET
+BT /F1 10 Tf 400 500 Td (SCALE 1:100) Tj ET
 """
 
 
@@ -61,7 +93,7 @@ class TestPdfReading(unittest.TestCase):
             page = document.pages[0]
             self.assertEqual(round(page.width), 595)
             self.assertGreaterEqual(len(page.segments), 3)
-            self.assertIn("3000", [t.text.strip() for t in page.texts])
+            self.assertIn("7056", [t.text.strip() for t in page.texts])
             self.assertIn("Bedroom", [t.text.strip() for t in page.texts])
         finally:
             path.unlink()
@@ -122,14 +154,39 @@ class TestDimensionParsing(unittest.TestCase):
 
 
 class TestScale(unittest.TestCase):
-    def test_scale_comes_from_a_printed_dimension(self):
+    def test_scale_needs_both_a_statement_and_corroboration(self):
         path = _write(DIMENSIONED)
         try:
             survey = survey_page(read_pdf(path).pages[0])
-            self.assertTrue(survey.has_scale)
-            # 3000 mm printed against a 200 pt line is 15 mm per point.
-            self.assertAlmostEqual(survey.scale_mm_per_pt, 15.0, places=2)
-            self.assertEqual(survey.scale_agreement, 1.0)
+            self.assertTrue(survey.has_scale, survey.scale_note)
+            self.assertAlmostEqual(survey.scale_mm_per_pt, 35.2778, places=2)
+            self.assertEqual(survey.scale_ratio, "1:100")
+        finally:
+            path.unlink()
+
+    def test_a_stated_scale_alone_is_not_enough(self):
+        # The failure this guards against: an earlier version matched each
+        # dimension to its nearest line and reported 1:1249 on a sheet drawn
+        # at 1:200. A scale nothing corroborates is reported as unknown.
+        path = _write(UNCORROBORATED)
+        try:
+            survey = survey_page(read_pdf(path).pages[0])
+            self.assertFalse(survey.has_scale)
+            self.assertIn("1:100", survey.scale_note)
+            self.assertIn("No measurement is offered", survey.scale_note)
+        finally:
+            path.unlink()
+
+    def test_survey_levels_are_not_treated_as_dimensions(self):
+        # A site plan is covered in reduced levels that parse as metric
+        # dimensions. Feeding them to the scale check pulls it badly off.
+        path = _write(LEVELS)
+        try:
+            survey = survey_page(read_pdf(path).pages[0])
+            self.assertTrue(
+                any("survey levels" in w for w in survey.warnings),
+                f"levels were not set aside: {survey.warnings}",
+            )
         finally:
             path.unlink()
 
@@ -150,11 +207,11 @@ class TestScale(unittest.TestCase):
         path = _write(DIMENSIONED)
         try:
             survey = survey_page(read_pdf(path).pages[0])
-            # The pair 11 pt apart at 15 mm/pt is a 165 mm wall.
+            # The pair 11 pt apart at 35.28 mm/pt is a 388 mm wall.
             self.assertTrue(survey.walls, "no wall candidate found")
             self.assertTrue(
-                any(150 <= w.thickness_mm <= 180 for w in survey.walls),
-                f"expected a ~165 mm wall, got "
+                any(370 <= w.thickness_mm <= 400 for w in survey.walls),
+                f"expected a ~388 mm wall, got "
                 f"{[w.thickness_mm for w in survey.walls]}",
             )
         finally:

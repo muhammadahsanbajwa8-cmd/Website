@@ -32,8 +32,19 @@ _METRES = re.compile(r"^(\d{1,2})[.,](\d{1,3})\s*m?$")
 _FEET_INCHES = re.compile(r"^(\d{1,3})'\s*-?\s*(\d{1,2}(?:\s*\d/\d)?)?\"?$")
 
 MM_PER_INCH = 25.4
+PT_PER_MM = 72 / MM_PER_INCH
 # How far a dimension string may sit from the line it annotates, in points.
 _ANNOTATION_RADIUS = 26.0
+
+# "SCALE: 1:100" in a title block is a printed fact about the drawing, and a
+# far better starting point than guessing which of twelve thousand segments
+# a dimension string belongs to. It is treated as a candidate and then
+# CHECKED against the dimensions, never trusted on its own.
+_STATED_SCALE = re.compile(r"\b1\s*[:;]\s*(\d{1,5})\b")
+
+# Scales a drawing is actually issued at. A title block that parses to 1:37
+# is a misread, not an unusual scale.
+_PLAUSIBLE_SCALES = (1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 1250, 2000)
 
 
 @dataclass(slots=True)
@@ -132,6 +143,31 @@ def _parse_dimension(text: str) -> float | None:
     return None
 
 
+def _drop_levels(dimensions: list[Dimension]) -> tuple[list[Dimension], int]:
+    """Remove survey levels, which look exactly like metric dimensions.
+
+    A site plan is covered in reduced levels -- 33.03, 12.59, 11.26 -- which
+    parse as 33 metres, 12.6 metres and so on. They are heights above datum,
+    not lengths, and feeding them to the scale check pulls it badly off.
+    They give themselves away by clustering: a dozen decimal values inside a
+    narrow band, all to two decimal places, is a contour survey, not a set
+    of room dimensions.
+    """
+    decimals = [
+        d for d in dimensions
+        if re.fullmatch(r"\d{1,2}[.,]\d{2}", d.text.strip())
+    ]
+    if len(decimals) < 6:
+        return dimensions, 0
+    values = sorted(d.value_mm for d in decimals)
+    spread = values[-1] - values[0]
+    # Levels on one sheet rarely span more than about 40 m of height.
+    if spread > 40000:
+        return dimensions, 0
+    keep = [d for d in dimensions if d not in decimals]
+    return keep, len(decimals)
+
+
 def _nearest_segment(text: TextRun, segments: list[Segment]) -> Segment | None:
     """The dimension line a string is annotating, if one is obviously it.
 
@@ -155,8 +191,45 @@ def _nearest_segment(text: TextRun, segments: list[Segment]) -> Segment | None:
     return best[1] if best else None
 
 
+def _stated_scales(page: Page) -> list[int]:
+    """Scales printed on the sheet, most-repeated first."""
+    found: Counter = Counter()
+    for text in page.texts:
+        for match in _STATED_SCALE.finditer(text.text):
+            value = int(match.group(1))
+            if value in _PLAUSIBLE_SCALES:
+                found[value] += 1
+    return [value for value, _ in found.most_common()]
+
+
+def _score_scale(page: Page, mm_per_pt: float, dimensions: list[Dimension]) -> int:
+    """How many printed dimensions this scale actually explains.
+
+    For each dimension, ask whether the page contains a line of the length
+    that dimension claims, near where it is written. That is a much steadier
+    test than picking the nearest line and hoping: on a real drawing the
+    nearest line to a dimension string is usually hatching.
+    """
+    if mm_per_pt <= 0:
+        return 0
+    matched = 0
+    for dimension in dimensions:
+        wanted_pt = dimension.value_mm / mm_per_pt
+        if wanted_pt < 4 or wanted_pt > max(page.width, page.height) * 1.5:
+            continue
+        for segment in page.segments:
+            if abs(segment.length - wanted_pt) > max(1.0, wanted_pt * 0.02):
+                continue
+            mid_x = (segment.x0 + segment.x1) / 2
+            mid_y = (segment.y0 + segment.y1) / 2
+            if abs(mid_x - dimension.x) + abs(mid_y - dimension.y) <= 90:
+                matched += 1
+                break
+    return matched
+
+
 def _establish_scale(page: Page, warnings: list[str]) -> tuple[list[Dimension], float, float, str]:
-    """Derive millimetres per point from the dimensions printed on the page."""
+    """Work out millimetres per point, from what the drawing states and shows."""
     candidates: list[Dimension] = []
     for text in page.texts:
         value = _parse_dimension(text.text)
@@ -168,43 +241,65 @@ def _establish_scale(page: Page, warnings: list[str]) -> tuple[list[Dimension], 
             dimension.scale_mm_per_pt = value / segment.length
         candidates.append(dimension)
 
-    scaled = [d for d in candidates if d.scale_mm_per_pt > 0]
-    if not scaled:
-        if candidates:
-            return candidates, 0.0, 0.0, (
-                f"{len(candidates)} strings look like dimensions, but none of "
-                "them sits close enough to a line to say what it measures. "
-                "The scale cannot be established, so nothing on this page can "
-                "be measured."
-            )
-        return candidates, 0.0, 0.0, (
-            "No dimension strings were found on this page. Without one there "
-            "is no way to know what the geometry means, and codraft will not "
-            "guess a scale from the paper size -- a plan on A3 could be at "
-            "1:50 or 1:100 and the drawing would look identical."
-        )
-
-    # Round each candidate to a sensible precision and take the most common.
-    # A handful of dimensions will be mismatched to the wrong line; the
-    # majority that agree are the scale.
-    buckets = Counter(round(d.scale_mm_per_pt, 2) for d in scaled)
-    best_value, best_count = buckets.most_common(1)[0]
-    agreeing = [d for d in scaled if abs(d.scale_mm_per_pt - best_value) <= best_value * 0.02]
-    scale = statistics.median(d.scale_mm_per_pt for d in agreeing)
-    agreement = len(agreeing) / len(scaled)
-
-    if agreement < 0.5:
+    candidates, levels = _drop_levels(candidates)
+    if levels:
         warnings.append(
-            f"Only {len(agreeing)} of {len(scaled)} dimensions agree on a "
-            "scale. Either the page carries more than one drawing at "
-            "different scales, or dimensions are being matched to the wrong "
-            "lines. Treat every measurement from this page as unconfirmed."
+            f"{levels} values that look like survey levels (heights above "
+            "datum) were set aside rather than treated as dimensions."
         )
-    note = (
-        f"Scale taken from {len(agreeing)} printed dimension(s) that agree "
-        f"to within 2%, out of {len(scaled)} matched to a line."
+
+    # Try the scales the sheet states, scoring each against the dimensions.
+    usable = [d for d in candidates if 200 <= d.value_mm <= 60000]
+    best_stated: tuple[int, int, float] | None = None
+    for stated in _stated_scales(page):
+        mm_per_pt = stated / PT_PER_MM
+        score = _score_scale(page, mm_per_pt, usable)
+        if best_stated is None or score > best_stated[1]:
+            best_stated = (stated, score, mm_per_pt)
+
+    if best_stated and usable and best_stated[1] >= max(3, len(usable) * 0.15):
+        stated, score, mm_per_pt = best_stated
+        for dimension in usable:
+            dimension.scale_mm_per_pt = mm_per_pt
+        return (
+            candidates, mm_per_pt, score / len(usable),
+            f"Scale 1:{stated} is printed on the sheet, and {score} of "
+            f"{len(usable)} printed dimensions match a line of that length "
+            "on the page. Both had to agree before it was accepted.",
+        )
+
+    # No fallback. An earlier version matched each dimension to its nearest
+    # line and took the most common ratio; on a real drawing with twelve
+    # thousand segments that produced confident nonsense -- 1:1249 on a
+    # sheet drawn at 1:200. A scale that cannot be corroborated is reported
+    # as unknown, because a wrong scale yields wrong millimetres that look
+    # exactly like right ones.
+    stated = _stated_scales(page)
+    if stated and usable:
+        return candidates, 0.0, 0.0, (
+            f"The sheet states 1:{stated[0]}, but too few of the "
+            f"{len(usable)} printed dimensions match a line of the "
+            "corresponding length to confirm it. The page may hold several "
+            "drawings at different scales, or the dimensions may be leaders "
+            "rather than measured lines. No measurement is offered."
+        )
+    if stated:
+        return candidates, 0.0, 0.0, (
+            f"The sheet states 1:{stated[0]}, but carries no dimension "
+            "strings to check it against. A stated scale alone is not "
+            "enough: title blocks are copied between sheets and go stale."
+        )
+    if usable:
+        return candidates, 0.0, 0.0, (
+            f"{len(usable)} strings look like dimensions, but the sheet "
+            "states no scale and none of them could be tied to a line of "
+            "matching length. Nothing here can be measured."
+        )
+    return candidates, 0.0, 0.0, (
+        "No dimension strings and no stated scale were found on this page. "
+        "codraft will not guess a scale from the paper size -- a plan on A3 "
+        "could be at 1:50 or 1:100 and the drawing would look identical."
     )
-    return candidates, scale, agreement, note
 
 
 def _wall_candidates(page: Page, scale: float) -> list[WallCandidate]:
