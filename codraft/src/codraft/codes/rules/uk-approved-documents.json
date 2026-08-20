@@ -4,40 +4,94 @@
   "edition": "as amended",
   "url": "https://www.gov.uk/government/collections/approved-documents",
   "disclaimer": "An encoded subset of Approved Documents K, M and F for dwellings in ENGLAND only. Approved Documents are guidance, not the regulation itself: compliance can be shown another way. Wales, Scotland and Northern Ireland have their own, divergent regulations and this pack does not apply there.",
-  "applies_to_uses": ["residential"],
-  "parameters": { "occupant_load_factors": {} },
+  "applies_to_uses": [
+    "residential"
+  ],
+  "parameters": {
+    "occupant_load_factors": {}
+  },
   "rules": [
-    { "id": "uk.stair.rise", "title": "Private stair rise", "clause": "Approved Document K, table 1.1",
-      "scope": "stair", "severity": "violation", "confidence": "medium",
+    {
+      "id": "uk.stair.rise",
+      "title": "Private stair rise",
+      "clause": "Approved Document K, table 1.1",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "medium",
       "assert": "riser_mm <= 220",
-      "message": "The rise is {riser_mm} mm; a private stair is limited to 220 mm." },
-    { "id": "uk.stair.going", "title": "Private stair going", "clause": "Approved Document K, table 1.1",
-      "scope": "stair", "severity": "violation", "confidence": "medium",
+      "message": "The rise is {riser_mm} mm; a private stair is limited to 220 mm."
+    },
+    {
+      "id": "uk.stair.going",
+      "title": "Private stair going",
+      "clause": "Approved Document K, table 1.1",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "medium",
       "assert": "going_mm >= 220",
-      "message": "The going is {going_mm} mm; a private stair requires at least 220 mm." },
-    { "id": "uk.stair.pitch", "title": "Private stair pitch", "clause": "Approved Document K, 1.4",
-      "scope": "stair", "severity": "violation", "confidence": "medium",
+      "message": "The going is {going_mm} mm; a private stair requires at least 220 mm."
+    },
+    {
+      "id": "uk.stair.pitch",
+      "title": "Private stair pitch",
+      "clause": "Approved Document K, 1.4",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "medium",
       "assert": "pitch_degrees <= 42",
-      "message": "The stair pitches at {pitch_degrees}°; a private stair is limited to 42°." },
-    { "id": "uk.stair.proportion", "title": "Twice the rise plus the going", "clause": "Approved Document K, 1.3",
-      "scope": "stair", "severity": "warning", "confidence": "medium",
+      "message": "The stair pitches at {pitch_degrees}°; a private stair is limited to 42°."
+    },
+    {
+      "id": "uk.stair.proportion",
+      "title": "Twice the rise plus the going",
+      "clause": "Approved Document K, 1.3",
+      "scope": "stair",
+      "severity": "warning",
+      "confidence": "medium",
       "assert": "550 <= two_r_plus_g <= 700",
-      "message": "Twice the rise plus the going is {two_r_plus_g} mm; it should fall between 550 and 700 mm." },
-    { "id": "uk.stair.headroom", "title": "Stair headroom", "clause": "Approved Document K, 1.10",
-      "scope": "stair", "severity": "violation", "confidence": "medium",
+      "message": "Twice the rise plus the going is {two_r_plus_g} mm; it should fall between 550 and 700 mm."
+    },
+    {
+      "id": "uk.stair.headroom",
+      "title": "Stair headroom",
+      "clause": "Approved Document K, 1.10",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "medium",
       "assert": "headroom_mm >= 2000",
-      "message": "Headroom over the stair is {headroom_mm} mm; 2000 mm is required." },
-    { "id": "uk.door.internal_width", "title": "Internal doorway clear width", "clause": "Approved Document M, vol 1, 2.19",
-      "scope": "door", "severity": "warning", "confidence": "medium",
+      "message": "Headroom over the stair is {headroom_mm} mm; 2000 mm is required."
+    },
+    {
+      "id": "uk.door.internal_width",
+      "title": "Internal doorway clear width",
+      "clause": "Approved Document M, vol 1, 2.19",
+      "scope": "door",
+      "severity": "warning",
+      "confidence": "medium",
       "applies_when": "not is_egress",
       "assert": "clear_width_mm >= 750",
       "message": "A doorway serving {serves} gives {clear_width_mm} mm clear; 750 mm is the minimum where the corridor is at least 1050 mm wide.",
-      "note": "The required clear width rises as the approach corridor narrows -- 775 mm at 900 mm, 900 mm at 750 mm. Only the most lenient case is checked." },
-    { "id": "uk.ventilation.purge", "title": "Purge ventilation opening area", "clause": "Approved Document F, vol 1",
-      "scope": "space", "severity": "warning", "confidence": "medium",
+      "note": "The required clear width rises as the approach corridor narrows -- 775 mm at 900 mm, 900 mm at 750 mm. Only the most lenient case is checked."
+    },
+    {
+      "id": "uk.ventilation.purge",
+      "title": "Purge ventilation opening area",
+      "clause": "Approved Document F, vol 1",
+      "scope": "space",
+      "severity": "warning",
+      "confidence": "medium",
       "applies_when": "is_habitable and has_window",
       "assert": "glazing_ratio >= 0.05",
       "message": "{name} has window area of {glazing_ratio} of its floor area; purge ventilation by an openable window wants at least 1/20th.",
-      "note": "The requirement is on OPENABLE area, not glazed area. A window whose opening light is half its area needs twice this." }
-  ]
+      "note": "The requirement is on OPENABLE area, not glazed area. A window whose opening light is half its area needs twice this."
+    }
+  ],
+  "design": {
+    "stair_riser_max_mm": 220,
+    "stair_going_min_mm": 220,
+    "door_clear_width_mm": 750,
+    "corridor_width_mm": 1050,
+    "ventilation_ratio": 0.05,
+    "openable_fraction": 0.5
+  }
 }

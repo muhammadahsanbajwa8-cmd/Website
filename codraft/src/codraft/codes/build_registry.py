@@ -104,16 +104,34 @@ REGIMES = {
                 "with amendments, and the local development control rules "
                 "govern setbacks, ground coverage and FAR/FSI.",
     },
-    "au-nz": {
+    "au": {
         "family": "National Construction Code",
-        "description": "The NCC, adopted by each state and territory.",
-        "codes": ["National Construction Code (NCC)"],
-        "rule_packs": ["baseline"],
+        "description": "The NCC, adopted with variations by each state and "
+                       "territory. Volume One covers Class 2 to 9, Volume Two "
+                       "with the ABCB Housing Provisions covers Class 1 and 10, "
+                       "and Volume Three is the Plumbing Code of Australia.",
+        "codes": [
+            "NCC Volume Two and ABCB Housing Provisions (Class 1 and 10)",
+            "NCC Volume One (Class 2 to 9)",
+            "NCC Volume Three, Plumbing Code of Australia",
+        ],
+        "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-livable", "au-ncc-vol1"],
         "publisher": "Australian Building Codes Board",
         "url": "https://ncc.abcb.gov.au/",
-        "confidence": "medium",
-        "note": "No NCC rule pack is encoded yet, so only the practice "
-                "baseline is applied. The NCC is free to read at the link.",
+        "authority": "State and territory building authorities; council or "
+                     "private building surveyors",
+        "confidence": "high",
+        "note": "Australia publishes its building code free to the public, "
+                "which is why this is one of the few jurisdictions where the "
+                "encoded rules cite real clauses at high confidence. Two "
+                "things still need confirming on any project: WHICH EDITION "
+                "the state has adopted -- NCC 2022 Amendment 2 applies from "
+                "29 July 2025, and NCC 2025 was published on 1 May 2026 for "
+                "progressive adoption -- and the state variations, which are "
+                "not encoded. Setbacks, site coverage and height limits do "
+                "NOT come from the NCC: the council's planning scheme sets "
+                "them, so no site controls are supplied here. Volume Three "
+                "(plumbing) is named but not encoded.",
     },
     "ca": {
         "family": "National Building Code of Canada",
@@ -173,7 +191,6 @@ REGIMES = {
     },
 }
 
-REGIMES["au"] = REGIMES.pop("au-nz")
 
 # ---------------------------------------------------------------------------
 # Every country, and the regime it is mapped to. `unknown` is used wherever
@@ -615,11 +632,42 @@ SUBDIVISIONS = {
     ],
     "AU": [
         {"slug": "nsw", "name": "New South Wales",
-         "authority": "NSW Department of Planning"},
+         "authority": "NSW Department of Planning, Housing and Infrastructure; "
+                      "council or private certifier",
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1"],
+         "note": "New South Wales did not adopt the NCC 2022 livable housing "
+                 "provisions on the national timetable, so that pack is not "
+                 "applied here. Apartment (Class 2) work is also governed by "
+                 "the Apartment Design Guide under SEPP 65, which sets room "
+                 "sizes and solar access the NCC does not -- and which is not "
+                 "encoded."},
         {"slug": "victoria", "name": "Victoria",
-         "authority": "Victorian Building Authority"},
+         "authority": "Victorian Building Authority; municipal building surveyor",
+         "note": "Victoria adopted the livable housing provisions. ResCode "
+                 "(Clauses 54 and 55 of the planning scheme) sets setbacks, "
+                 "site coverage, overlooking and overshadowing, none of which "
+                 "are in the NCC or encoded here."},
         {"slug": "queensland", "name": "Queensland",
-         "authority": "Queensland Building and Construction Commission"},
+         "authority": "Queensland Building and Construction Commission; "
+                      "building certifier",
+         "note": "Much of Queensland is in a cyclonic wind region, and the "
+                 "Queensland Development Code adds state variations. Neither "
+                 "is encoded."},
+        {"slug": "wa", "name": "Western Australia",
+         "authority": "WA Building and Energy; permit authority",
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1"],
+         "note": "Western Australia deferred the livable housing provisions, "
+                 "so that pack is not applied here. The R-Codes set setbacks, "
+                 "site coverage and open space, and are not encoded."},
+        {"slug": "sa", "name": "South Australia",
+         "authority": "SA Office of the Technical Regulator; relevant authority"},
+        {"slug": "tasmania", "name": "Tasmania",
+         "authority": "Tasmanian Consumer, Building and Occupational Services"},
+        {"slug": "act", "name": "Australian Capital Territory",
+         "authority": "ACT Access Canberra"},
+        {"slug": "nt", "name": "Northern Territory",
+         "authority": "NT Building Advisory Services",
+         "note": "Cyclonic wind region. NT variations are not encoded."},
     ],
 }
 
@@ -708,8 +756,8 @@ CITY_ALIASES = {
     "lima": "PE", "arequipa": "PE", "cusco": "PE",
     "quito": "EC", "guayaquil": "EC", "caracas": "VE",
     "la paz": "BO", "santa cruz": "BO", "montevideo": "UY", "asuncion": "PY",
-    "sydney": "AU", "melbourne": "AU", "brisbane": "AU", "perth": "AU",
-    "adelaide": "AU", "canberra": "AU", "hobart": "AU", "darwin": "AU",
+    "sydney": "AU:nsw", "melbourne": "AU:victoria", "brisbane": "AU:queensland", "perth": "AU:wa",
+    "adelaide": "AU:sa", "canberra": "AU:act", "hobart": "AU:tasmania", "darwin": "AU:nt",
     "auckland": "NZ", "wellington": "NZ", "christchurch": "NZ",
     "suva": "FJ", "port moresby": "PG", "honolulu": "US",
 }
@@ -742,7 +790,10 @@ def build() -> dict:
             entry["subdivisions"] = subs
         countries[iso] = entry
 
-    unknown = sorted({iso for iso in CITY_ALIASES.values() if iso not in countries})
+    unknown = sorted(
+        {target.split(":")[0] for target in CITY_ALIASES.values()
+         if target.split(":")[0] not in countries}
+    )
     if unknown:
         raise SystemExit(f"city aliases name countries not in the registry: {unknown}")
 

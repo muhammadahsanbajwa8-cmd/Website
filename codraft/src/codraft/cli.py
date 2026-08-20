@@ -173,6 +173,20 @@ def cmd_plan(args) -> int:
     coverage = site.get("max_coverage_ratio")
     max_footprint = int(plot.area * float(coverage)) if coverage else None
 
+    # Targets the jurisdiction's packs ask for, handed to the builder so the
+    # plan is drawn trying to comply rather than failed for a default.
+    design = codes.design_parameters(jurisdiction, program.use)
+    if design.get("corridor_width_mm"):
+        corridor = program.get("corridor")
+        if corridor is not None:
+            corridor.min_width = max(corridor.min_width,
+                                     int(design["corridor_width_mm"]))
+    if design.get("ceiling_height_mm"):
+        # Storey height has to clear the required ceiling plus the structure.
+        program.storey_height = max(
+            program.storey_height, int(design["ceiling_height_mm"]) + 200
+        )
+
     print(f"Jurisdiction : {jurisdiction.label}")
     if jurisdiction.authority:
         print(f"Authority    : {jurisdiction.authority}")
@@ -180,6 +194,12 @@ def cmd_plan(args) -> int:
     if site:
         controls = ", ".join(f"{k.replace('_mm','')}={v}" for k, v in site.items())
         print(f"Site controls: {controls}")
+    if design:
+        targets = ", ".join(
+            f"{k.replace('_mm','')}={v}" for k, v in design.items()
+            if not k.startswith("$")
+        )
+        print(f"Design targets: {targets}")
     print()
 
     # -- 3. lay it out ----------------------------------------------------
@@ -188,7 +208,8 @@ def cmd_plan(args) -> int:
     except LayoutError as exc:
         return _fail(str(exc))
     building = build_building(
-        program, plot, layout, name=program.name, jurisdiction=jurisdiction.key
+        program, plot, layout, name=program.name,
+        jurisdiction=jurisdiction.key, design=design,
     )
 
     print(f"Plot         : {fmt_area(plot.area)}")

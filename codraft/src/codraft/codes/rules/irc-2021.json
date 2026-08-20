@@ -4,62 +4,142 @@
   "edition": "2021",
   "url": "https://codes.iccsafe.org/content/IRC2021P1",
   "disclaimer": "An encoded subset of the IRC, covering room dimensions, light and ventilation, egress and stair geometry for one- and two-family dwellings. Structural, energy, electrical, plumbing and mechanical provisions are not encoded. Adopting states and municipalities amend the IRC.",
-  "applies_to_uses": ["residential"],
-  "parameters": { "occupant_load_factors": {} },
+  "applies_to_uses": [
+    "residential"
+  ],
+  "parameters": {
+    "occupant_load_factors": {}
+  },
   "rules": [
-    { "id": "irc.room.area", "title": "Habitable room area", "clause": "IRC 2021 §R304.1",
-      "scope": "space", "severity": "violation", "confidence": "high",
+    {
+      "id": "irc.room.area",
+      "title": "Habitable room area",
+      "clause": "IRC 2021 §R304.1",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "is_habitable",
       "assert": "area_m2 >= 6.5",
       "message": "{name} is {area_m2} m²; §R304.1 requires 6.5 m² (70 sq ft).",
-      "note": "Kitchens are exempt from the 70 sq ft floor area requirement." },
-    { "id": "irc.room.width", "title": "Habitable room least dimension", "clause": "IRC 2021 §R304.2",
-      "scope": "space", "severity": "violation", "confidence": "high",
+      "note": "Kitchens are exempt from the 70 sq ft floor area requirement."
+    },
+    {
+      "id": "irc.room.width",
+      "title": "Habitable room least dimension",
+      "clause": "IRC 2021 §R304.2",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "is_habitable and function != 'kitchen'",
       "assert": "width_mm >= 2134",
-      "message": "{name} is {width_mm} mm across; §R304.2 requires 2134 mm (7 ft) in any horizontal direction." },
-    { "id": "irc.ceiling.height", "title": "Ceiling height", "clause": "IRC 2021 §R305.1",
-      "scope": "space", "severity": "violation", "confidence": "high",
+      "message": "{name} is {width_mm} mm across; §R304.2 requires 2134 mm (7 ft) in any horizontal direction."
+    },
+    {
+      "id": "irc.ceiling.height",
+      "title": "Ceiling height",
+      "clause": "IRC 2021 §R305.1",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "not is_circulation",
       "assert": "clear_height_mm >= 2134",
-      "message": "{name} has about {clear_height_mm} mm clear; §R305.1 requires 2134 mm (7 ft)." },
-    { "id": "irc.light.glazing", "title": "Natural light", "clause": "IRC 2021 §R303.1",
-      "scope": "space", "severity": "violation", "confidence": "high",
+      "message": "{name} has about {clear_height_mm} mm clear; §R305.1 requires 2134 mm (7 ft)."
+    },
+    {
+      "id": "irc.light.glazing",
+      "title": "Natural light",
+      "clause": "IRC 2021 §R303.1",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "is_habitable",
       "assert": "glazing_ratio >= 0.08",
       "message": "{name} is glazed to {glazing_ratio} of its floor area; §R303.1 requires 8%.",
-      "note": "Openable area for natural ventilation must be at least 4% of floor area, which is a property of the window type rather than its size and is not checked here." },
-    { "id": "irc.egress.door", "title": "Required egress door", "clause": "IRC 2021 §R311.2",
-      "scope": "door", "severity": "violation", "confidence": "high",
+      "note": "Openable area for natural ventilation must be at least 4% of floor area, which is a property of the window type rather than its size and is not checked here."
+    },
+    {
+      "id": "irc.egress.door",
+      "title": "Required egress door",
+      "clause": "IRC 2021 §R311.2",
+      "scope": "door",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "is_egress",
       "assert": "clear_width_mm >= 813 and height_mm >= 1981",
-      "message": "The egress door gives {clear_width_mm} mm clear and {height_mm} mm high; §R311.2 requires 813 mm (32 in) and 1981 mm (78 in)." },
-    { "id": "irc.bedroom.escape", "title": "Emergency escape opening from sleeping rooms", "clause": "IRC 2021 §R310.1",
-      "scope": "window", "severity": "violation", "confidence": "high",
+      "message": "The egress door gives {clear_width_mm} mm clear and {height_mm} mm high; §R311.2 requires 813 mm (32 in) and 1981 mm (78 in)."
+    },
+    {
+      "id": "irc.bedroom.escape",
+      "title": "Emergency escape opening from sleeping rooms",
+      "clause": "IRC 2021 §R310.1",
+      "scope": "window",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "'bedroom' in serves_functions",
       "assert": "area_m2 >= 0.53 and width_mm >= 508 and height_mm >= 610 and sill_mm <= 1118",
       "message": "A bedroom window gives {area_m2} m² clear, {width_mm}x{height_mm} mm, sill at {sill_mm} mm; §R310.1 requires 0.53 m² net clear, at least 508 mm wide and 610 mm high, with the sill no higher than 1118 mm.",
-      "note": "R310.1 permits 0.46 m² (5 sq ft) for a grade-floor opening. The net clear opening is smaller than the frame; verify against the window schedule." },
-    { "id": "irc.stair.width", "title": "Stairway width", "clause": "IRC 2021 §R311.7.1",
-      "scope": "stair", "severity": "violation", "confidence": "high",
+      "note": "R310.1 permits 0.46 m² (5 sq ft) for a grade-floor opening. The net clear opening is smaller than the frame; verify against the window schedule."
+    },
+    {
+      "id": "irc.stair.width",
+      "title": "Stairway width",
+      "clause": "IRC 2021 §R311.7.1",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
       "assert": "width_mm >= 914",
-      "message": "The stair is {width_mm} mm wide; §R311.7.1 requires 914 mm (36 in)." },
-    { "id": "irc.stair.riser", "title": "Riser height", "clause": "IRC 2021 §R311.7.5.1",
-      "scope": "stair", "severity": "violation", "confidence": "high",
+      "message": "The stair is {width_mm} mm wide; §R311.7.1 requires 914 mm (36 in)."
+    },
+    {
+      "id": "irc.stair.riser",
+      "title": "Riser height",
+      "clause": "IRC 2021 §R311.7.5.1",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
       "assert": "riser_mm <= 197",
-      "message": "The riser is {riser_mm} mm; §R311.7.5.1 caps it at 197 mm (7 3/4 in)." },
-    { "id": "irc.stair.tread", "title": "Tread depth", "clause": "IRC 2021 §R311.7.5.2",
-      "scope": "stair", "severity": "violation", "confidence": "high",
+      "message": "The riser is {riser_mm} mm; §R311.7.5.1 caps it at 197 mm (7 3/4 in)."
+    },
+    {
+      "id": "irc.stair.tread",
+      "title": "Tread depth",
+      "clause": "IRC 2021 §R311.7.5.2",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
       "assert": "going_mm >= 254",
-      "message": "The tread is {going_mm} mm; §R311.7.5.2 requires 254 mm (10 in)." },
-    { "id": "irc.stair.headroom", "title": "Stairway headroom", "clause": "IRC 2021 §R311.7.2",
-      "scope": "stair", "severity": "violation", "confidence": "high",
+      "message": "The tread is {going_mm} mm; §R311.7.5.2 requires 254 mm (10 in)."
+    },
+    {
+      "id": "irc.stair.headroom",
+      "title": "Stairway headroom",
+      "clause": "IRC 2021 §R311.7.2",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
       "assert": "headroom_mm >= 2032",
-      "message": "Headroom is {headroom_mm} mm; §R311.7.2 requires 2032 mm (6 ft 8 in)." },
-    { "id": "irc.hall.width", "title": "Hallway width", "clause": "IRC 2021 §R311.6",
-      "scope": "space", "severity": "violation", "confidence": "high",
+      "message": "Headroom is {headroom_mm} mm; §R311.7.2 requires 2032 mm (6 ft 8 in)."
+    },
+    {
+      "id": "irc.hall.width",
+      "title": "Hallway width",
+      "clause": "IRC 2021 §R311.6",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
       "applies_when": "function == 'corridor'",
       "assert": "width_mm >= 914",
-      "message": "{name} is {width_mm} mm wide; §R311.6 requires 914 mm (3 ft)." }
-  ]
+      "message": "{name} is {width_mm} mm wide; §R311.6 requires 914 mm (3 ft)."
+    }
+  ],
+  "design": {
+    "glazing_ratio": 0.08,
+    "ventilation_ratio": 0.04,
+    "openable_fraction": 0.5,
+    "stair_riser_max_mm": 197,
+    "stair_going_min_mm": 254,
+    "door_clear_width_mm": 813,
+    "corridor_width_mm": 914,
+    "ceiling_height_mm": 2134
+  }
 }

@@ -13,12 +13,13 @@ from .engine import (
     available_packs,
     load_pack,
     site_parameters,
+    design_parameters,
 )
 from .facts import derive
 from .report import Report, Finding, check
 
 __all__ = [
     "Jurisdiction", "JurisdictionError", "resolve", "search", "registry",
-    "RulePack", "RuleError", "available_packs", "load_pack", "site_parameters",
+    "RulePack", "RuleError", "available_packs", "load_pack", "site_parameters", "design_parameters",
     "derive", "Report", "Finding", "check",
 ]

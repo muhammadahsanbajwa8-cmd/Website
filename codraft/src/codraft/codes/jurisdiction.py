@@ -151,19 +151,37 @@ def resolve(place: str) -> Jurisdiction:
     # A city the registry knows geographically but has no local entry for.
     # Resolving it to its country beats refusing the query, as long as the
     # answer says outright that the local authority is not identified.
-    for city, iso in data.get("city_aliases", {}).items():
-        if _mentions(_normalise(city), query) and iso in countries:
-            resolved = _build(iso, countries[iso], matched_on=city.title())
-            resolved.locality_name = city.title()
+    for city, target in data.get("city_aliases", {}).items():
+        iso, _, sub_slug = target.partition(":")
+        if iso not in countries or not _mentions(_normalise(city), query):
+            continue
+        country = countries[iso]
+        # An alias may name the state as well as the country, which matters
+        # wherever building control is devolved -- a Melbourne project is
+        # governed by Victoria, not by "Australia".
+        sub = next(
+            (s for s in country.get("subdivisions", ()) if s["slug"] == sub_slug),
+            None,
+        )
+        resolved = _build(iso, country, sub, matched_on=city.title())
+        resolved.locality_name = city.title()
+        if sub is None:
             resolved.notes.insert(
                 0,
                 f"{city.title()} was recognised as a city in "
-                f"{countries[iso]['name']}, but codraft has no entry for its "
+                f"{country['name']}, but codraft has no entry for its "
                 "building authority. Planning controls -- setbacks, coverage, "
                 "height -- are almost always set locally, so confirm them with "
                 "the authority for this city before relying on anything here.",
             )
-            return resolved
+        else:
+            resolved.notes.insert(
+                0,
+                f"{city.title()} was resolved to {sub['name']}. The state or "
+                "territory sets the code variations; the council still sets "
+                "the planning controls, which are not encoded.",
+            )
+        return resolved
 
     matches = [
         (iso, country)

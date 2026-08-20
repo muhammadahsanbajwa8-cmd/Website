@@ -195,6 +195,7 @@ class RulePack:
     edition: str = ""
     parameters: dict = field(default_factory=dict)
     site: dict = field(default_factory=dict)
+    design: dict = field(default_factory=dict)
     disclaimer: str = ""
     applies_to_uses: list[str] = field(default_factory=list)
 
@@ -221,6 +222,7 @@ def load_pack(name: str) -> RulePack:
         edition=data.get("edition", ""),
         parameters=data.get("parameters", {}),
         site=data.get("site", {}),
+        design=data.get("design", {}),
         disclaimer=data.get("disclaimer", ""),
         applies_to_uses=list(data.get("applies_to_uses", ())),
         rules=[Rule.from_dict(r, name) for r in data.get("rules", ())],
@@ -246,6 +248,30 @@ def merged_parameters(packs: list[RulePack]) -> dict:
             else:
                 merged[key] = value
     return merged
+
+
+def design_parameters(jurisdiction: Jurisdiction, use: str = "residential") -> dict:
+    """Targets the builder should aim at, taken from the packs that apply.
+
+    Without this the drawing is built to one set of defaults and then failed
+    against another jurisdiction's rules -- an 810 mm bathroom door is
+    ordinary in Lahore and a violation in Melbourne. Handing the targets to
+    the builder means the plan is drawn trying to comply, and the rule
+    engine still checks whether it managed to.
+
+    Later packs win, and packs are ordered general to local, so a local
+    figure overrides a model-code one.
+    """
+    design: dict = {}
+    for name in jurisdiction.rule_packs:
+        try:
+            pack = load_pack(name)
+        except RuleError:
+            continue
+        if not pack.applies(use):
+            continue
+        design.update({k: v for k, v in pack.design.items() if not k.startswith("$")})
+    return design
 
 
 def site_parameters(jurisdiction: Jurisdiction, use: str = "residential") -> dict:

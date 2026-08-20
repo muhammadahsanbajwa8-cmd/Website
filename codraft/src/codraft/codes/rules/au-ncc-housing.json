@@ -1,0 +1,124 @@
+{
+  "title": "NCC 2022 Volume Two and ABCB Housing Provisions (Class 1 and 10)",
+  "publisher": "Australian Building Codes Board",
+  "edition": "NCC 2022 Amendment 2",
+  "url": "https://ncc.abcb.gov.au/editions/ncc-2022/adopted/housing-provisions",
+  "disclaimer": "An encoded subset of the ABCB Housing Provisions, which is where the dimensions for Class 1 and 10 buildings live since NCC 2022 -- Volume Two Part H mostly refers to it rather than stating figures itself. NCC 2022 Amendment 2 is adopted by states and territories from 29 July 2025; NCC 2025 was published on 1 May 2026 and is being adopted progressively, so CONFIRM WHICH EDITION APPLIES to your project. Every state and territory adopts the NCC with its own variations, and none of those variations are encoded here. Structural, fire, energy efficiency, waterproofing, termite and bushfire (AS 3959 / BAL) provisions are not encoded at all. IMPORTANT: the NCC sets NO minimum floor area for a habitable room in a house -- if you need one, it comes from the planning scheme, not from here, and a clean result from this pack says nothing about room sizes.",
+  "applies_to_uses": [
+    "residential"
+  ],
+  "parameters": {
+    "occupant_load_factors": {},
+    "openable_fraction": 0.5
+  },
+  "rules": [
+    {
+      "id": "au.h.height.habitable",
+      "title": "Habitable room height",
+      "clause": "ABCB Housing Provisions Part 10.3",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
+      "applies_when": "is_habitable",
+      "assert": "clear_height_mm >= 2400",
+      "message": "{name} has about {clear_height_mm} mm clear; Part 10.3 requires 2400 mm to a habitable room.",
+      "note": "Where the ceiling slopes, 2400 mm is required over two thirds of the floor area. Sloping ceilings are not modelled here."
+    },
+    {
+      "id": "au.h.height.non_habitable",
+      "title": "Non-habitable room height",
+      "clause": "ABCB Housing Provisions Part 10.3",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
+      "applies_when": "not is_habitable and function != 'stair'",
+      "assert": "clear_height_mm >= 2100",
+      "message": "{name} has about {clear_height_mm} mm clear; Part 10.3 requires 2100 mm to a bathroom, laundry, corridor, pantry, kitchen or garage."
+    },
+    {
+      "id": "au.h.light",
+      "title": "Natural light to habitable rooms",
+      "clause": "ABCB Housing Provisions Part 10.5",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
+      "applies_when": "is_habitable",
+      "assert": "glazing_ratio >= 0.10",
+      "message": "{name} is glazed to {glazing_ratio} of its floor area; Part 10.5 requires an aggregate light transmitting area of at least 10%.",
+      "note": "The requirement is on light-transmitting area, which is smaller than the window's overall size once the frame is taken off."
+    },
+    {
+      "id": "au.h.ventilation",
+      "title": "Natural ventilation",
+      "clause": "ABCB Housing Provisions Part 10.6",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
+      "applies_when": "is_habitable or is_wet",
+      "assert": "openable_ratio >= 0.05",
+      "message": "{name} has an estimated openable area of {openable_ratio} of its floor area; Part 10.6 requires 5%.",
+      "note": "Openable area is estimated from the glazed area -- see the assumptions. Part 10.6 also allows ventilation to be borrowed from an adjoining room, which is not modelled, so this can read as a fail where the design would pass."
+    },
+    {
+      "id": "au.h.stair.riser",
+      "title": "Stair riser height",
+      "clause": "ABCB Housing Provisions Part 11.2, Table 11.2.2a",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
+      "assert": "115 <= riser_mm <= 190",
+      "message": "The riser is {riser_mm} mm; Table 11.2.2a allows 115 to 190 mm for a private stairway."
+    },
+    {
+      "id": "au.h.stair.going",
+      "title": "Stair going",
+      "clause": "ABCB Housing Provisions Part 11.2, Table 11.2.2a",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
+      "assert": "240 <= going_mm <= 355",
+      "message": "The going is {going_mm} mm; Table 11.2.2a allows 240 to 355 mm for a private stairway."
+    },
+    {
+      "id": "au.h.stair.slope",
+      "title": "Slope relationship (2R + G)",
+      "clause": "ABCB Housing Provisions Part 11.2, Table 11.2.2a",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
+      "assert": "550 <= two_r_plus_g <= 700",
+      "message": "Twice the riser plus the going is {two_r_plus_g} mm; Table 11.2.2a requires between 550 and 700 mm.",
+      "note": "This catches rise and going combinations that are each within limits but awkward together."
+    },
+    {
+      "id": "au.h.stair.risers_per_flight",
+      "title": "Risers in a flight",
+      "clause": "ABCB Housing Provisions Part 11.2",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
+      "assert": "2 <= risers_per_flight <= 18",
+      "message": "This stair has {risers_per_flight} risers in a flight across {flights} flight(s); Part 11.2 allows not more than 18 and not fewer than 2."
+    },
+    {
+      "id": "au.h.stair.headroom",
+      "title": "Headroom over a stairway",
+      "clause": "ABCB Housing Provisions Part 10.3",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "high",
+      "assert": "headroom_mm >= 2000",
+      "message": "Headroom is {headroom_mm} mm; Part 10.3 requires 2000 mm measured vertically above the nosing line."
+    }
+  ],
+  "design": {
+    "$comment": "Targets the builder aims at so the plan is drawn trying to comply.",
+    "glazing_ratio": 0.1,
+    "ventilation_ratio": 0.05,
+    "openable_fraction": 0.5,
+    "stair_riser_max_mm": 190,
+    "stair_going_min_mm": 240,
+    "stair_going_max_mm": 355,
+    "ceiling_height_mm": 2400
+  }
+}

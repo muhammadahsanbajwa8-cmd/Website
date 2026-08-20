@@ -4,51 +4,115 @@
   "edition": "2016",
   "url": "https://www.bis.gov.in/",
   "disclaimer": "An encoded subset of NBC 2016 Part 3 room requirements. The NBC is a model code with no force of its own: states and municipal corporations adopt it through their own building bye-laws and amend it, and the local development control rules govern setbacks, ground coverage and FSI. Confirm every finding against the bye-laws for the municipality.",
-  "applies_to_uses": ["residential"],
-  "parameters": { "occupant_load_factors": {} },
+  "applies_to_uses": [
+    "residential"
+  ],
+  "parameters": {
+    "occupant_load_factors": {}
+  },
   "rules": [
-    { "id": "in.room.area", "title": "Habitable room area", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "violation", "confidence": "low",
+    {
+      "id": "in.room.area",
+      "title": "Habitable room area",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "low",
       "applies_when": "is_habitable and function != 'kitchen'",
       "assert": "area_m2 >= 9.5",
       "message": "{name} is {area_m2} m²; 9.5 m² is the commonly cited minimum for a habitable room.",
-      "note": "A single-roomed dwelling is treated differently. Municipal bye-laws vary." },
-    { "id": "in.room.width", "title": "Habitable room least width", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "violation", "confidence": "low",
+      "note": "A single-roomed dwelling is treated differently. Municipal bye-laws vary."
+    },
+    {
+      "id": "in.room.width",
+      "title": "Habitable room least width",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "low",
       "applies_when": "is_habitable and function != 'kitchen'",
       "assert": "width_mm >= 2400",
-      "message": "{name} is {width_mm} mm across; 2400 mm is the commonly cited minimum." },
-    { "id": "in.kitchen.area", "title": "Kitchen area", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "violation", "confidence": "low",
+      "message": "{name} is {width_mm} mm across; 2400 mm is the commonly cited minimum."
+    },
+    {
+      "id": "in.kitchen.area",
+      "title": "Kitchen area",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "low",
       "applies_when": "function == 'kitchen'",
       "assert": "area_m2 >= 5.0 and width_mm >= 1800",
-      "message": "{name} is {area_m2} m² and {width_mm} mm wide; 5.0 m² and 1800 mm are commonly cited." },
-    { "id": "in.bathroom.area", "title": "Bathroom area", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "warning", "confidence": "low",
+      "message": "{name} is {area_m2} m² and {width_mm} mm wide; 5.0 m² and 1800 mm are commonly cited."
+    },
+    {
+      "id": "in.bathroom.area",
+      "title": "Bathroom area",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "warning",
+      "confidence": "low",
       "applies_when": "function == 'bathroom'",
       "assert": "area_m2 >= 1.8",
-      "message": "{name} is {area_m2} m²; 1.8 m² is commonly cited for a bathroom." },
-    { "id": "in.ceiling.height", "title": "Clear ceiling height", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "violation", "confidence": "low",
+      "message": "{name} is {area_m2} m²; 1.8 m² is commonly cited for a bathroom."
+    },
+    {
+      "id": "in.ceiling.height",
+      "title": "Clear ceiling height",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "low",
       "applies_when": "is_habitable",
       "assert": "clear_height_mm >= 2750",
-      "message": "{name} has about {clear_height_mm} mm clear; 2750 mm is commonly required for a habitable room." },
-    { "id": "in.passage.width", "title": "Passage width", "clause": "NBC 2016 Part 3 (indicative)",
-      "scope": "space", "severity": "warning", "confidence": "low",
+      "message": "{name} has about {clear_height_mm} mm clear; 2750 mm is commonly required for a habitable room."
+    },
+    {
+      "id": "in.passage.width",
+      "title": "Passage width",
+      "clause": "NBC 2016 Part 3 (indicative)",
+      "scope": "space",
+      "severity": "warning",
+      "confidence": "low",
       "applies_when": "function == 'corridor'",
       "assert": "width_mm >= 1000",
-      "message": "{name} is {width_mm} mm wide; 1000 mm is commonly cited for a residential passage." },
-    { "id": "in.stair.width", "title": "Stair width", "clause": "NBC 2016 Part 4 (indicative)",
-      "scope": "stair", "severity": "violation", "confidence": "low",
+      "message": "{name} is {width_mm} mm wide; 1000 mm is commonly cited for a residential passage."
+    },
+    {
+      "id": "in.stair.width",
+      "title": "Stair width",
+      "clause": "NBC 2016 Part 4 (indicative)",
+      "scope": "stair",
+      "severity": "violation",
+      "confidence": "low",
       "assert": "width_mm >= 1000",
-      "message": "The stair is {width_mm} mm wide; 1000 mm is commonly cited for residential." },
-    { "id": "in.stair.riser", "title": "Riser height", "clause": "NBC 2016 Part 4 (indicative)",
-      "scope": "stair", "severity": "warning", "confidence": "low",
+      "message": "The stair is {width_mm} mm wide; 1000 mm is commonly cited for residential."
+    },
+    {
+      "id": "in.stair.riser",
+      "title": "Riser height",
+      "clause": "NBC 2016 Part 4 (indicative)",
+      "scope": "stair",
+      "severity": "warning",
+      "confidence": "low",
       "assert": "riser_mm <= 190",
-      "message": "The riser is {riser_mm} mm; 190 mm is the commonly cited cap for residential." },
-    { "id": "in.stair.tread", "title": "Tread depth", "clause": "NBC 2016 Part 4 (indicative)",
-      "scope": "stair", "severity": "warning", "confidence": "low",
+      "message": "The riser is {riser_mm} mm; 190 mm is the commonly cited cap for residential."
+    },
+    {
+      "id": "in.stair.tread",
+      "title": "Tread depth",
+      "clause": "NBC 2016 Part 4 (indicative)",
+      "scope": "stair",
+      "severity": "warning",
+      "confidence": "low",
       "assert": "going_mm >= 250",
-      "message": "The tread is {going_mm} mm; 250 mm is commonly cited for residential." }
-  ]
+      "message": "The tread is {going_mm} mm; 250 mm is commonly cited for residential."
+    }
+  ],
+  "design": {
+    "ceiling_height_mm": 2750,
+    "corridor_width_mm": 1000,
+    "stair_riser_max_mm": 190,
+    "stair_going_min_mm": 250
+  }
 }

@@ -1,0 +1,86 @@
+{
+  "title": "NCC 2022 Volume One (Class 2 to 9)",
+  "publisher": "Australian Building Codes Board",
+  "edition": "NCC 2022 Amendment 2",
+  "url": "https://ncc.abcb.gov.au/editions/ncc-2022/adopted/volume-one",
+  "disclaimer": "A DELIBERATELY THIN pack. Volume One's egress provisions turn on the building's classification (Class 2 to 9), whether it is sprinklered, its rise in storeys and its effective height -- none of which a floor plan alone establishes, and all of which change the numbers. Only provisions that survive without those inputs are encoded, and they are marked low confidence because they were not read off the adopted document. Fire resistance, sprinklers, smoke hazard management, energy efficiency and the Access Code (AS 1428) are not encoded at all. Confirm every finding against the adopted Volume One for your state before relying on it.",
+  "applies_to_uses": [
+    "office",
+    "mercantile",
+    "educational",
+    "institutional",
+    "assembly",
+    "industrial"
+  ],
+  "parameters": {
+    "$comment": "No occupant load table is encoded, so occupant-dependent rules report as unchecked rather than passing.",
+    "occupant_load_factors": {},
+    "openable_fraction": 0.5
+  },
+  "rules": [
+    {
+      "id": "au.v1.height.habitable",
+      "title": "Room height",
+      "clause": "NCC 2022 Volume One Part F5 (Part F6 in NCC 2025)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "medium",
+      "applies_when": "is_habitable",
+      "assert": "clear_height_mm >= 2400",
+      "message": "{name} has about {clear_height_mm} mm clear; 2400 mm is required to a habitable room.",
+      "note": "Volume One renumbered light and ventilation from Part F5 to Part F6 in NCC 2025. Check which edition your state has adopted."
+    },
+    {
+      "id": "au.v1.light",
+      "title": "Natural light",
+      "clause": "NCC 2022 Volume One Part F5 (Part F6 in NCC 2025)",
+      "scope": "space",
+      "severity": "warning",
+      "confidence": "low",
+      "applies_when": "is_habitable",
+      "assert": "glazing_ratio >= 0.10",
+      "message": "{name} is glazed to {glazing_ratio} of its floor area; 10% is the figure Volume Two uses and is applied here as a guide.",
+      "note": "Volume One's requirement varies by class and permits artificial lighting in many cases. Treat this as a prompt to check, not a finding."
+    },
+    {
+      "id": "au.v1.egress.point_of_choice",
+      "title": "Travel to a point of choice",
+      "clause": "NCC 2022 Volume One Part D2 (D2D5)",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "low",
+      "applies_when": "has_route_to_exit",
+      "assert": "travel_distance_mm <= 20000",
+      "message": "Travel from {name} is about {travel_distance_mm} mm; 20 m is the general limit to an exit, or to a point from which travel in different directions to two exits is available.",
+      "note": "Class 2 and 3 are held to 6 m from a sole-occupancy unit entrance. The onward limit to the second exit is longer and class-dependent, and is not encoded."
+    },
+    {
+      "id": "au.v1.exit.width",
+      "title": "Exit doorway width",
+      "clause": "NCC 2022 Volume One Part D3",
+      "scope": "door",
+      "severity": "violation",
+      "confidence": "low",
+      "applies_when": "is_egress",
+      "assert": "clear_width_mm >= 1000",
+      "message": "An exit doorway gives {clear_width_mm} mm clear; 1 m is the general minimum for a required exit.",
+      "note": "Required width increases with the occupant load served. No occupant load table is encoded here, so only the floor is checked."
+    },
+    {
+      "id": "au.v1.exits.count",
+      "title": "Exits from a storey",
+      "clause": "NCC 2022 Volume One Part D2",
+      "scope": "storey",
+      "severity": "warning",
+      "confidence": "low",
+      "assert": "exit_count >= 1",
+      "message": "{name} has {exit_count} exit(s). Most Class 5 to 9 storeys require two.",
+      "note": "Whether two exits are required turns on class, floor area and occupant numbers. This checks only that one exists."
+    }
+  ],
+  "design": {
+    "door_clear_width_mm": 1000,
+    "glazing_ratio": 0.1,
+    "ceiling_height_mm": 2400
+  }
+}

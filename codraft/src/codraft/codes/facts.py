@@ -168,6 +168,7 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
     parameters = parameters or {}
     factors = parameters.get("occupant_load_factors", {}) or {}
     slab = int(parameters.get("slab_and_finish_mm", ASSUMED_SLAB_AND_FINISH))
+    openable = float(parameters.get("openable_fraction", 0.5))
 
     facts = FactSet()
     facts.assumptions.append(
@@ -177,6 +178,20 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
     facts.assumptions.append(
         "Travel distances are measured through the graph of rooms joined by "
         "doorways, from the far corner of each room, on rectilinear paths."
+    )
+    facts.assumptions.append(
+        "Glazing ratios are measured on the structural window opening, not "
+        "the light-transmitting area a code asks for. A frame typically takes "
+        "10 to 20 per cent of the opening, so a room close to the limit here "
+        "may not meet it once the window is specified. Openings are sized "
+        "with an allowance for this, but the window schedule decides it."
+    )
+    facts.assumptions.append(
+        f"Ventilation rules are written against the area that OPENS, not the "
+        f"area that is glazed. The model carries window sizes, not opening "
+        f"lights, so openable area is taken as {openable:.0%} of the glazed "
+        "area -- about what an awning or sliding sash gives. Confirm against "
+        "the window schedule; a fixed pane opens none of it."
     )
     if not factors:
         facts.assumptions.append(
@@ -229,6 +244,10 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
                     if space.area
                     else 0.0,
                     "window_count": len(windows),
+                    "openable_area_m2": round(window_area * openable / 1_000_000, 3),
+                    "openable_ratio": round(window_area * openable / space.area, 4)
+                    if space.area
+                    else 0.0,
                     "has_window": bool(windows),
                     "door_count": len(doors),
                     "has_door": bool(doors),
@@ -275,6 +294,10 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
                     "riser_mm": stair.riser_height,
                     "going_mm": stair.tread_depth,
                     "risers": stair.risers,
+                    "flights": stair.flights,
+                    # Codes cap the risers in a single flight, not in the
+                    # whole stair -- a dog-leg with a landing resets the count.
+                    "risers_per_flight": -(-stair.risers // max(1, stair.flights)),
                     "width_mm": stair.width,
                     "headroom_mm": stair.headroom,
                     "rise_total_mm": stair.rise_total,

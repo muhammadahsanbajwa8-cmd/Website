@@ -65,6 +65,11 @@ WET_WINDOW_SILL = 1500
 # daylight; 15% leaves headroom and is what a designer would draw anyway.
 GLAZING_RATIO = 0.15
 
+# Codes measure the LIGHT-TRANSMITTING area; the model carries the structural
+# opening, and a frame eats into it. Sizing openings with this allowance gives
+# the glass a chance of meeting the requirement the frame is measured against.
+FRAME_ALLOWANCE = 0.85
+
 # Stair defaults, kept comfortable. The riser actually used is derived from
 # the storey height, and the going from the space available, so both are
 # facts about the design rather than assumptions -- and both get checked.
@@ -215,8 +220,16 @@ def _openings_for_storey(
     clear: dict[str, Rect],
     warnings: list[str],
     use: str = "residential",
+    design: dict | None = None,
 ) -> list[Opening]:
     """Doors onto circulation, a front door, and windows where light is due."""
+    design = design or {}
+    # A code states the CLEAR width; the leaf and its stop come off the
+    # structural opening, so the opening has to be wider by that much.
+    required_clear = int(design.get("door_clear_width_mm", 0) or 0)
+    glazing = float(design.get("glazing_ratio", GLAZING_RATIO))
+    ventilation = float(design.get("ventilation_ratio", 0) or 0)
+    openable = float(design.get("openable_fraction", 0.5))
     openings: list[Opening] = []
     counter = itertools.count(1)
     by_key = {c.key: c for c in cells}
@@ -266,6 +279,9 @@ def _openings_for_storey(
         width = DOOR_WIDTHS.get(cell.function, DEFAULT_DOOR_WIDTH)
         if use != "residential":
             width = max(width, NON_RESIDENTIAL_MIN_DOOR)
+        if required_clear:
+            width = max(width, required_clear + Opening("", "", OpeningKind.DOOR,
+                                                        0, 0, 0).leaf_thickness)
         openings.append(
             Opening(
                 id=opening_id(),
@@ -323,13 +339,14 @@ def _openings_for_storey(
         front_candidates = [w for w in walls if w.is_exterior and road_edge(w)]
     if front_candidates and storey_index == 0:
         wall = max(front_candidates, key=lambda w: w.length)
+        entry_width = max(ENTRY_DOOR_WIDTH, required_clear + 45)
         openings.append(
             Opening(
                 id=opening_id(),
                 wall=wall.id,
                 kind=OpeningKind.DOOR,
-                offset=_centre_opening(wall, ENTRY_DOOR_WIDTH),
-                width=min(ENTRY_DOOR_WIDTH, max(0, wall.length - 300)),
+                offset=_centre_opening(wall, entry_width),
+                width=min(entry_width, max(0, wall.length - 300)),
                 height=DOOR_HEIGHT,
                 is_egress=True,
             )
@@ -400,30 +417,58 @@ def _openings_for_storey(
         # habitable half that decides how much daylight it is owed.
         if cell.function.is_habitable:
             floor_area = clear[cell.key].area
-            glazed = int(floor_area * GLAZING_RATIO)
-            height = WINDOW_HEAD - WINDOW_SILL
-            width = max(900, min(glazed // height, max(0, wall.length - 600)))
-            sill = WINDOW_SILL
-        elif cell.function.is_wet:
-            width = min(WET_WINDOW_WIDTH, max(0, wall.length - 300))
-            height, sill = WET_WINDOW_HEIGHT, WET_WINDOW_SILL
-        else:
-            width = min(900, max(0, wall.length - 300))
+            required = int(floor_area * glazing / FRAME_ALLOWANCE)
+            if ventilation:
+                # Ventilation is required on the area that OPENS, so a window
+                # sized only for daylight can still fall short.
+                required = max(required, int(floor_area * ventilation / openable))
             height, sill = WINDOW_HEAD - WINDOW_SILL, WINDOW_SILL
+        elif cell.function.is_wet:
+            height, sill = WET_WINDOW_HEIGHT, WET_WINDOW_SILL
+            required = WET_WINDOW_WIDTH * height
+            if ventilation:
+                required = max(
+                    required, int(clear[cell.key].area * ventilation / openable)
+                )
+        else:
+            height, sill = WINDOW_HEAD - WINDOW_SILL, WINDOW_SILL
+            required = 900 * height
 
-        if width <= 0:
-            continue
-        openings.append(
-            Opening(
-                id=opening_id(),
-                wall=wall.id,
-                kind=OpeningKind.WINDOW,
-                offset=_centre_opening(wall, width),
-                width=width,
-                height=height,
-                sill=sill,
+        # Spend the requirement across as many walls as it takes. One window
+        # on the longest wall is the usual answer, but a room with short
+        # exterior walls cannot reach 10% of its floor area that way, and
+        # widening a window past its wall is not an option.
+        remaining = required
+        for candidate in sorted(exterior, key=lambda w: -w.length):
+            if remaining <= 0:
+                break
+            available = max(0, candidate.length - 600)
+            if available < 600:
+                continue
+            # Round the width up. Truncating lands a room at 9.99% of the
+            # 10% it needs, which is a failure caused by integer division
+            # rather than by the design.
+            width = min(max(600, -(-remaining // height)), available)
+            openings.append(
+                Opening(
+                    id=opening_id(),
+                    wall=candidate.id,
+                    kind=OpeningKind.WINDOW,
+                    offset=_centre_opening(candidate, width),
+                    width=width,
+                    height=height,
+                    sill=sill,
+                )
             )
-        )
+            remaining -= width * height
+
+        if remaining > 0 and cell.function.is_habitable:
+            warnings.append(
+                f"{cell.name} has {(required - remaining) / 1e6:.2f} m² of glazing "
+                f"against the {required / 1e6:.2f} m² its floor area calls for. "
+                "Its exterior walls are too short to carry the rest -- the room "
+                "needs a wider frontage, a rooflight, or a taller window."
+            )
 
     return openings
 
@@ -434,6 +479,7 @@ def _stairs_for_storey(
     storey_height: int,
     clear: dict[str, Rect],
     warnings: list[str],
+    design: dict | None = None,
 ) -> list[Stair]:
     """Work the flight out from the height it has to climb and the run it has.
 
@@ -447,8 +493,14 @@ def _stairs_for_storey(
     for cell in cells:
         if cell.function is not Function.STAIR:
             continue
+        design = design or {}
+        riser_max = int(design.get("stair_riser_max_mm", 0) or 0)
+        going_min = int(design.get("stair_going_min_mm", MIN_GOING) or MIN_GOING)
+        going_max = int(design.get("stair_going_max_mm", 0) or 0)
+
         rect = clear[cell.key]
-        risers = max(2, round(storey_height / TARGET_RISER))
+        target_riser = min(TARGET_RISER, riser_max) if riser_max else TARGET_RISER
+        risers = max(2, -(-storey_height // target_riser))
         riser = storey_height // risers
         goings = max(1, risers - 1)
         run_available = max(0, rect.long_side - LANDING_DEPTH)
@@ -460,13 +512,19 @@ def _stairs_for_storey(
         flights = 1
         going = run_available // goings
         width = rect.short_side
-        if going < MIN_GOING and rect.short_side >= 2 * 900:
+        if going_max:
+            # A going longer than the code allows is not generosity, it is a
+            # violation. The spare run becomes a deeper landing instead.
+            going = min(going, going_max)
+        if going < going_min and rect.short_side >= 2 * 900:
             flights = 2
             per_flight = -(-goings // 2)
             going = run_available // max(1, per_flight)
+            if going_max:
+                going = min(going, going_max)
             width = rect.short_side // 2
 
-        if going < MIN_GOING:
+        if going < going_min:
             warnings.append(
                 f"{cell.name} is too small for the {risers} risers it has to "
                 f"climb: the going works out at {going} mm. Give it more room "
@@ -489,9 +547,21 @@ def _stairs_for_storey(
 
 
 def build_building(
-    program: SpaceProgram, plot: Plot, layout: Layout, name: str = "", jurisdiction: str = ""
+    program: SpaceProgram,
+    plot: Plot,
+    layout: Layout,
+    name: str = "",
+    jurisdiction: str = "",
+    design: dict | None = None,
 ) -> Building:
-    """Assemble the full model: spaces, walls, openings and stairs."""
+    """Assemble the full model: spaces, walls, openings and stairs.
+
+    `design` carries the targets the jurisdiction's rule packs ask for --
+    door clear widths, glazing and ventilation ratios, stair limits. Passing
+    them means the plan is drawn trying to satisfy the local code rather
+    than drawn to a default and failed against it afterwards.
+    """
+    design = design or {}
     building = Building(
         name=name or program.name,
         plot=plot,
@@ -508,9 +578,9 @@ def build_building(
         walls, between = _walls_for_storey(cells, index, height)
         clear = {cell.key: _clear_rect(cell, walls) for cell in cells}
         openings = _openings_for_storey(
-            cells, walls, between, index, plot, clear, warnings, program.use
+            cells, walls, between, index, plot, clear, warnings, program.use, design
         )
-        stairs = _stairs_for_storey(cells, index, height, clear, warnings)
+        stairs = _stairs_for_storey(cells, index, height, clear, warnings, design)
 
         storey = Storey(
             index=index,
