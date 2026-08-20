@@ -133,6 +133,7 @@ Not stated, so assumed or skipped:
 The layers are kept strictly apart, which is the whole design:
 
 ```
+ingest/    an existing PDF drawing is read back into geometry
 program/   a brief becomes a structured list of spaces to provide
 layout/    that list becomes exact geometry, by arithmetic not by guesswork
 codes/     that geometry is checked against rules that cite their source
@@ -199,6 +200,9 @@ means touching the code that draws or solves.
 | `uk-approved-documents` | 7 | medium | Approved Documents K, M, F — **England only** |
 | `pk-bylaws` | 10 | seed | figures recurring across LDA/CDA/SBCA residential by-laws |
 | `in-nbc-2016` | 9 | low | NBC 2016 Part 3 room requirements |
+| `au-ncc-housing` | 9 | **high** | ABCB Housing Provisions — room heights, light, ventilation, stairs |
+| `au-ncc-livable` | 3 | **high** | NCC 2022 livable housing — doorways, corridors |
+| `au-ncc-vol1` | 5 | low | NCC Volume One, deliberately thin — see below |
 
 Facts the engine derives from the model: areas and least dimensions, clear
 ceiling heights, glazing ratios, door clear widths, stair riser/going/pitch and
@@ -248,6 +252,92 @@ vent sizing and trap seals are all absent, because none of them can be read off
 a floor plan. A licensed electrical and plumbing engineer does that, and every
 sheet says so in its notes block.
 
+## Australia, and why it is the best case
+
+Australia publishes its building code **free to the public** at
+[ncc.abcb.gov.au](https://ncc.abcb.gov.au/). That is rare — most national codes
+are copyrighted documents behind a paywall or not online at all — and it is the
+reason the NCC packs cite real clauses at `high` confidence while Pakistan's sit
+at `seed`.
+
+Four things the registry is explicit about, because they change the answer:
+
+- **Which edition.** NCC 2022 Amendment 2 is adopted from 29 July 2025. NCC 2025
+  was published 1 May 2026 and is being adopted progressively. Confirm which one
+  your state is on.
+- **Which volume.** Volume Two plus the **ABCB Housing Provisions** covers Class
+  1 and 10 — since NCC 2022 the dimensions live in the Housing Provisions, not
+  in Volume Two itself. Volume One covers Class 2–9. Volume Three is the
+  Plumbing Code, named in the registry but **not encoded**.
+- **Which state.** Every state adopts with variations. NSW and WA deferred the
+  livable housing provisions, so `codraft codes where Sydney` drops that pack
+  while Melbourne keeps it.
+- **Setbacks are not in the NCC.** They come from the council's planning scheme
+  — ResCode in Victoria, the R-Codes in WA. So the Australian regime supplies
+  **no site controls at all**, and says so rather than inventing them.
+
+Volume One is thin on purpose. Its egress numbers turn on classification,
+sprinklers, rise in storeys and effective height — none of which a floor plan
+establishes. Only what survives without them is encoded, and nothing in that
+pack claims `high` confidence.
+
+## Packs shape the plan, not just judge it
+
+A rule pack carries **design targets** as well as rules, and the builder gets
+them before it draws:
+
+```json
+"design": {
+  "door_clear_width_mm": 820,
+  "glazing_ratio": 0.10,
+  "stair_going_max_mm": 355
+}
+```
+
+This exists because the first NCC run produced nine violations, every one of
+them a default tuned for somewhere else — an 810 mm bathroom door is ordinary
+in Lahore and illegal in Melbourne. Handing the targets to the builder means the
+plan is drawn *trying* to comply, and the engine still checks whether it
+managed. Nine became zero, and the same brief now produces a materially
+different building in each place.
+
+## Reading drawings that already exist
+
+`codraft survey` reads a PDF plan and reports what can be recovered from it:
+
+```
+$ codraft survey plan.pdf
+
+Page 1  (612 x 792 pt)
+  line work : 963 segments
+  text      : 92 runs
+  scale     : 1:202 (71.275 mm per point), 100% agreement
+              Scale taken from 9 printed dimensions that agree to within 2%.
+  dimensions: 9 read -- 3653, 1115, 3486, 3607, 2003, 1529, 8254
+  walls     : 87 candidates -- 230 mm x36, 115 mm x30
+  labels    : Bathroom, Bedroom, Corridor, Kitchen, Living, Stair, Store
+```
+
+The PDF reader is pure standard library — `zlib` is all PDF compression actually
+needs. It recovers page geometry, every line segment, and text (including
+ToUnicode maps, so subset-embedded fonts still yield readable dimensions).
+
+**The rule that governs the whole thing: transcribe, never estimate.** Scale is
+derived by matching a *printed* dimension string to the line it annotates and
+dividing. It is never inferred from paper size — the same plan on A3 could be
+1:50 or 1:100 and look identical, and a wrong scale produces confident, wrong
+millimetres. A drawing with no dimensions on it gets **no measurements at all**,
+and a message explaining why.
+
+That is also the honest answer for a scanned drawing: a scan is identified as
+one, and if it carries printed dimensions those can be read; if it does not,
+there is nothing to measure and the tool says so instead of measuring pixels.
+
+What a survey is *not*: a building model. Walls at this stage are pairs of
+parallel lines, not walls that know what they separate. Getting from there to
+something the code checker can run over needs room boundaries closed and
+openings identified.
+
 ## Getting it into Revit
 
 Two routes, and they are not equivalent:
@@ -286,7 +376,7 @@ the Approved Documents, which do not apply in Scotland at all.
 python3 -m unittest discover -s tests -t .
 ```
 
-59 tests. The ones worth knowing about: the solver's tiles must fill the
+79 tests. The ones worth knowing about: the solver's tiles must fill the
 footprint exactly and never overlap (walls are derived from those adjacencies,
 so a gap becomes a wall with nothing behind it); every dimension chain must add
 up to its overall; no room may ever be left without a route to an exit; every
@@ -294,8 +384,10 @@ services fixture must land inside the room it serves and every run must be
 orthogonal; a bathroom too small for its fittings must produce a warning rather
 than a drawing with a basin inside a bath; the rule sandbox must refuse six
 different escape attempts; every reference in the IFC must resolve to a defined
-instance; and `Somalia` must not resolve to Mali, which it did until
-word-boundary matching replaced substring matching.
+instance; a Melbourne house must clear all 132 NCC checks; a PDF with geometry
+but no dimensions must yield no measurements at all rather than a guessed
+scale; and `Somalia` must not resolve to Mali, which it did until word-boundary
+matching replaced substring matching.
 
 ---
 

@@ -23,6 +23,8 @@ from . import __version__, codes
 from .export import write_dxf, write_ifc, write_model_json, write_svg
 from .services import design_electrical, design_plumbing
 from .geom import Rect
+from .ingest import PdfError, read_pdf
+from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, solve
 from .model import Plot
 from .program import (
@@ -347,6 +349,95 @@ def cmd_program(args) -> int:
     return 0
 
 
+def cmd_survey(args) -> int:
+    """Read an existing drawing and report what could be recovered from it."""
+    path = Path(args.file)
+    if not path.exists():
+        return _fail(f"{path} does not exist")
+    if path.suffix.lower() != ".pdf":
+        return _fail(
+            f"survey reads PDF today; {path.suffix or 'that file'} is not "
+            "supported yet. Export a PDF, or send DXF or IFC and say so."
+        )
+
+    try:
+        document = read_pdf(path)
+    except PdfError as exc:
+        return _fail(str(exc))
+
+    print(f"{path.name}")
+    print(f"  pages     : {len(document.pages)}")
+    if document.producer:
+        print(f"  written by: {document.producer}")
+    print()
+
+    surveys = survey_pdf(document)
+    measurable = 0
+
+    for survey in surveys:
+        print(f"Page {survey.page + 1}  "
+              f"({survey.width_pt:.0f} x {survey.height_pt:.0f} pt)")
+        print(f"  line work : {survey.segment_count} segments")
+        print(f"  text      : {survey.text_count} runs")
+
+        if survey.has_scale:
+            measurable += 1
+            print(f"  scale     : {survey.scale_ratio} "
+                  f"({survey.scale_mm_per_pt:.3f} mm per point), "
+                  f"{survey.scale_agreement:.0%} agreement")
+            print(f"              {survey.scale_note}")
+        else:
+            print("  scale     : NOT ESTABLISHED")
+            print(f"              {survey.scale_note}")
+
+        read = [d for d in survey.dimensions if d.scale_mm_per_pt]
+        if read:
+            shown = ", ".join(f"{d.text}" for d in read[:10])
+            more = f" (+{len(read) - 10} more)" if len(read) > 10 else ""
+            print(f"  dimensions: {len(read)} read -- {shown}{more}")
+
+        if survey.walls:
+            thicknesses: dict[int, int] = {}
+            for wall in survey.walls:
+                key = int(round(wall.thickness_mm / 5) * 5)
+                thicknesses[key] = thicknesses.get(key, 0) + 1
+            common = sorted(thicknesses.items(), key=lambda kv: -kv[1])[:4]
+            summary = ", ".join(f"{t} mm x{n}" for t, n in common)
+            print(f"  walls     : {len(survey.walls)} candidates -- {summary}")
+
+        if survey.labels:
+            names = ", ".join(sorted({t.text.strip() for t in survey.labels})[:12])
+            print(f"  labels    : {names}")
+
+        for warning in survey.warnings:
+            print(f"  ! {warning}")
+        print()
+
+    print("-" * 72)
+    if measurable:
+        print(
+            f"{measurable} of {len(surveys)} page(s) can be measured, because a "
+            "dimension printed on them established the scale. Every length "
+            "reported above is derived from those printed numbers -- none of "
+            "it was measured off the page and converted by guesswork."
+        )
+    else:
+        print(
+            "No page could be measured. codraft will not infer a scale from "
+            "paper size: the same plan on A3 could be 1:50 or 1:100 and look "
+            "identical, and a wrong scale produces confident, wrong "
+            "millimetres. Send a drawing with dimensions on it, or a DXF or "
+            "IFC, and this becomes a different job."
+        )
+    print(
+        "\nWhat this is NOT: a building model. Walls here are pairs of "
+        "parallel lines, not walls that know what they separate. Turning "
+        "this into something the code checker can run over needs the room "
+        "boundaries closed and the openings identified."
+    )
+    return 0 if measurable else 1
+
+
 def cmd_codes_where(args) -> int:
     try:
         j = codes.resolve(" ".join(args.place))
@@ -470,6 +561,12 @@ def build_parser() -> argparse.ArgumentParser:
     program.add_argument("--schema", action="store_true",
                          help="print the JSON schema for a language model to fill in")
     program.set_defaults(func=cmd_program)
+
+    survey = subs.add_parser(
+        "survey", help="read an existing PDF drawing and report what is in it"
+    )
+    survey.add_argument("file", help="a PDF plan")
+    survey.set_defaults(func=cmd_survey)
 
     codes_parser = subs.add_parser("codes", help="what governs where")
     code_subs = codes_parser.add_subparsers(dest="codes_command", required=True)
