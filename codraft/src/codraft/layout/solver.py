@@ -327,12 +327,29 @@ def _apportion(spans: list[int], floors: list[int], total: int, warnings: list[s
                 "on it need. They were trimmed to fit and will not meet the "
                 "sizes asked for."
             )
-        for i in sorted(range(len(sizes)), key=lambda i: -sizes[i]):
+        # Take the excess from whatever sits above its own floor, most slack
+        # first. Cutting to the absolute minimum instead would spare the rows
+        # that happen to sort early and annihilate the ones that sort late.
+        for i in sorted(range(len(sizes)), key=lambda i: -(sizes[i] - floors[i])):
             if overrun <= 0:
                 break
-            give = min(overrun, max(0, sizes[i] - _ABSOLUTE_MIN_DIM))
+            give = min(overrun, max(0, sizes[i] - floors[i]))
             sizes[i] -= give
             overrun -= give
+        if overrun > 0:
+            # The band is genuinely over-subscribed: no allocation gives every
+            # row its floor. Shrink them all by the same proportion so the
+            # shortfall is shared rather than landing on one room.
+            gross = sum(sizes)
+            scale = max(0, gross - overrun) / max(1, gross)
+            sizes = [max(_ABSOLUTE_MIN_DIM, int(s * scale)) for s in sizes]
+            slack_left = sum(sizes) - total
+            for i in range(len(sizes)):
+                if slack_left <= 0:
+                    break
+                give = min(slack_left, max(0, sizes[i] - _ABSOLUTE_MIN_DIM))
+                sizes[i] -= give
+                slack_left -= give
     elif overrun < 0 and sizes:
         # Spend the remainder on the largest row so the tiling closes exactly
         # on the band edge rather than leaving an unassigned sliver.
@@ -548,10 +565,46 @@ def _layout_storey(
     left_target = sum(_target(r) or 1 for _, r in left_rooms)
     right_target = sum(_target(r) or 1 for _, r in right_rooms)
     usable = cross - corridor_width
-    left_depth = usable * left_target // max(1, left_target + right_target)
-    if spine_x is not None and corridor_vertical:
-        # Line the spine up with the entry rather than balancing the bands.
-        left_depth = spine_x - envelope.x - corridor_width // 2
+    run = envelope.h if corridor_vertical else envelope.w
+
+    def _band_depth(band: list[tuple[str, SpaceRequirement]]) -> int:
+        """How deep this side has to be before its rooms are usable.
+
+        Deep enough to hold their area along the run, and never narrower than
+        the widest room's own minimum. Without this the spine can be pulled
+        hard against one side and leave a handful of rooms fighting over a
+        couple of metres.
+        """
+        if not band:
+            return 0
+        area = sum(_target(r) or 0 for _, r in band)
+        depth = -(-area // max(1, run))
+        for _, r in band:
+            depth = max(depth, _tile_width(r) or 0)
+        return max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE, depth)
+
+    min_left, min_right = _band_depth(left_rooms), _band_depth(right_rooms)
+    balanced = usable * left_target // max(1, left_target + right_target)
+
+    if min_left + min_right <= usable:
+        # Both sides can be served. Start from the area-balanced split, then
+        # slide the spine towards the entry if that still leaves both bands
+        # workable — the entry alignment is a preference, not a licence to
+        # starve a side.
+        left_depth = balanced
+        if spine_x is not None and corridor_vertical:
+            left_depth = spine_x - envelope.x - corridor_width // 2
+        left_depth = max(min_left, min(usable - min_right, left_depth))
+    else:
+        # Over-subscribed: no split gives both sides what they need. Divide in
+        # proportion to what each needs, so the shortfall is shared instead of
+        # the entry position handing one band everything.
+        left_depth = round(usable * min_left / max(1, min_left + min_right))
+        warnings.append(
+            f"This floor needs about {(min_left + min_right) / 1000:.1f} m across "
+            f"the corridor and the footprint gives {usable / 1000:.1f} m. Rooms "
+            "either side were narrowed to fit."
+        )
     left_depth = max(_ABSOLUTE_MIN_DIM, min(usable - _ABSOLUTE_MIN_DIM, left_depth))
     right_depth = usable - left_depth
 

@@ -1,0 +1,714 @@
+<title>Design My House</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@300;400;500;600&display=swap">
+<style>
+:root{--paper:#f6f5f2;--card:#fff;--ink:#191b21;--muted:#666c78;--faint:#8d93a0;
+ --rule:#dcdbd6;--hair:#eae9e5;--accent:#2c4a7c;--accent-soft:#e8edf5;
+ --yes:#2e6b41;--yes-soft:#e6f0e9;--no:#a6412a;--no-soft:#f7eae6;
+ --shadow:0 1px 2px rgba(25,27,33,.05),0 10px 26px -18px rgba(25,27,33,.4)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --paper:#111318;--card:#191c22;--ink:#e9eaec;--muted:#a0a6b2;--faint:#767d8b;
+ --rule:#2a2e37;--hair:#22262e;--accent:#8fb0e0;--accent-soft:#1c2531;
+ --yes:#7cc494;--yes-soft:#17251c;--no:#e2907a;--no-soft:#2a1a16;
+ --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9)}}
+:root[data-theme="dark"]{--paper:#111318;--card:#191c22;--ink:#e9eaec;--muted:#a0a6b2;
+ --faint:#767d8b;--rule:#2a2e37;--hair:#22262e;--accent:#8fb0e0;--accent-soft:#1c2531;
+ --yes:#7cc494;--yes-soft:#17251c;--no:#e2907a;--no-soft:#2a1a16;
+ --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+ font-family:"Public Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+ -webkit-font-smoothing:antialiased}
+.cd-wrap{max-width:820px;margin:0 auto;padding:clamp(1rem,4vw,2.4rem) clamp(.85rem,3vw,1.5rem) 2rem;
+ display:flex;flex-direction:column;gap:1.1rem;min-height:100vh}
+.cd-wrap>*{min-width:0}
+h1{font-family:Chivo,system-ui,sans-serif;font-weight:900;letter-spacing:-.02em;
+ font-size:clamp(1.6rem,5vw,2.4rem);margin:0;line-height:1.05}
+.cd-eyebrow{font-family:"IBM Plex Mono",monospace;text-transform:uppercase;
+ letter-spacing:.13em;font-size:.65rem;color:var(--accent);font-weight:500}
+.cd-intro{margin:.5rem 0 0;color:var(--muted);font-weight:300;max-width:56ch}
+.cd-feed{display:flex;flex-direction:column;gap:.7rem;min-width:0}
+.cd-msg{max-width:88%;padding:.65rem .85rem;border-radius:2px;font-size:.97rem;
+ overflow-wrap:anywhere}
+.cd-bot{align-self:flex-start;background:var(--card);border:1px solid var(--rule);
+ box-shadow:var(--shadow)}
+.cd-you{align-self:flex-end;background:var(--accent-soft);color:var(--ink);
+ border:1px solid var(--rule);font-family:"IBM Plex Mono",monospace;font-size:.86rem}
+.cd-dock{display:flex;flex-wrap:wrap;gap:.5rem;position:sticky;bottom:0;
+ background:linear-gradient(to top,var(--paper) 72%,transparent);padding:.7rem 0 .9rem}
+.cd-opt,.cd-go{font:500 .92rem/1.2 "Public Sans",system-ui,sans-serif;color:var(--ink);
+ background:var(--card);border:1px solid var(--rule);border-radius:2px;
+ padding:.6rem .85rem;cursor:pointer;-webkit-appearance:none}
+.cd-opt:hover,.cd-go:hover{border-color:var(--accent)}
+.cd-opt.cd-on{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
+.cd-go{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+:root:not([data-theme="light"]) .cd-go,:root[data-theme="dark"] .cd-go{color:#111318}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cd-go{color:#111318}}
+.cd-opt:focus-visible,.cd-go:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.cd-lotrow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end;width:100%}
+.cd-f{display:flex;flex-direction:column;gap:.25rem;flex:1 1 120px;min-width:0}
+.cd-lbl{font-family:"IBM Plex Mono",monospace;text-transform:uppercase;
+ letter-spacing:.1em;font-size:.6rem;color:var(--faint)}
+input{font:500 1rem/1.3 "IBM Plex Mono",monospace;color:var(--ink);background:var(--card);
+ border:1px solid var(--rule);border-radius:2px;padding:.55rem .6rem;width:100%}
+.cd-result{background:var(--card);border:1px solid var(--rule);box-shadow:var(--shadow);
+ padding:clamp(.7rem,3vw,1.1rem);display:flex;flex-direction:column;gap:.9rem;min-width:0}
+.cd-sheet{background:#fbfaf7;border:1px solid var(--rule);padding:.35rem;
+ overflow-x:auto;min-width:0;max-width:100%}
+.cd-sheet svg{display:block;min-width:420px}
+.cd-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:.1rem;
+ border:1px solid var(--hair)}
+.cd-stats>div{padding:.5rem .6rem;border-right:1px solid var(--hair);display:flex;
+ flex-direction:column;gap:.15rem;min-width:0}
+.cd-k{font-family:"IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.09em;
+ font-size:.58rem;color:var(--faint)}
+.cd-v{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.95rem}
+.cd-h3{font-family:Chivo,sans-serif;font-size:.95rem;margin:.2rem 0 0;font-weight:700}
+.cd-checks,.cd-rooms{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.cd-checks li{font-size:.87rem;padding-left:1.3rem;position:relative;overflow-wrap:anywhere}
+.cd-checks li::before{position:absolute;left:0;font-family:"IBM Plex Mono",monospace;font-weight:600}
+.cd-ok::before{content:"✓";color:var(--yes)}
+.cd-bad{color:var(--no)}
+.cd-bad::before{content:"!";color:var(--no)}
+.cd-rooms li{display:flex;justify-content:space-between;gap:.8rem;font-size:.86rem;
+ border-bottom:1px solid var(--hair);padding:.28rem 0}
+.cd-num{font-family:"IBM Plex Mono",monospace;color:var(--muted);font-size:.8rem;white-space:nowrap}
+.cd-warn{font-size:.85rem;color:var(--muted);border-left:3px solid var(--no);
+ padding-left:.7rem;margin:.3rem 0 0;font-weight:300}
+</style>
+
+<div class="cd-wrap">
+  <header>
+    <span class="cd-eyebrow">Australia · NCC and state planning</span>
+    <h1>Design my house</h1>
+    <p class="cd-intro">Tell it about your block and what you want in the house.
+      It draws a plan to the rules for your state — setbacks, site cover, ceiling
+      heights, and the pool barrier if you want one.</p>
+  </header>
+  <div class="cd-feed" id="cd-feed"></div>
+  <div class="cd-dock" id="cd-dock"></div>
+</div>
+
+<script>
+/* codraft's layout engine, ported to run in the page.
+   Mirrors src/codraft/layout: footprint sized to the frontage, a front zone
+   across the street, then a corridor spine with rooms either side. Integer
+   millimetres throughout, as in the Python, so a wall that is 3500 long is
+   3500 everywhere. */
+
+const COURSE = 86, PLATE = 26, WALL_ALLOW = 115, MIN_DIM = 900, MAX_FRONTAGE = 16000;
+const CONSTRUCTION = {
+  double_brick: { ext: 230, int: 90 }, brick_veneer: { ext: 240, int: 90 },
+};
+
+const PLANNING = {
+  WA: { name: "Western Australia", zoned: true, construction: "double_brick",
+        cover: { R20:.5, R25:.5, R30:.55, R40:.6, R60:.7, R80:.75 },
+        outdoor: { R20:30, R25:30, R30:24, R40:20, R60:16, R80:12 },
+        front: { R20:6000, R25:6000, R30:4000, R40:4000, R60:2000, R80:2000 },
+        rear: 1000, side: 1000, code: "R-Codes (SPP 7.3)", livable: false },
+  VIC: { name: "Victoria", zoned: false, construction: "brick_veneer",
+         cover: { default:.6 }, outdoor: { default:25 }, front: { default:6000 },
+         rear: 3000, side: 1000, code: "ResCode Clause 54", livable: true },
+  NSW: { name: "New South Wales", zoned: false, construction: "brick_veneer",
+         cover: { default:.5 }, outdoor: { default:24 }, front: { default:4500 },
+         rear: 3000, side: 900, code: "Codes SEPP Housing Code", livable: false },
+  QLD: { name: "Queensland", zoned: false, construction: "brick_veneer",
+         cover: { default:.5 }, outdoor: { default:24 }, front: { default:6000 },
+         rear: 3000, side: 1500, code: "QDC MP1.1 / MP1.2", livable: true },
+};
+
+const ceilingAt = c => c * COURSE + PLATE;
+const coursesFor = mm => Math.max(0, Math.ceil((mm - PLATE) / COURSE));
+const tileArea = a => a <= 0 ? 0 : Math.pow(Math.round(Math.sqrt(a)) + WALL_ALLOW, 2);
+const tileW = w => w ? w + WALL_ALLOW : 0;
+
+/* ---- the brief becomes rooms ---- */
+function buildProgram(a) {
+  const R = (key, name, fn, area, width, opt = {}) => ({
+    key, name, fn, minArea: area * 1e6, minWidth: width, ...opt });
+  const rooms = [];
+  const upper = a.storeys > 1;
+
+  rooms.push(R("portico", "Portico", "entry", 4, 1500, { zone: "front", storey: 0 }));
+  rooms.push(R("entry", "Entry", "entry", 6, 1500, { zone: "front", storey: 0, solo: true }));
+  rooms.push(R("passage", "Passage", "corridor", 12, a.livable ? 1000 : 1000));
+  rooms.push(R("living", "Living", "living", 24, 3600, { storey: 0 }));
+  rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0 }));
+  rooms.push(R("kitchen", "Kitchen", "kitchen", 12, 3000, { storey: 0 }));
+  rooms.push(R("wip", "WIP", "storage", 4, 1400, { storey: 0 }));
+  rooms.push(R("master", "Master Suite", "bedroom", 16, 3400,
+               upper ? { storey: 1 } : {}));
+  rooms.push(R("wir", "WIR", "storage", 5, 1600, upper ? { storey: 1 } : {}));
+  rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, upper ? { storey: 1 } : {}));
+
+  for (let i = 2; i <= a.bedrooms; i++)
+    rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000, upper ? { storey: 1 } : {}));
+  for (let i = 2; i <= a.bathrooms; i++)
+    rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800,
+                 upper ? { storey: 1 } : {}));
+
+  rooms.push(R("wc", "WC", "wc", 1.8, 900, { storey: 0 }));
+  rooms.push(R("laundry", "Laundry", "utility", 7, 1800, { storey: 0 }));
+  rooms.push(R("linen", "Linen", "storage", 1.5, 600));
+  if (a.theatre) rooms.push(R("theatre", "Theatre", "living", 14, 3400, { zone: "front", storey: 0 }));
+  if (a.study) rooms.push(R("study", "Study", "office", 9, 2700, { storey: 0 }));
+  if (a.alfresco) rooms.push(R("alfresco", "Alfresco", "alfresco", 15, 3000, { storey: 0 }));
+  if (a.garage) {
+    rooms.push(R("garage", a.garage === 1 ? "Garage" : "Double Garage", "garage",
+                 a.garage === 1 ? 20 : 36, 3200, { zone: "front", storey: 0, solo: true }));
+    rooms.push(R("store", "Store", "storage", 4, 1500, { zone: "front", storey: 0 }));
+  }
+  if (a.storeys > 1) rooms.push(R("stair", "Stair", "stair", 10, 2200, { storey: 0 }));
+  return rooms;
+}
+
+const HABITABLE = new Set(["bedroom","living","dining","kitchen","office"]);
+const WET = new Set(["bathroom","wc","kitchen","utility"]);
+const CIRC = new Set(["corridor","entry","stair","lobby"]);
+const target = r => tileArea(r.minArea);
+
+/* ---- rooms onto storeys ---- */
+function assignStoreys(rooms, storeys) {
+  if (storeys === 1) return rooms.map(r => ({ ...r, at: 0 }));
+  const out = [], load = new Array(storeys).fill(0);
+  const ground = new Set(["entry","living","dining","kitchen","garage","alfresco","utility"]);
+  for (const r of rooms) {
+    if (r.storey != null) { out.push({ ...r, at: Math.min(r.storey, storeys - 1) }); continue; }
+    if (CIRC.has(r.fn)) continue;                       // replicated below
+    if (ground.has(r.fn)) { out.push({ ...r, at: 0 }); load[0] += target(r); continue; }
+    let best = 1;
+    for (let i = 1; i < storeys; i++) if (load[i] < load[best]) best = i;
+    out.push({ ...r, at: best }); load[best] += target(r);
+  }
+  for (const r of rooms) {
+    if (!CIRC.has(r.fn) || r.fn === "entry" || r.storey != null) continue;
+    for (let s = 0; s < storeys; s++) out.push({ ...r, key: r.key + "_l" + s, at: s });
+  }
+  return out;
+}
+
+/* ---- fitting rooms along a band ---- */
+function apportion(spans, floors, total) {
+  const sizes = spans.slice();
+  for (let pass = 0; pass < sizes.length * 2 + 2; pass++) {
+    const deficit = sizes.reduce((s, v, i) => s + Math.max(0, floors[i] - v), 0);
+    if (deficit <= 0) break;
+    const donors = sizes.map((v, i) => v > floors[i] ? i : -1).filter(i => i >= 0);
+    const slack = donors.reduce((s, i) => s + sizes[i] - floors[i], 0);
+    if (!donors.length || slack <= 0) break;
+    for (const i of donors)
+      sizes[i] -= Math.min(sizes[i] - floors[i], Math.floor((sizes[i] - floors[i]) * deficit / slack));
+    for (let i = 0; i < sizes.length; i++) sizes[i] = Math.max(sizes[i], floors[i]);
+  }
+  let over = sizes.reduce((a, b) => a + b, 0) - total;
+  if (over > 0) {
+    // Take the excess from whatever sits above its own floor, most slack first.
+    const order = sizes.map((v, i) => i).sort((a, b) => (sizes[b] - floors[b]) - (sizes[a] - floors[a]));
+    for (const i of order) { if (over <= 0) break;
+      const give = Math.min(over, Math.max(0, sizes[i] - floors[i])); sizes[i] -= give; over -= give; }
+    // Still over means the storey is genuinely over-subscribed. Shrink every row
+    // by the same proportion so the shortfall is shared, rather than crushing
+    // whichever rows happen to sort last down to nothing.
+    if (over > 0) {
+      const tot = sizes.reduce((a, b) => a + b, 0);
+      const k = Math.max(0, tot - over) / Math.max(1, tot);
+      for (let i = 0; i < sizes.length; i++) sizes[i] = Math.max(MIN_DIM, Math.floor(sizes[i] * k));
+      let diff = sizes.reduce((a, b) => a + b, 0) - total;
+      for (let i = 0; diff > 0 && i < sizes.length; i++) {
+        const g = Math.min(diff, Math.max(0, sizes[i] - MIN_DIM)); sizes[i] -= g; diff -= g; }
+    }
+  } else if (over < 0 && sizes.length) {
+    let big = 0; sizes.forEach((v, i) => { if (v > sizes[big]) big = i; });
+    sizes[big] += -over;
+  }
+  return sizes;
+}
+
+function stack(rooms, band, alongY) {
+  if (!rooms.length) return [];
+  const span = alongY ? band.h : band.w, depth = alongY ? band.w : band.h;
+  const rows = [];
+  for (let i = 0; i < rooms.length;) {
+    const r = rooms[i], t = target(r) || 1, s = Math.floor(t / Math.max(1, depth));
+    const thin = s > 0 && depth / s > 2.2;
+    if (thin && !r.solo && i + 1 < rooms.length) {
+      const n = rooms[i + 1], nt = target(n) || 1, ns = Math.floor(nt / Math.max(1, depth));
+      if (!n.solo && ns > 0 && depth / ns > 2.2 &&
+          tileW(r.minWidth) + tileW(n.minWidth) <= depth && depth >= 2 * (MIN_DIM + WALL_ALLOW)) {
+        rows.push({ rooms: [r, n], t: t + nt }); i += 2; continue;
+      }
+    }
+    rows.push({ rooms: [r], t }); i += 1;
+  }
+  const totals = rows.reduce((s, r) => s + r.t, 0) || 1;
+  const spans = rows.map(r => Math.max(1, Math.floor(span * r.t / totals)));
+  const floors = rows.map(row => {
+    let need = MIN_DIM + WALL_ALLOW;
+    for (const r of row.rooms) need = Math.max(need, tileW(r.minWidth));
+    const share = Math.floor(depth / Math.max(1, row.rooms.length));
+    for (const r of row.rooms) if (r.minArea)
+      need = Math.max(need, Math.ceil(tileArea(r.minArea) / Math.max(1, share)));
+    return need;
+  });
+  const sizes = apportion(spans, floors, span);
+  const placed = []; let cursor = alongY ? band.y : band.x;
+  rows.forEach((row, i) => {
+    const s = sizes[i];
+    if (row.rooms.length === 1) {
+      placed.push({ r: row.rooms[0], rect: alongY
+        ? { x: band.x, y: cursor, w: band.w, h: s } : { x: cursor, y: band.y, w: s, h: band.h } });
+    } else {
+      const [a, b] = row.rooms, ta = target(a) || 1, tb = target(b) || 1;
+      let da = Math.floor(depth * ta / (ta + tb));
+      da = Math.max(tileW(a.minWidth) || MIN_DIM, Math.min(depth - (tileW(b.minWidth) || MIN_DIM), da));
+      const db = depth - da;
+      if (alongY) {
+        placed.push({ r: a, rect: { x: band.x, y: cursor, w: da, h: s } });
+        placed.push({ r: b, rect: { x: band.x + da, y: cursor, w: db, h: s } });
+      } else {
+        placed.push({ r: a, rect: { x: cursor, y: band.y, w: s, h: da } });
+        placed.push({ r: b, rect: { x: cursor, y: band.y + da, w: s, h: db } });
+      }
+    }
+    cursor += s;
+  });
+  return placed;
+}
+
+/* ---- one storey ---- */
+function layoutStorey(rooms, env, storeyIndex) {
+  if (!rooms.length) return [];
+  let cells = [], spineX = null, envelope = env;
+
+  if (storeyIndex === 0) {
+    const front = rooms.filter(r => r.zone === "front");
+    const garage = front.find(r => r.fn === "garage");
+    if (garage && front.length >= 2) {
+      const widthShare = Math.max(tileW(garage.minWidth), 5600);
+      let depth = Math.max(6000 + WALL_ALLOW, Math.ceil(target(garage) / widthShare));
+      depth = Math.min(depth, Math.floor(env.h / 3));
+      const frontArea = front.reduce((s, r) => s + (target(r) || 0), 0);
+      if (frontArea < env.w * depth * 0.75)
+        depth = Math.min(Math.max(6000 + WALL_ALLOW, Math.ceil(frontArea / env.w)), Math.floor(env.h / 3));
+      if (depth >= 5000 && env.h - depth >= MIN_DIM * 3) {
+        const strip = { x: env.x, y: env.y, w: env.w, h: depth };
+        front.sort((a, b) => (a.fn === "garage" ? 0 : 1) - (b.fn === "garage" ? 0 : 1));
+        cells = stack(front, strip, false).map(p => ({ ...p, at: 0 }));
+        const entry = cells.find(c => c.r.key === "entry") || cells.find(c => c.r.fn === "entry");
+        if (entry) spineX = entry.rect.x + Math.floor(entry.rect.w / 2);
+        envelope = { x: env.x, y: env.y + depth, w: env.w, h: env.h - depth };
+        rooms = rooms.filter(r => r.zone !== "front");
+      }
+    }
+  }
+  if (!rooms.length) return cells;
+
+  const corridor = rooms.find(r => r.fn === "corridor");
+  const others = rooms.filter(r => r !== corridor);
+  if (!corridor || others.length <= 2)
+    return cells.concat(stack(rooms, envelope, envelope.h >= envelope.w).map(p => ({ ...p, at: storeyIndex })));
+
+  let vertical = envelope.h >= envelope.w;
+  if (spineX != null) vertical = true;
+  let cw = Math.max(corridor.minWidth, 1000) + WALL_ALLOW;
+  const cross = vertical ? envelope.w : envelope.h;
+  if (cw >= cross - 2 * MIN_DIM) cw = Math.max(1000, Math.floor((cross - 2 * MIN_DIM) / 3));
+
+  // balance the two bands, then pull the spine to the entry if there is one
+  const sorted = others.slice().sort((a, b) => target(b) - target(a));
+  const L = [], Rr = []; let la = 0, ra = 0;
+  for (const r of sorted) { if (la <= ra) { L.push(r); la += target(r) || 1; } else { Rr.push(r); ra += target(r) || 1; } }
+  const usable = cross - cw;
+  const run = vertical ? envelope.h : envelope.w;
+
+  // How deep a band has to be before the rooms on that side are usable: deep
+  // enough to hold their area along the run, and never narrower than the widest
+  // room's minimum. Without this the spine can be pulled hard to one side and
+  // leave seven rooms fighting over 1.8 m.
+  const bandDepth = rs => {
+    if (!rs.length) return 0;
+    const area = rs.reduce((t, r) => t + (target(r) || 0), 0);
+    let d = Math.ceil(area / Math.max(1, run));
+    for (const r of rs) d = Math.max(d, tileW(r.minWidth) || 0);
+    return Math.max(MIN_DIM + WALL_ALLOW, d);
+  };
+  const minL = bandDepth(L), minR = bandDepth(Rr);
+  const balanced = Math.floor(usable * la / Math.max(1, la + ra));
+
+  let ld;
+  if (minL + minR <= usable) {
+    // Both sides can be served. Start from the area-balanced split, then slide
+    // the spine towards the front door if that still leaves both bands workable.
+    ld = balanced;
+    if (spineX != null && vertical) ld = spineX - envelope.x - Math.floor(cw / 2);
+    ld = Math.max(minL, Math.min(usable - minR, ld));
+  } else {
+    // The storey is over-subscribed: no split gives both sides what they need.
+    // Divide in proportion to what each side needs so the shortfall is shared,
+    // instead of letting the door position hand one band everything.
+    ld = Math.round(usable * minL / Math.max(1, minL + minR));
+  }
+  ld = Math.max(MIN_DIM, Math.min(usable - MIN_DIM, ld));
+  const rd = usable - ld;
+
+  const order = rs => rs.slice().sort((a, b) =>
+    ({entry:0, stair:1, living:2}[a.fn] ?? 5) - ({entry:0, stair:1, living:2}[b.fn] ?? 5));
+  let placed = [], corridorRect;
+  if (vertical) {
+    corridorRect = { x: envelope.x + ld, y: envelope.y, w: cw, h: envelope.h };
+    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true)
+      .concat(stack(order(Rr), { x: corridorRect.x + cw, y: envelope.y, w: rd, h: envelope.h }, true));
+  } else {
+    corridorRect = { x: envelope.x, y: envelope.y + ld, w: envelope.w, h: cw };
+    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false)
+      .concat(stack(order(Rr), { x: envelope.x, y: corridorRect.y + cw, w: envelope.w, h: rd }, false));
+  }
+  return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })),
+                      [{ r: corridor, rect: corridorRect, at: storeyIndex }]);
+}
+
+/* ---- the whole design ---- */
+function design(a) {
+  const P = PLANNING[a.state];
+  const zone = P.zoned ? a.zone : "default";
+  const pick = t => t[zone] != null ? t[zone] : t.default;
+  const setbacks = { front: pick(P.front), rear: P.rear, side: P.side };
+  const lot = { w: a.lotW, d: a.lotD, area: a.lotW * a.lotD };
+  const env = { x: setbacks.side, y: setbacks.front,
+                w: lot.w - setbacks.side * 2, h: lot.d - setbacks.front - setbacks.rear };
+  if (env.w < MIN_DIM * 2 || env.h < MIN_DIM * 2)
+    return { error: "The setbacks leave almost nothing to build on. Check the block size." };
+
+  a.livable = P.livable;
+  const rooms = buildProgram(a);
+  const placedRooms = assignStoreys(rooms, a.storeys);
+  const maxCover = pick(P.cover);
+  const perStorey = [];
+  for (let s = 0; s < a.storeys; s++)
+    perStorey.push(placedRooms.filter(r => r.at === s).reduce((t, r) => t + (target(r) || 0), 0));
+  let needed = Math.round(Math.max(...perStorey) * 1.14);
+  const wanted = needed;                       // what the brief asks for, per storey
+  const cap = Math.floor(lot.area * maxCover); // planning cover cap
+  const envArea = env.w * env.h;               // what the setbacks physically leave
+  const notes = [];
+
+  // Two different things can hold the house back, and they are not the same
+  // constraint: the cover cap is a planning rule, the envelope is the block
+  // itself once the setbacks are taken off. Name whichever one actually binds.
+  const limit = Math.min(cap, envArea);
+  if (wanted > limit) {
+    needed = limit;
+    if (envArea < cap)
+      notes.push(`The rooms asked for need about ${(wanted/1e6).toFixed(0)} m² a floor. `
+        + `After the ${P.code} setbacks — ${setbacks.front/1000} m front, ${setbacks.rear/1000} m rear, `
+        + `${setbacks.side/1000} m each side — this block leaves ${(envArea/1e6).toFixed(0)} m² to build on. `
+        + `That, not the cover cap, is what limits it.`);
+    else
+      notes.push(`The rooms asked for need about ${(wanted/1e6).toFixed(0)} m² a floor, and ${P.code} `
+        + `caps site cover at ${(maxCover*100).toFixed(0)}% — ${(cap/1e6).toFixed(0)} m². Built to the cap.`);
+  }
+
+  // If the shortfall is severe, a drawing would be a lie: the rooms would come
+  // out at a size nobody can use. Say so instead of drawing it.
+  const briefTotal = perStorey.reduce((t, x) => t + x, 0) * 1.14;
+  const capacity = Math.min(cap, envArea) * a.storeys;
+  if (capacity < briefTotal * 0.7) {
+    const floorsNeeded = Math.ceil(briefTotal / Math.max(1, Math.min(cap, envArea)));
+    return { error: `That brief doesn't fit this block. The rooms come to about `
+      + `${(briefTotal/1e6).toFixed(0)} m², and ${a.lotW/1000} × ${a.lotD/1000} m in ${P.name} gives `
+      + `${(capacity/1e6).toFixed(0)} m² over ${a.storeys} floor${a.storeys>1?"s":""} once the setbacks `
+      + `and the ${(maxCover*100).toFixed(0)}% cover cap are taken off. `
+      + `It would take about ${floorsNeeded} floors, a shorter list of rooms, or a wider block. `
+      + `I'd rather tell you than draw rooms you can't use.` };
+  }
+
+  let fw = Math.min(env.w, MAX_FRONTAGE);
+  let fd = Math.ceil(needed / Math.max(1, fw));
+  if (fd > env.h) { fd = env.h; fw = Math.min(env.w, Math.ceil(needed / Math.max(1, fd))); }
+  fw = Math.max(MIN_DIM * 2, Math.min(env.w, fw));
+  fd = Math.max(MIN_DIM * 2, Math.min(env.h, fd));
+  const foot = { x: env.x + Math.floor((env.w - fw) / 2), y: env.y, w: fw, h: fd };
+
+  const storeys = [];
+  for (let s = 0; s < a.storeys; s++)
+    storeys.push(layoutStorey(placedRooms.filter(r => r.at === s), foot, s));
+
+  const ceiling = ceilingAt(28);
+  const walls = CONSTRUCTION[P.construction];
+  const clear = c => ({ x: c.rect.x + walls.int / 2, y: c.rect.y + walls.int / 2,
+                        w: Math.max(0, c.rect.w - walls.int), h: Math.max(0, c.rect.h - walls.int) });
+  const areas = storeys.map(cells => cells.reduce((t, c) => { const r = clear(c); return t + r.w * r.h; }, 0));
+  const gfa = areas.reduce((a, b) => a + b, 0);
+  const cover = areas[0] / lot.area;
+
+  // Rooms the packer could not give their declared minimum. Say which ones
+  // rather than presenting a squeezed plan as though it were compliant.
+  const tight = [];
+  for (const cells of storeys) for (const c of cells) {
+    if (!HABITABLE.has(c.r.fn)) continue;
+    const r = clear(c), narrow = Math.min(r.w, r.h);
+    if (narrow + WALL_ALLOW < (c.r.minWidth || 0) - 50 || r.w * r.h < c.r.minArea - 5e5)
+      tight.push(`${c.r.name} ${(r.w*r.h/1e6).toFixed(1)} m² at ${narrow} mm wide`);
+  }
+  if (tight.length)
+    notes.push(`These rooms came out under the size they should be — `
+      + `${tight.join("; ")}. The block will take the house, but not this room list at `
+      + `full size on ${a.storeys} floor${a.storeys>1?"s":""}. Drop a room, add a floor, or accept them tight.`);
+
+  // pool in the rear yard
+  let pool = null, poolNote = null;
+  if (a.pool) {
+    const yard = { x: 0, y: foot.y + foot.h, w: lot.w, h: Math.max(0, lot.d - (foot.y + foot.h)) };
+    const [pl, pw] = a.poolSize || [8000, 4000];
+    const ring = 2000, ncz = 900;
+    const needL = pl + ring + ncz, needW = pw + ring + ncz;
+    if (needW <= yard.w && needL <= yard.h) pool = { x: Math.floor(yard.x + (yard.w - pw)/2), y: Math.floor(yard.y + (yard.h - pl)/2), w: pw, h: pl };
+    else if (needL <= yard.w && needW <= yard.h) pool = { x: Math.floor(yard.x + (yard.w - pl)/2), y: Math.floor(yard.y + (yard.h - pw)/2), w: pl, h: pw };
+    else poolNote = `A ${pl/1000}×${pw/1000} m pool needs about ${needL} × ${needW} mm of clear yard once the 1200 mm barrier and its 900 mm non-climbable zone are allowed for. The rear yard is ${yard.w} × ${yard.h} mm. A plunge pool, or the house brought forward.`;
+  }
+
+  return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote },
+           stats: { gfa, cover, maxCover, areas, ceiling, walls, construction: P.construction,
+                    code: P.code, state: P.name, zone: P.zoned ? a.zone : null,
+                    outdoor: (lot.area - areas[0]) / 1e6, minOutdoor: pick(P.outdoor) },
+           clear, notes };
+}
+
+/* ---- drawing the plan ---- */
+const FILL = { alfresco:"#eef6ee", garage:"#f1efe9", storage:"#f4f2ec", corridor:"#f4f1ea",
+  entry:"#f4f1ea", stair:"#f4f1ea", bathroom:"#eaf2f9", wc:"#eaf2f9", utility:"#eaf2f9",
+  kitchen:"#eaf2f9" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function renderPlan(out, storeyIndex) {
+  const { plan, clear, stats } = out;
+  const cells = plan.storeys[storeyIndex] || [];
+  const lot = plan.lot, M = 2200, gap = 3000;
+  const W = lot.w + M * 2, H = lot.d + M * 2 + gap;
+  const p = [];
+  const rect = (r, cls, extra = "") =>
+    `<rect class="${cls}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" ${extra}/>`;
+
+  p.push(rect({ x:0, y:0, w:lot.w, h:lot.d }, "cd-lot"));
+  p.push(rect({ x:plan.setbacks.side, y:plan.setbacks.front,
+                w:lot.w - plan.setbacks.side*2,
+                h:lot.d - plan.setbacks.front - plan.setbacks.rear }, "cd-setback"));
+
+  if (plan.pool && storeyIndex === 0) {
+    const b = { x:plan.pool.x-1000, y:plan.pool.y-1000, w:plan.pool.w+2000, h:plan.pool.h+2000 };
+    p.push(rect({ x:b.x-900, y:b.y-900, w:b.w+1800, h:b.h+1800 }, "cd-ncz"));
+    p.push(rect(b, "cd-barrier"));
+    p.push(rect(plan.pool, "cd-pool"));
+    p.push(`<g transform="translate(${plan.pool.x+plan.pool.w/2},${plan.pool.y+plan.pool.h/2}) scale(1,-1)"><text class="cd-poolt" y="90">POOL</text></g>`);
+  }
+
+  for (const c of cells) {
+    const r = clear(c);
+    p.push(rect(r, "cd-room", `fill="${FILL[c.r.fn] || "#ffffff"}"`));
+  }
+  for (const c of cells) {
+    const r = clear(c), cx = r.x + r.w/2, cy = r.y + r.h/2;
+    const a = (r.w*r.h/1e6).toFixed(1);
+    p.push(`<g transform="translate(${cx},${cy}) scale(1,-1)">
+      <text class="cd-rn" y="-40">${esc(c.r.name)}</text>
+      <text class="cd-ra" y="230">${a} m²</text></g>`);
+  }
+  p.push(rect(plan.foot, "cd-outline"));
+
+  // overall dimensions along the bottom and the left
+  const f = plan.foot, dy = f.y - 1200, dx = f.x - 1200;
+  p.push(`<line class="cd-dim" x1="${f.x}" y1="${dy}" x2="${f.x+f.w}" y2="${dy}"/>`);
+  p.push(`<g transform="translate(${f.x+f.w/2},${dy}) scale(1,-1)"><text class="cd-dt" y="-140">${f.w}</text></g>`);
+  p.push(`<line class="cd-dim" x1="${dx}" y1="${f.y}" x2="${dx}" y2="${f.y+f.h}"/>`);
+  p.push(`<g transform="translate(${dx},${f.y+f.h/2}) scale(1,-1) rotate(-90)"><text class="cd-dt" y="-140">${f.h}</text></g>`);
+
+  const label = plan.storeys.length > 1
+    ? (storeyIndex === 0 ? "Ground floor" : "Floor " + storeyIndex) : "Floor plan";
+  p.push(`<g transform="translate(${lot.w/2},${-1400}) scale(1,-1)"><text class="cd-title">${label}</text></g>`);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;height:auto">
+    <style>
+      .cd-lot{fill:none;stroke:#9aa0a6;stroke-width:26;stroke-dasharray:420 220}
+      .cd-setback{fill:none;stroke:#b4508c;stroke-width:16;stroke-dasharray:160 160}
+      .cd-room{stroke:#14110d;stroke-width:26}
+      .cd-outline{fill:none;stroke:#14110d;stroke-width:56}
+      .cd-pool{fill:#d6ecf7;stroke:#1565c0;stroke-width:30}
+      .cd-barrier{fill:none;stroke:#b8860b;stroke-width:34;stroke-dasharray:260 130}
+      .cd-ncz{fill:none;stroke:#b03030;stroke-width:14;stroke-dasharray:100 120}
+      .cd-rn{font:600 300px system-ui,sans-serif;fill:#14110d;text-anchor:middle}
+      .cd-ra{font:250px system-ui,sans-serif;fill:#6b6357;text-anchor:middle}
+      .cd-poolt{font:700 320px system-ui,sans-serif;fill:#1565c0;text-anchor:middle}
+      .cd-dim{stroke:#b03030;stroke-width:16}
+      .cd-dt{font:600 280px "IBM Plex Mono",monospace;fill:#b03030;text-anchor:middle}
+      .cd-title{font:700 420px Chivo,system-ui,sans-serif;fill:#14110d;text-anchor:middle}
+    </style>
+    <g transform="translate(${M},${lot.d + M}) scale(1,-1)">${p.join("")}</g></svg>`;
+}
+
+
+/* ---- the conversation ---- */
+const A = { state:null, zone:"R20", lotW:null, lotD:null, storeys:null,
+            bedrooms:null, bathrooms:2, garage:2, theatre:false, study:false,
+            alfresco:false, pool:false };
+
+const STEPS = [
+  { id:"state", q:"Where's the block? The state decides which planning rules apply — they're different in each one.",
+    opts:[["WA","Western Australia"],["VIC","Victoria"],["NSW","New South Wales"],["QLD","Queensland"]],
+    set:(v)=>{A.state=v}, say:v=>({WA:"Western Australia",VIC:"Victoria",NSW:"New South Wales",QLD:"Queensland"}[v]) },
+  { id:"zone", q:"What's the R-code on the title? In WA it decides the setbacks and how much of the block you can cover.",
+    when:()=>A.state==="WA", opts:[["R20","R20"],["R25","R25"],["R30","R30"],["R40","R40"],["R60","R60"]],
+    set:v=>{A.zone=v}, say:v=>v },
+  { id:"lot", q:"How big is the block? Frontage first, then depth.", kind:"lot",
+    set:v=>{A.lotW=v[0];A.lotD=v[1]}, say:v=>`${v[0]/1000} m × ${v[1]/1000} m` },
+  { id:"storeys", q:"How many floors?",
+    opts:[["1","Single storey"],["2","Two storeys"],["3","Three storeys"]],
+    set:v=>{A.storeys=+v}, say:v=>v==="1"?"Single storey":v+" storeys" },
+  { id:"bedrooms", q:"How many bedrooms?", opts:[["2","2"],["3","3"],["4","4"],["5","5"]],
+    set:v=>{A.bedrooms=+v}, say:v=>v+" bedrooms" },
+  { id:"bathrooms", q:"And bathrooms? The ensuite counts as one.",
+    opts:[["1","1"],["2","2"],["3","3"]], set:v=>{A.bathrooms=+v}, say:v=>v+" bathrooms" },
+  { id:"garage", q:"Garage?", opts:[["2","Double"],["1","Single"],["0","None"]],
+    set:v=>{A.garage=+v}, say:v=>({"2":"Double garage","1":"Single garage","0":"No garage"}[v]) },
+  { id:"extras", q:"Anything else? Pick as many as you want, then press Done.", kind:"multi",
+    opts:[["theatre","Theatre"],["study","Study"],["alfresco","Alfresco"],["pool","Pool"]],
+    set:v=>{v.forEach(k=>A[k]=true)},
+    say:v=>v.length?v.map(k=>({theatre:"Theatre",study:"Study",alfresco:"Alfresco",pool:"Pool"}[k])).join(", "):"Nothing extra" },
+];
+
+let step = 0, multi = new Set();
+const feed = document.getElementById("cd-feed");
+const dock = document.getElementById("cd-dock");
+
+function bubble(who, html) {
+  const d = document.createElement("div");
+  d.className = "cd-msg cd-" + who;
+  d.innerHTML = html;
+  feed.appendChild(d);
+  d.scrollIntoView({ behavior:"smooth", block:"end" });
+  return d;
+}
+
+function nextStep() {
+  while (step < STEPS.length && STEPS[step].when && !STEPS[step].when()) step++;
+  if (step >= STEPS.length) return finish();
+  const s = STEPS[step];
+  bubble("bot", esc(s.q));
+  dock.innerHTML = "";
+  multi = new Set();
+
+  if (s.kind === "lot") {
+    dock.innerHTML = `<div class="cd-lotrow">
+      <label class="cd-f"><span class="cd-lbl">Frontage (m)</span><input id="cd-lw" type="number" inputmode="decimal" value="15" step="0.1" min="4"></label>
+      <label class="cd-f"><span class="cd-lbl">Depth (m)</span><input id="cd-ld" type="number" inputmode="decimal" value="28" step="0.1" min="6"></label>
+      <button class="cd-go" id="cd-lotok">Use this block</button></div>`;
+    document.getElementById("cd-lotok").onclick = () => {
+      const w = Math.round(parseFloat(document.getElementById("cd-lw").value) * 1000);
+      const d = Math.round(parseFloat(document.getElementById("cd-ld").value) * 1000);
+      if (!(w > 0 && d > 0)) return;
+      answer(s, [w, d]);
+    };
+    return;
+  }
+
+  s.opts.forEach(([v, label]) => {
+    const b = document.createElement("button");
+    b.className = "cd-opt"; b.textContent = label; b.dataset.v = v;
+    b.onclick = () => {
+      if (s.kind === "multi") {
+        multi.has(v) ? multi.delete(v) : multi.add(v);
+        b.classList.toggle("cd-on", multi.has(v));
+      } else answer(s, v);
+    };
+    dock.appendChild(b);
+  });
+  if (s.kind === "multi") {
+    const done = document.createElement("button");
+    done.className = "cd-go"; done.textContent = "Done";
+    done.onclick = () => answer(s, [...multi]);
+    dock.appendChild(done);
+  }
+}
+
+function answer(s, v) {
+  bubble("you", esc(s.say(v)));
+  s.set(v);
+  step++;
+  dock.innerHTML = "";
+  setTimeout(nextStep, 220);
+}
+
+function finish() {
+  dock.innerHTML = "";
+  bubble("bot", "Designing it now, to the rules for that state…");
+  setTimeout(() => {
+    const out = design(A);
+    if (out.error) { bubble("bot", esc(out.error)); return restart(); }
+    showResult(out);
+    restart();
+  }, 350);
+}
+
+function restart() {
+  dock.innerHTML = `<button class="cd-go" id="cd-again">Start again</button>`;
+  document.getElementById("cd-again").onclick = () => {
+    Object.assign(A, { state:null, zone:"R20", lotW:null, lotD:null, storeys:null,
+      bedrooms:null, bathrooms:2, garage:2, theatre:false, study:false, alfresco:false, pool:false });
+    step = 0; feed.innerHTML = ""; nextStep();
+  };
+}
+
+function showResult(out) {
+  const s = out.stats, plan = out.plan;
+  const sheets = plan.storeys.map((_, i) =>
+    `<div class="cd-sheet">${renderPlan(out, i)}</div>`).join("");
+
+  const rows = plan.storeys.flat().map(c => {
+    const r = out.clear(c);
+    return { name:c.r.name, a:r.w*r.h, w:Math.min(r.w,r.h), l:Math.max(r.w,r.h) };
+  }).sort((a,b)=>b.a-a.a);
+
+  const checks = [];
+  const push = (ok, txt) => checks.push({ ok, txt });
+  push(s.cover <= s.maxCover, `Site cover ${(s.cover*100).toFixed(1)}% against ${(s.maxCover*100).toFixed(0)}% allowed — ${s.code}`);
+  push(s.outdoor >= s.minOutdoor, `${s.outdoor.toFixed(0)} m² of open space left, ${s.minOutdoor} m² wanted`);
+  push(s.ceiling >= 2400, `Ceilings ${s.ceiling} mm (28 courses) — the NCC wants 2400`);
+  push(true, `${s.construction === "double_brick" ? "Double brick, 230 mm cavity over a 90 mm leaf" : "Brick veneer, 240 mm external over a 90 mm frame"}`);
+  if (plan.pool) push(true, "Pool barrier 1200 mm with a 900 mm non-climbable zone — AS 1926.1");
+  if (plan.poolNote) push(false, plan.poolNote);
+  out.notes.forEach(n => push(false, n));
+
+  bubble("bot", `Here it is — <b>${(s.gfa/1e6).toFixed(0)} m²</b> over
+    ${plan.storeys.length} floor${plan.storeys.length>1?"s":""} on a
+    ${(plan.lot.area/1e6).toFixed(0)} m² block in ${esc(s.state)}${s.zone?" ("+s.zone+")":""}.`);
+
+  const card = document.createElement("div");
+  card.className = "cd-result";
+  card.innerHTML = `
+    ${sheets}
+    <div class="cd-stats">
+      <div><span class="cd-k">Floor area</span><span class="cd-v">${(s.gfa/1e6).toFixed(0)} m²</span></div>
+      <div><span class="cd-k">Site cover</span><span class="cd-v">${(s.cover*100).toFixed(1)}%</span></div>
+      <div><span class="cd-k">Open space</span><span class="cd-v">${s.outdoor.toFixed(0)} m²</span></div>
+      <div><span class="cd-k">Ceilings</span><span class="cd-v">${s.ceiling} mm</span></div>
+    </div>
+    <h3 class="cd-h3">Checked</h3>
+    <ul class="cd-checks">${checks.map(c =>
+      `<li class="${c.ok?"cd-ok":"cd-bad"}">${esc(c.txt)}</li>`).join("")}</ul>
+    <h3 class="cd-h3">Rooms</h3>
+    <ul class="cd-rooms">${rows.map(r =>
+      `<li><span>${esc(r.name)}</span><span class="cd-num">${(r.a/1e6).toFixed(1)} m² · ${r.w}×${r.l}</span></li>`).join("")}</ul>
+    <p class="cd-warn"><b>This is a concept, not a permit set.</b> It is drawn to the
+      planning controls and the parts of the NCC that can be read off a plan. It has no
+      structural design, no energy assessment, no site survey. A registered building
+      surveyor certifies, an engineer does the footings. Setbacks shown are the state
+      default — a Local Development Plan for your estate may override them.</p>`;
+  feed.appendChild(card);
+  card.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+bubble("bot", "I'll design a house for your block. A few questions about the land and what you want in it, then you'll get a plan drawn to the rules for your state.");
+nextStep();
+
+</script>
