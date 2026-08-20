@@ -175,3 +175,158 @@ def point_on_segment(a: Point, b: Point, t: float) -> Point:
 def manhattan(a: Point, b: Point) -> int:
     """Rectilinear distance -- how a person actually walks a plan."""
     return abs(a.x - b.x) + abs(a.y - b.y)
+
+
+# ---------------------------------------------------------------------------
+# Polygons: because real lots are not rectangles
+# ---------------------------------------------------------------------------
+def polygon_area(points: list[Point]) -> int:
+    """Area by the shoelace formula, always positive.
+
+    A Perth subdivision is full of splayed corners, battle-axe legs and
+    curved frontages surveyed as chords. Treating those as their bounding
+    rectangle overstates the lot by ten or twenty percent, and site cover is
+    a percentage OF the lot -- so the error lands straight in the number the
+    council checks.
+    """
+    if len(points) < 3:
+        return 0
+    total = 0
+    for a, b in zip(points, points[1:] + points[:1]):
+        total += a.x * b.y - b.x * a.y
+    return abs(total) // 2
+
+
+def point_in_polygon(p: Point, polygon: list[Point]) -> bool:
+    """Ray casting. Points exactly on an edge count as inside."""
+    if len(polygon) < 3:
+        return False
+    inside = False
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        if (a.y > p.y) != (b.y > p.y):
+            # x of the edge at this y.
+            crossing = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y)
+            if crossing > p.x:
+                inside = not inside
+    return inside
+
+
+def distance_to_segment(p: Point, a: Point, b: Point) -> float:
+    """Shortest distance from a point to a line segment."""
+    dx, dy = b.x - a.x, b.y - a.y
+    if dx == 0 and dy == 0:
+        return ((p.x - a.x) ** 2 + (p.y - a.y) ** 2) ** 0.5
+    t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    cx, cy = a.x + t * dx, a.y + t * dy
+    return ((p.x - cx) ** 2 + (p.y - cy) ** 2) ** 0.5
+
+
+def polygon_bounds(points: list[Point]) -> Rect:
+    xs = [p.x for p in points]
+    ys = [p.y for p in points]
+    return Rect(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+
+
+def edge_normal(a: Point, b: Point, inside: Point) -> tuple[float, float]:
+    """The outward unit normal of an edge, given a point known to be inside."""
+    dx, dy = b.x - a.x, b.y - a.y
+    length = (dx * dx + dy * dy) ** 0.5 or 1.0
+    nx, ny = dy / length, -dx / length
+    # Flip it if it points towards the interior.
+    mid_x, mid_y = (a.x + b.x) / 2, (a.y + b.y) / 2
+    if (inside.x - mid_x) * nx + (inside.y - mid_y) * ny > 0:
+        nx, ny = -nx, -ny
+    return nx, ny
+
+
+def centroid(points: list[Point]) -> Point:
+    return Point(
+        sum(p.x for p in points) // len(points),
+        sum(p.y for p in points) // len(points),
+    )
+
+
+def largest_inscribed_rect(
+    polygon: list[Point],
+    clearances: list[int],
+    cell: int = 250,
+    min_side: int = 3000,
+) -> Rect | None:
+    """The biggest axis-aligned rectangle that fits inside the setbacks.
+
+    Offsetting a polygon inwards exactly is fiddly and goes wrong on
+    reflex corners, which is exactly where battle-axe lots live. Rasterising
+    the buildable area and taking the largest rectangle inside it is
+    approximate to one cell, robust on any shape, and answers the question a
+    builder is actually asking: what is the biggest rectangle I can put a
+    house in.
+
+    `clearances` gives the setback for each edge, in the same order as the
+    polygon's edges.
+    """
+    if len(polygon) < 3:
+        return None
+    bounds = polygon_bounds(polygon)
+    if bounds.w < min_side or bounds.h < min_side:
+        return None
+
+    inside_point = centroid(polygon)
+    edges = list(zip(polygon, polygon[1:] + polygon[:1]))
+    columns = max(1, bounds.w // cell)
+    rows = max(1, bounds.h // cell)
+    if columns * rows > 4_000_000:      # keep it quick on a huge site
+        cell = max(cell, int((bounds.w * bounds.h / 4_000_000) ** 0.5))
+        columns = max(1, bounds.w // cell)
+        rows = max(1, bounds.h // cell)
+
+    # Mark every cell whose centre is inside the lot and clear of every
+    # boundary by that boundary's setback.
+    grid: list[list[bool]] = []
+    for row in range(rows):
+        y = bounds.y0 + row * cell + cell // 2
+        line: list[bool] = []
+        for column in range(columns):
+            x = bounds.x0 + column * cell + cell // 2
+            p = Point(x, y)
+            ok = point_in_polygon(p, polygon)
+            if ok:
+                for (a, b), clearance in zip(edges, clearances):
+                    if clearance and distance_to_segment(p, a, b) < clearance:
+                        ok = False
+                        break
+            line.append(ok)
+        grid.append(line)
+
+    # Largest rectangle in a binary grid, row by row, by the standard
+    # largest-rectangle-in-a-histogram scan. The stack holds (start column,
+    # height) pairs so the height is never read back out of the array the
+    # scan is still updating.
+    heights = [0] * columns
+    best = (0, 0, 0, 0, 0)   # area, left, right, bottom row, height in rows
+    for row in range(rows):
+        for column in range(columns):
+            heights[column] = heights[column] + 1 if grid[row][column] else 0
+
+        stack: list[tuple[int, int]] = []
+        for column in range(columns + 1):
+            current = heights[column] if column < columns else 0
+            start = column
+            while stack and stack[-1][1] >= current:
+                index, height = stack.pop()
+                area = height * (column - index)
+                if area > best[0]:
+                    best = (area, index, column, row, height)
+                start = index
+            stack.append((start, current))
+
+    area, left, right, row, height = best
+    if area == 0:
+        return None
+    x0 = bounds.x0 + left * cell
+    y0 = bounds.y0 + (row - height + 1) * cell
+    width = (right - left) * cell
+    depth = height * cell
+    if width < min_side or depth < min_side:
+        return None
+    return Rect(x0, y0, width, depth)

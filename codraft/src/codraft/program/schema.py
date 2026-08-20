@@ -34,6 +34,8 @@ class SpaceRequirement:
     needs_exterior_wall: bool = False   # for daylight, ventilation or egress
     storey: int | None = None    # None means the solver may place it anywhere
     priority: int = 5            # 1 is most important; used when space runs out
+    solo: bool = False           # must not share its slice of the floor
+    zone: str = ""               # 'front' puts it across the street frontage
     notes: str = ""
 
     def __post_init__(self) -> None:
@@ -81,6 +83,8 @@ class SpaceRequirement:
             needs_exterior_wall=bool(data.get("needs_exterior_wall", False)),
             storey=data.get("storey"),
             priority=int(data.get("priority", 5)),
+            solo=bool(data.get("solo", False)),
+            zone=str(data.get("zone", "")),
             notes=str(data.get("notes", "")),
         )
 

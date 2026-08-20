@@ -89,7 +89,8 @@ _NUMBER_WORDS = {
 
 _BUILDING_WORDS = {
     "house": "house", "home": "house", "villa": "house", "bungalow": "house",
-    "cottage": "house", "kothi": "house",
+    "cottage": "house", "kothi": "house", "project home": "house",
+    "display home": "house", "duplex": "house",
     "apartment": "apartment", "flat": "apartment", "unit": "apartment",
     "office": "office", "workspace": "office",
     "clinic": "clinic", "surgery": "clinic",

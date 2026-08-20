@@ -18,7 +18,8 @@ from .schema import SpaceProgram, SpaceRequirement
 def _r(key: str, function: Function, *, name: str = "", count: int = 1,
        area: str = "0m2", width: str = "0mm", prefer: str = "",
        adj: tuple[str, ...] = (), away: tuple[str, ...] = (),
-       storey: int | None = None, priority: int = 5) -> SpaceRequirement:
+       storey: int | None = None, priority: int = 5,
+       solo: bool = False, zone: str = "") -> SpaceRequirement:
     return SpaceRequirement(
         key=key,
         name=name or key.replace("_", " ").title(),
@@ -31,6 +32,8 @@ def _r(key: str, function: Function, *, name: str = "", count: int = 1,
         away_from=away,
         storey=storey,
         priority=priority,
+        solo=solo,
+        zone=zone,
     )
 
 
@@ -64,6 +67,106 @@ def house(bedrooms: int = 3, bathrooms: int = 2, storeys: int = 1) -> SpaceProgr
         storeys=storeys,
         source="template",
         notes=["Areas are design practice, not code minimums."],
+    )
+
+
+def au_house(
+    bedrooms: int = 4,
+    bathrooms: int = 2,
+    storeys: int = 1,
+    garage_spaces: int = 2,
+    theatre: bool = True,
+    alfresco: bool = True,
+) -> SpaceProgram:
+    """An Australian project house, in the vocabulary the drawings use.
+
+    Room names and the room list are taken from real permit sets: a master
+    suite with a walk-in robe and ensuite, a passage rather than a corridor,
+    a walk-in pantry off the kitchen, a theatre, an alfresco under the main
+    roof, and a double garage with a store. Areas are ordinary project-home
+    practice -- the NCC sets no minimum floor area for a room in a house, so
+    nothing here is a code figure and none of it should be read as one.
+    """
+    spaces = [
+        _r("portico", Function.ENTRY, name="Portico", area="4m2", width="1.5m",
+           priority=4, storey=0, zone="front"),
+        # The entry must run the full depth of the front zone: it is the only
+        # thing joining the garage and portico at the street to the passage
+        # behind them, and a house whose back half cannot reach the front
+        # door is not a house.
+        _r("entry", Function.ENTRY, name="Entry", area="6m2", width="1.5m",
+           adj=("portico",), priority=1, storey=0, zone="front", solo=True),
+        _r("passage", Function.CORRIDOR, name="Passage", area="12m2", width="1.0m",
+           priority=1),
+        _r("living", Function.LIVING, name="Living", area="24m2", width="3.6m",
+           prefer="32m2", adj=("dining",), priority=1, storey=0),
+        _r("dining", Function.DINING, name="Dining", area="14m2", width="3.0m",
+           prefer="18m2", adj=("kitchen",), priority=2, storey=0),
+        _r("kitchen", Function.KITCHEN, name="Kitchen", area="12m2", width="3.0m",
+           priority=1, storey=0),
+        _r("wip", Function.STORAGE, name="WIP", area="4m2", width="1.4m",
+           adj=("kitchen",), priority=4, storey=0),
+        _r("master", Function.BEDROOM, name="Master Suite", area="16m2",
+           width="3.4m", prefer="18m2", priority=1),
+        _r("wir", Function.STORAGE, name="WIR", area="5m2", width="1.6m",
+           adj=("master",), priority=3),
+        _r("ensuite", Function.BATHROOM, name="Ensuite", area="6m2", width="1.8m",
+           adj=("master",), priority=2),
+        _r("bed", Function.BEDROOM, name="Bed", count=max(1, bedrooms - 1),
+           area="11m2", width="3.0m", prefer="12m2", priority=1),
+        _r("bathroom", Function.BATHROOM, name="Bathroom",
+           count=max(1, bathrooms - 1), area="6m2", width="1.8m", priority=2),
+        _r("wc", Function.WC, name="WC", area="1.8m2", width="0.9m", priority=3),
+        _r("laundry", Function.UTILITY, name="Laundry", area="7m2", width="1.8m",
+           priority=3, storey=0),
+        _r("linen", Function.STORAGE, name="Linen", area="1.5m2", width="0.6m",
+           priority=8),
+    ]
+    if theatre:
+        spaces.append(
+            _r("theatre", Function.LIVING, name="Theatre", area="14m2",
+               width="3.4m", priority=4, storey=0, zone="front")
+        )
+    if alfresco:
+        spaces.append(
+            _r("alfresco", Function.ALFRESCO, name="Alfresco", area="15m2",
+               width="3.0m", adj=("living",), priority=5, storey=0)
+        )
+    if garage_spaces:
+        # 3.0 m per bay plus the room to walk between car and wall.
+        area = 20 if garage_spaces == 1 else 36
+        spaces.append(
+            _r("garage", Function.GARAGE,
+               name="Garage" if garage_spaces == 1 else "Double Garage",
+               area=f"{area}m2", width="3.2m", priority=2, storey=0,
+               # A garage cannot give up half its depth to the room beside
+               # it: two cars need 5.4 by 6.0 m and no less.
+               solo=True, zone="front")
+        )
+        spaces.append(
+            _r("store", Function.STORAGE, name="Store", area="4m2", width="1.5m",
+               adj=("garage",), priority=7, storey=0, zone="front")
+        )
+    if storeys > 1:
+        spaces.append(
+            _r("stair", Function.STAIR, name="Stair", area="10m2", width="2.2m",
+               priority=1, storey=0)
+        )
+
+    return SpaceProgram(
+        name=f"{bedrooms} x {bathrooms} project home",
+        use="residential",
+        spaces=spaces,
+        storeys=storeys,
+        # 31 course brickwork gives about 2.55 m ceilings, which is what a
+        # project home is built to and comfortably over the NCC's 2.4 m.
+        storey_height=2750,
+        source="template",
+        notes=[
+            "Room names follow Australian project-home practice.",
+            "The NCC sets no minimum floor area for a room in a house. These "
+            "areas are ordinary practice, not code figures.",
+        ],
     )
 
 
@@ -181,6 +284,9 @@ def shop(sales_area: int = 120) -> SpaceProgram:
 
 TEMPLATES = {
     "house": house,
+    "au-house": au_house,
+    "australian": au_house,
+    "project-home": au_house,
     "apartment": apartment,
     "office": office,
     "clinic": clinic,

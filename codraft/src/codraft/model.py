@@ -12,7 +12,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable
 
-from .geom import Point, Rect, is_vertical, segment_length
+from .geom import (
+    Point,
+    Rect,
+    centroid,
+    edge_normal,
+    is_vertical,
+    largest_inscribed_rect,
+    polygon_area,
+    polygon_bounds,
+    segment_length,
+)
 
 
 class Function(str, Enum):
@@ -44,10 +54,17 @@ class Function(str, Enum):
     ASSEMBLY = "assembly"
     BALCONY = "balcony"
     COURTYARD = "courtyard"
+    ALFRESCO = "alfresco"      # roofed outdoor living, under the main roof
 
     @property
     def is_circulation(self) -> bool:
         return self in (Function.CORRIDOR, Function.LOBBY, Function.STAIR, Function.ENTRY)
+
+    @property
+    def is_outdoor(self) -> bool:
+        """Roofed but not enclosed. Owed no daylight, and it counts as open
+        space rather than as floor area in most planning codes."""
+        return self in (Function.ALFRESCO, Function.BALCONY, Function.COURTYARD)
 
     @property
     def is_habitable(self) -> bool:
@@ -218,9 +235,18 @@ class Storey:
 
 @dataclass(slots=True)
 class Plot:
-    """The piece of land, and what the local authority says about its edges."""
+    """The piece of land, and what the local authority says about its edges.
 
-    rect: Rect
+    A lot may be given as a rectangle or as a surveyed boundary. Real ones
+    are rarely rectangles: a Perth subdivision is full of splayed corners,
+    battle-axe legs and frontages surveyed as chords, and treating those as
+    their bounding box overstates the land by ten or twenty percent. Site
+    cover is a percentage OF the lot, so that error lands straight in the
+    number the council checks.
+    """
+
+    rect: Rect                                    # the bounding box
+    boundary: list[Point] | None = None           # the surveyed shape, if known
     # Setbacks in millimetres, per side, as the jurisdiction requires them.
     setback_front: int = 0
     setback_rear: int = 0
@@ -228,25 +254,93 @@ class Plot:
     setback_right: int = 0
     # Which side the road is on -- 'south' means the plot fronts southwards.
     road_side: str = "south"
+    _buildable: Rect | None = None                # cached; the search is not free
+
+    @classmethod
+    def from_boundary(cls, points: list[Point], **kwargs) -> "Plot":
+        """Build a lot from its surveyed corners."""
+        if len(points) < 3:
+            raise ValueError("a lot boundary needs at least three corners")
+        return cls(rect=polygon_bounds(points), boundary=list(points), **kwargs)
+
+    @property
+    def is_irregular(self) -> bool:
+        return self.boundary is not None and len(self.boundary) != 4
 
     @property
     def area(self) -> int:
+        """The real area of the land, not of the box it fits in."""
+        if self.boundary:
+            return polygon_area(self.boundary)
         return self.rect.area
+
+    def _road_axis(self) -> tuple[float, float]:
+        """A unit vector pointing from the road into the lot."""
+        return {
+            "south": (0.0, 1.0), "north": (0.0, -1.0),
+            "west": (1.0, 0.0), "east": (-1.0, 0.0),
+        }[self.road_side]
+
+    def edge_setbacks(self) -> list[int]:
+        """The setback that applies to each boundary edge, in edge order.
+
+        Which edge is the frontage is decided by geometry rather than by
+        asking: the edge whose outward normal points at the road is the
+        front, the one opposite is the rear, and the rest are sides.
+        """
+        if not self.boundary:
+            return []
+        inward = self._road_axis()
+        middle = centroid(self.boundary)
+        left_axis = (-inward[1], inward[0])
+
+        setbacks: list[int] = []
+        edges = list(zip(self.boundary, self.boundary[1:] + self.boundary[:1]))
+        for a, b in edges:
+            nx, ny = edge_normal(a, b, middle)
+            facing = -(nx * inward[0] + ny * inward[1])
+            if facing > 0.6:
+                setbacks.append(self.setback_front)
+            elif facing < -0.6:
+                setbacks.append(self.setback_rear)
+            elif nx * left_axis[0] + ny * left_axis[1] > 0:
+                setbacks.append(self.setback_left)
+            else:
+                setbacks.append(self.setback_right)
+        return setbacks
 
     @property
     def buildable(self) -> Rect:
-        """The envelope left after setbacks, measured from the road side."""
+        """The envelope left after setbacks, measured from the road side.
+
+        On a surveyed boundary this is the largest axis-aligned rectangle
+        that clears every edge by its own setback -- which is the question a
+        builder is actually asking about an odd-shaped block.
+        """
+        if self._buildable is not None:
+            return self._buildable
+
+        if self.boundary:
+            found = largest_inscribed_rect(self.boundary, self.edge_setbacks())
+            self._buildable = found or Rect(self.rect.x, self.rect.y, 0, 0)
+            return self._buildable
+
         front, rear = self.setback_front, self.setback_rear
         left, right = self.setback_left, self.setback_right
         if self.road_side == "south":
-            return self.rect.inset_sides(left, front, right, rear)
-        if self.road_side == "north":
-            return self.rect.inset_sides(left, rear, right, front)
-        if self.road_side == "west":
-            return self.rect.inset_sides(front, left, rear, right)
-        if self.road_side == "east":
-            return self.rect.inset_sides(rear, left, front, right)
-        raise ValueError(f"road_side must be a compass point, got {self.road_side!r}")
+            result = self.rect.inset_sides(left, front, right, rear)
+        elif self.road_side == "north":
+            result = self.rect.inset_sides(left, rear, right, front)
+        elif self.road_side == "west":
+            result = self.rect.inset_sides(front, left, rear, right)
+        elif self.road_side == "east":
+            result = self.rect.inset_sides(rear, left, front, right)
+        else:
+            raise ValueError(
+                f"road_side must be a compass point, got {self.road_side!r}"
+            )
+        self._buildable = result
+        return result
 
 
 @dataclass(slots=True)

@@ -22,7 +22,7 @@ from pathlib import Path
 from . import __version__, codes
 from .export import write_dxf, write_ifc, write_model_json, write_svg
 from .services import design_electrical, design_plumbing
-from .geom import Rect
+from .geom import Point, Rect
 from .ingest import PdfError, read_pdf
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
@@ -99,6 +99,24 @@ def _fail(message: str) -> int:
     return 1
 
 
+def _parse_boundary(text: str) -> list[Point]:
+    """Read a surveyed boundary: 'x,y x,y x,y ...' in millimetres.
+
+    Corner coordinates come off a survey plan, which is where they should
+    come from. Deriving a lot's shape from anything else means guessing at
+    the one document that is definitive about it.
+    """
+    points: list[Point] = []
+    for chunk in text.replace(";", " ").split():
+        if "," not in chunk:
+            raise UnitError(f"{chunk!r} is not an x,y pair")
+        x, _, y = chunk.partition(",")
+        points.append(Point(mm(x.strip()), mm(y.strip())))
+    if len(points) < 3:
+        raise UnitError("a lot boundary needs at least three corners")
+    return points
+
+
 def _plot_from(args, brief) -> tuple[int, int] | None:
     if args.plot:
         try:
@@ -153,6 +171,31 @@ def cmd_plan(args) -> int:
             "will not draw a plan and imply it was."
         )
 
+
+    # An Australian house is a different brief from a generic one: a master
+    # suite with a walk-in robe, a passage rather than a corridor, an
+    # alfresco under the main roof and a double garage across the frontage.
+    # Once the jurisdiction is known, use the vocabulary the drawings there
+    # actually use.
+    if (
+        jurisdiction.country == "AU"
+        and program.use == "residential"
+        and program.source in ("brief", "template")
+        and program.get("living") is not None
+        and program.get("master") is None
+    ):
+        bedrooms = sum(
+            r.count for r in program.spaces if r.function.value == "bedroom"
+        )
+        baths = sum(
+            r.count for r in program.spaces if r.function.value == "bathroom"
+        )
+        program = template(
+            "au-house", bedrooms=max(2, bedrooms), bathrooms=max(1, baths),
+            storeys=program.storeys,
+        )
+        print("Using the Australian project-home vocabulary.\n")
+
     site = {
         key: value
         for key, value in codes.site_parameters(
@@ -168,14 +211,25 @@ def cmd_plan(args) -> int:
             "'5 marla') or pass --plot 12mx18m."
         )
 
-    plot = Plot(
-        rect=Rect(0, 0, size[0], size[1]),
+    setbacks = dict(
         setback_front=int(site.get("setback_front_mm", 0)),
         setback_rear=int(site.get("setback_rear_mm", 0)),
         setback_left=int(site.get("setback_left_mm", 0)),
         setback_right=int(site.get("setback_right_mm", 0)),
         road_side=args.road,
     )
+    if args.boundary:
+        try:
+            plot = Plot.from_boundary(_parse_boundary(args.boundary), **setbacks)
+        except (UnitError, ValueError) as exc:
+            return _fail(str(exc))
+        if plot.buildable.area == 0:
+            return _fail(
+                "no rectangle of a usable size fits inside that boundary once "
+                "the setbacks are taken off. Check the corners and the zone."
+            )
+    else:
+        plot = Plot(rect=Rect(0, 0, size[0], size[1]), **setbacks)
     coverage = site.get("max_coverage_ratio")
     max_footprint = int(plot.area * float(coverage)) if coverage else None
 
@@ -224,6 +278,12 @@ def cmd_plan(args) -> int:
         jurisdiction=jurisdiction.key, design=design,
     )
 
+    if plot.boundary:
+        print(f"Lot          : {fmt_area(plot.area)} surveyed "
+              f"({len(plot.boundary)} corners); its bounding box is "
+              f"{fmt_area(plot.rect.area)}")
+        print(f"Buildable    : {plot.buildable.w} x {plot.buildable.h} mm, the "
+              "largest rectangle clearing every boundary by its setback")
     print(f"Plot         : {fmt_area(plot.area)}")
     print(f"Footprint    : {fmt_area(building.footprint)} "
           f"({building.coverage_ratio * 100:.0f}% coverage)")
@@ -368,7 +428,6 @@ def _resolve_plot(args, program_use: str = "residential"):
         jurisdiction = codes.resolve(args.location or "")
     except codes.JurisdictionError as exc:
         return None, None, None, str(exc)
-
     site = {
         k: v
         for k, v in codes.site_parameters(jurisdiction, program_use, args.zone).items()
@@ -378,23 +437,33 @@ def _resolve_plot(args, program_use: str = "residential"):
     text = (args.lot or "").lower().replace("×", "x")
     width, _, depth = text.partition("x")
     if not depth:
-        return None, None, None, (
-            "give the lot size as --lot 15mx32m or --lot 50x105ft"
-        )
+        if getattr(args, "boundary", None):
+            width, depth = "1m", "1m"   # unused; the boundary decides
+        else:
+            return None, None, None, (
+                "give the lot size as --lot 15mx32m, or the surveyed corners "
+                "as --boundary"
+            )
     try:
         unit = "".join(c for c in depth if c.isalpha()) or "m"
         size = (mm(width.strip(), unit), mm(depth.strip()))
     except UnitError as exc:
         return None, None, None, str(exc)
 
-    plot = Plot(
-        rect=Rect(0, 0, *size),
+    setbacks = dict(
         setback_front=int(site.get("setback_front_mm", 0)),
         setback_rear=int(site.get("setback_rear_mm", 0)),
         setback_left=int(site.get("setback_left_mm", 0)),
         setback_right=int(site.get("setback_right_mm", 0)),
         road_side=args.road,
     )
+    if getattr(args, "boundary", None):
+        try:
+            plot = Plot.from_boundary(_parse_boundary(args.boundary), **setbacks)
+        except (UnitError, ValueError) as exc:
+            return None, None, None, str(exc)
+    else:
+        plot = Plot(rect=Rect(0, 0, *size), **setbacks)
     return plot, jurisdiction, site, None
 
 
@@ -473,8 +542,14 @@ def cmd_fit(args) -> int:
     if error:
         return _fail(error)
 
-    print(f"Lot          : {plot.rect.w} x {plot.rect.h} mm "
-          f"({plot.area / 1e6:.0f} m²), fronting {plot.road_side}")
+    if plot.boundary:
+        print(f"Lot          : {len(plot.boundary)} corners, "
+              f"{plot.area / 1e6:.0f} m² surveyed "
+              f"(bounding box {plot.rect.area / 1e6:.0f} m²), "
+              f"fronting {plot.road_side}")
+    else:
+        print(f"Lot          : {plot.rect.w} x {plot.rect.h} mm "
+              f"({plot.area / 1e6:.0f} m²), fronting {plot.road_side}")
     print(f"Jurisdiction : {jurisdiction.label}")
     if args.zone:
         print(f"Zone         : {args.zone}")
@@ -763,6 +838,14 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--program", help="a JSON space program instead of a brief")
     plan.add_argument("--location", help="override the location read from the brief")
     plan.add_argument("--plot", help="plot size, e.g. 12mx18m or 40x60ft")
+    plan.add_argument(
+        "--boundary",
+        help="a surveyed lot boundary as x,y pairs in mm: "
+             "'0,0 19783,0 22390,9465 0,12000'. Use this for anything that is "
+             "not a rectangle -- splayed corners, battle-axe legs, curved "
+             "frontages. The bounding box overstates such a lot badly, and "
+             "site cover is a percentage of the lot.",
+    )
     plan.add_argument("--storeys", type=int, help="override the storey count")
     plan.add_argument("--road", default="south",
                       choices=("south", "north", "east", "west"),
@@ -805,7 +888,12 @@ def build_parser() -> argparse.ArgumentParser:
     fit = subs.add_parser(
         "fit", help="which of the builder's designs go on this block"
     )
-    fit.add_argument("--lot", required=True, help="lot size, e.g. 15mx32m")
+    fit.add_argument("--lot", help="lot size, e.g. 15mx32m")
+    fit.add_argument(
+        "--boundary",
+        help="surveyed corners as x,y pairs in mm, for a lot that is not a "
+             "rectangle",
+    )
     fit.add_argument("--location", required=True, help="city, state or country")
     fit.add_argument("--zone", help="density or planning code, e.g. R20")
     fit.add_argument("--road", default="south",

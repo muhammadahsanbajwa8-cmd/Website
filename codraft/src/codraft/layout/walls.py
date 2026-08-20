@@ -37,6 +37,19 @@ EXTERIOR_THICKNESS = 230   # one brick, rendered both faces
 INTERIOR_THICKNESS = 115   # half brick
 PARTY_THICKNESS = 230
 
+# Construction systems, because a wall's thickness is regional practice and
+# it changes every room dimension in the plan. Perth builds double brick;
+# the eastern states build brick veneer over a frame. Taking one for the
+# other puts every room out by 30 to 40 mm, which is enough to fail a
+# minimum that the design would otherwise have met.
+CONSTRUCTION = {
+    "solid_masonry":  {"exterior": 230, "interior": 115},
+    "double_brick":   {"exterior": 250, "interior": 110},
+    "brick_veneer":   {"exterior": 240, "interior": 90},
+    "timber_frame":   {"exterior": 200, "interior": 90},
+    "steel_frame":    {"exterior": 200, "interior": 90},
+}
+
 # Structural door widths. The clear width a code measures is narrower by the
 # leaf thickness -- see Opening.clear_width.
 DOOR_WIDTHS = {
@@ -105,7 +118,11 @@ def _subtract(span: tuple[int, int], covered: list[tuple[int, int]]) -> list[tup
 
 
 def _walls_for_storey(
-    cells: list[Cell], storey_index: int, height: int
+    cells: list[Cell],
+    storey_index: int,
+    height: int,
+    exterior_mm: int = EXTERIOR_THICKNESS,
+    interior_mm: int = INTERIOR_THICKNESS,
 ) -> tuple[list[Wall], dict[tuple[str, str], str]]:
     """Every wall on one floor, and an index of which rooms each separates."""
     walls: list[Wall] = []
@@ -125,7 +142,7 @@ def _walls_for_storey(
             id=wall_id(),
             start=edge[0],
             end=edge[1],
-            thickness=INTERIOR_THICKNESS,
+            thickness=interior_mm,
             kind=kind,
             storey=storey_index,
             height=height,
@@ -168,7 +185,7 @@ def _walls_for_storey(
                         id=wall_id(),
                         start=start,
                         end=end,
-                        thickness=EXTERIOR_THICKNESS,
+                        thickness=exterior_mm,
                         kind=WallKind.EXTERIOR,
                         storey=storey_index,
                         height=height,
@@ -415,6 +432,8 @@ def _openings_for_storey(
             continue
         if cell.function.is_circulation and cell.function is not Function.STAIR:
             continue
+        if cell.function.is_outdoor:
+            continue   # roofed but open on at least one side
 
         wall = max(exterior, key=lambda w: w.length)
         # Order matters: a kitchen is both wet and habitable, and it is the
@@ -575,6 +594,12 @@ def build_building(
     than drawn to a default and failed against it afterwards.
     """
     design = design or {}
+    system = str(design.get("construction", "") or "")
+    thicknesses = CONSTRUCTION.get(system, {})
+    exterior_mm = int(design.get("wall_exterior_mm")
+                      or thicknesses.get("exterior", EXTERIOR_THICKNESS))
+    interior_mm = int(design.get("wall_interior_mm")
+                      or thicknesses.get("interior", INTERIOR_THICKNESS))
     building = Building(
         name=name or program.name,
         plot=plot,
@@ -588,7 +613,9 @@ def build_building(
         if not cells:
             continue
         height = layout.storey_height
-        walls, between = _walls_for_storey(cells, index, height)
+        walls, between = _walls_for_storey(
+            cells, index, height, exterior_mm, interior_mm
+        )
         clear = {cell.key: _clear_rect(cell, walls) for cell in cells}
         openings = _openings_for_storey(
             cells, walls, between, index, plot, clear, warnings, program.use, design

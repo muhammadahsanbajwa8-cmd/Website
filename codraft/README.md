@@ -302,6 +302,59 @@ plan is drawn *trying* to comply, and the engine still checks whether it
 managed. Nine became zero, and the same brief now produces a materially
 different building in each place.
 
+## Australia, end to end
+
+Ask for a house in Australia and you get an Australian house: the vocabulary the
+permit sets use, the construction the state builds in, and the lot shape the
+survey actually shows.
+
+```
+$ codraft plan "4 bed 2 bath house in Perth" --plot 17mx32m --zone R20
+
+Using the Australian project-home vocabulary.
+Design targets: glazing_ratio=0.1, ventilation_ratio=0.05,
+                stair_going_max=355, construction=double_brick
+
+    Double Garage     45.4 m²    Master Suite   18.2 m²    Alfresco   16.0 m²
+    Theatre           20.1 m²    WIP             7.1 m²    Portico     5.2 m²
+```
+
+**Vocabulary.** Master Suite, WIR, Ensuite, WIP, Passage, Alfresco, Portico,
+Theatre, Double Garage, Store, Linen — taken from real permit sets, not
+translated from somewhere else.
+
+**Construction.** Perth builds double brick (110 mm internal leaf, 250 mm
+external); the eastern states build brick veneer (90 / 240). Taking one for the
+other puts every room out by 30–40 mm, which is enough to fail a minimum the
+design would otherwise have met. The state's pack declares which, as regional
+practice rather than as code.
+
+**The front zone.** A project home does not hang its garage off the same passage
+as the bedrooms. The garage, portico, entry, theatre and store sit across the
+street frontage — the template says which rooms those are explicitly, because a
+theatre and a living room are the same *function* and only one belongs there —
+and the passage runs back from the entry into the house. Before that existed the
+back half of the plan had no route to the front door, and fifteen rooms failed
+the egress check.
+
+**Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
+legs and frontages surveyed as chords:
+
+```
+$ codraft fit --boundary "0,0 19783,0 22390,9465 9465,18000 0,12000" \
+              --location Perth --zone R20
+
+Lot          : 5 corners, 307 m² surveyed (bounding box 403 m²)
+Buildable    : 16750 x 5500 mm (92 m²) after setbacks
+```
+
+307 m² against a 403 m² bounding box — a 31% overstatement, landing straight in
+site cover, which is a percentage *of the lot*. The buildable area is the
+largest rectangle clearing every boundary by its own setback, found by
+rasterising rather than by offsetting the polygon, because offsetting goes wrong
+on exactly the reflex corners battle-axe lots are made of. Which edge is the
+frontage is decided by geometry, not by asking.
+
 ## Fit the builder's range first, generate second
 
 A volume builder does not want a house invented for every enquiry. They sell a
@@ -428,7 +481,7 @@ the Approved Documents, which do not apply in Scotland at all.
 python3 -m unittest discover -s tests -t .
 ```
 
-98 tests. The ones worth knowing about: the solver's tiles must fill the
+112 tests. The ones worth knowing about: the solver's tiles must fill the
 footprint exactly and never overlap (walls are derived from those adjacencies,
 so a gap becomes a wall with nothing behind it); every dimension chain must add
 up to its overall; no room may ever be left without a route to an exit; every

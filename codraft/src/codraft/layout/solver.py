@@ -78,6 +78,11 @@ _WALL_ALLOWANCE = 115
 # instead, two abreast.
 _MAX_ASPECT = 2.2
 
+# Wider than this and the roof spans, the corridor runs and the structure all
+# start costing more than the frontage is worth. Project homes cluster just
+# under it.
+MAX_FRONTAGE = 16000
+
 
 def _tile_width(req: SpaceRequirement) -> int:
     """The tile dimension that leaves `min_width` clear inside the walls."""
@@ -230,14 +235,27 @@ class _Row:
 
     rooms: list[tuple[str, SpaceRequirement]]
     target: int
+    depth: int = 0
 
-    @property
     def min_span(self) -> int:
-        """How long the row must be, whatever else happens."""
-        return max(
-            max(_tile_width(req) for _, req in self.rooms),
-            _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE,
-        )
+        """How long the row must be, whatever else happens.
+
+        Both the narrowest dimension a room needs AND the length its area
+        needs at this band depth. Flooring only on width is how a double
+        garage that asked for 36 m² comes out at 21 -- wide enough on paper,
+        and too short to put two cars in.
+        """
+        needed = _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE
+        for _, req in self.rooms:
+            needed = max(needed, _tile_width(req))
+        if self.depth > 0:
+            # Rooms sharing a row split the depth, so each needs its area
+            # over its own share; one room to a row gets the lot.
+            share = self.depth // max(1, len(self.rooms))
+            for _, req in self.rooms:
+                if req.min_area:
+                    needed = max(needed, -(-_tile_area(req.min_area) // max(1, share)))
+        return needed
 
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
@@ -250,8 +268,12 @@ def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_
         span = target // max(1, depth)
         thin = span > 0 and depth / span > _MAX_ASPECT
 
-        if thin and index + 1 < len(rooms):
+        if thin and not req.solo and index + 1 < len(rooms):
             next_key, next_req = rooms[index + 1]
+            if next_req.solo:
+                rows.append(_Row([(key, req)], target, depth))
+                index += 1
+                continue
             next_target = _target(next_req) or 1
             next_span = next_target // max(1, depth)
             next_thin = next_span > 0 and depth / next_span > _MAX_ASPECT
@@ -260,11 +282,14 @@ def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_
                 and depth >= 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
             )
             if next_thin and pair_depth_ok:
-                rows.append(_Row([(key, req), (next_key, next_req)], target + next_target))
+                rows.append(
+                    _Row([(key, req), (next_key, next_req)],
+                         target + next_target, depth)
+                )
                 index += 2
                 continue
 
-        rows.append(_Row([(key, req)], target))
+        rows.append(_Row([(key, req)], target, depth))
         index += 1
     return rows
 
@@ -335,7 +360,7 @@ def _stack(
     rows = _group_rows(rooms, depth)
     totals = sum(row.target for row in rows) or 1
     spans = [max(1, span_total * row.target // totals) for row in rows]
-    floors = [row.min_span for row in rows]
+    floors = [row.min_span() for row in rows]
     spans = _apportion(spans, floors, span_total, warnings)
 
     placed: list[tuple[str, SpaceRequirement, Rect]] = []
@@ -388,6 +413,87 @@ def _order_for_road(
     return ordered if road_first else list(reversed(ordered))
 
 
+# Which rooms live across the street frontage. The template says so
+# explicitly rather than being inferred from function, because a theatre
+# and a living room are the same function and only one of them goes there.
+def _is_front(req: SpaceRequirement) -> bool:
+    return req.zone == "front"
+
+
+def _front_zone(
+    rooms: list[tuple[str, SpaceRequirement]],
+    envelope: Rect,
+    plot: Plot,
+    warnings: list[str],
+) -> tuple[list[Cell], Rect, list[tuple[str, SpaceRequirement]]]:
+    """Take the garage, portico and entry across the front of the house.
+
+    A project home does not hang its garage off the same passage as the
+    bedrooms -- the garage, the portico and the entry sit across the street
+    frontage, and the living and sleeping zones are behind them. Modelling
+    that is what lets a double garage be 5.4 by 6.0 m instead of whatever
+    depth a side band happened to have left over.
+    """
+    front = [(k, r) for k, r in rooms if _is_front(r)]
+    garage = next((r for _, r in front if r.function is Function.GARAGE), None)
+    if garage is None or len(front) < 2:
+        return [], envelope, rooms, None
+
+    # The strip has to be deep enough for the garage, which is the room
+    # with a dimension that cannot be negotiated.
+    # Deep enough for the garage, which is the one room whose dimensions
+    # cannot be negotiated, and no deeper -- every extra millimetre here is
+    # taken from the living and sleeping zones behind.
+    needed = _target(garage)
+    width_share = max(_tile_width(garage), 5600)
+    depth = max(6000 + _WALL_ALLOWANCE, -(-needed // max(1, width_share)))
+    depth = min(depth, envelope.h // 3)
+
+    # If the front rooms cannot fill the strip, it is wasted floor area and
+    # the house is better off without one.
+    front_area = sum(_target(r) or 0 for _, r in front)
+    if front_area < envelope.w * depth * 0.75:
+        depth = max(
+            6000 + _WALL_ALLOWANCE, -(-front_area // max(1, envelope.w))
+        )
+        depth = min(depth, envelope.h // 3)
+    if depth < 5000 or envelope.h - depth < _ABSOLUTE_MIN_DIM * 3:
+        return [], envelope, rooms, None
+
+    road_first = plot.road_side in ("south", "west")
+    strip = (
+        Rect(envelope.x, envelope.y, envelope.w, depth)
+        if road_first
+        else Rect(envelope.x, envelope.y1 - depth, envelope.w, depth)
+    )
+    remainder = (
+        Rect(envelope.x, envelope.y + depth, envelope.w, envelope.h - depth)
+        if road_first
+        else Rect(envelope.x, envelope.y, envelope.w, envelope.h - depth)
+    )
+
+    # Garage to one side, entry and portico beside it.
+    front.sort(key=lambda kr: 0 if kr[1].function is Function.GARAGE else 1)
+    placed = _stack(front, strip, along_y=False, warnings=warnings)
+    cells = [
+        Cell(key, req.name, req.function, rect, 0, req)
+        for key, req, rect in placed
+    ]
+    rest = [(k, r) for k, r in rooms if not _is_front(r)]
+
+    # Where the passage behind must start. The entry is the only thing
+    # joining the street frontage to the rest of the house, so the spine has
+    # to meet it -- otherwise the back half of the plan has no route to the
+    # front door, which is exactly what happened before this existed.
+    entry = next(
+        (c for c in cells if c.function is Function.ENTRY
+         and c.requirement is not None and c.requirement.key == "entry"),
+        next((c for c in cells if c.function is Function.ENTRY), None),
+    )
+    spine = entry.rect.centre.x if entry else None
+    return cells, remainder, rest, spine
+
+
 def _layout_storey(
     storey: int,
     rooms: list[tuple[str, SpaceRequirement]],
@@ -395,9 +501,19 @@ def _layout_storey(
     plot: Plot,
     warnings: list[str],
 ) -> list[Cell]:
-    """Place one floor: corridor down the long axis, rooms either side."""
+    """Place one floor: a front zone if there is a garage, then a corridor
+    spine down the long axis with rooms either side of it."""
     if not rooms:
         return []
+
+    front_cells: list[Cell] = []
+    spine_x: int | None = None
+    if storey == 0:
+        front_cells, envelope, rooms, spine_x = _front_zone(
+            rooms, envelope, plot, warnings
+        )
+        if not rooms:
+            return front_cells
 
     corridor = next((r for r in rooms if r[1].function is Function.CORRIDOR), None)
     others = [r for r in rooms if r is not corridor]
@@ -406,14 +522,18 @@ def _layout_storey(
     if corridor is None or len(others) <= 2:
         along_y = envelope.h >= envelope.w
         placed = _stack(rooms, envelope, along_y, warnings)
-        return [
+        return front_cells + [
             Cell(key, req.name, req.function, rect, storey, req)
             for key, req, rect in placed
         ]
 
     # The corridor runs the long way, so it reaches every room with the
-    # least floor given over to walking.
+    # least floor given over to walking -- unless there is a front zone, in
+    # which case it must run back from the entry instead, whatever the
+    # remainder's proportions say.
     corridor_vertical = envelope.h >= envelope.w
+    if spine_x is not None:
+        corridor_vertical = plot.road_side in ("south", "north")
     corridor_width = max(corridor[1].min_width, 1000) + _WALL_ALLOWANCE
     cross = envelope.w if corridor_vertical else envelope.h
     if corridor_width >= cross - 2 * _ABSOLUTE_MIN_DIM:
@@ -429,6 +549,9 @@ def _layout_storey(
     right_target = sum(_target(r) or 1 for _, r in right_rooms)
     usable = cross - corridor_width
     left_depth = usable * left_target // max(1, left_target + right_target)
+    if spine_x is not None and corridor_vertical:
+        # Line the spine up with the entry rather than balancing the bands.
+        left_depth = spine_x - envelope.x - corridor_width // 2
     left_depth = max(_ABSOLUTE_MIN_DIM, min(usable - _ABSOLUTE_MIN_DIM, left_depth))
     right_depth = usable - left_depth
 
@@ -455,7 +578,7 @@ def _layout_storey(
     cells.append(
         Cell(corridor[0], corridor[1].name, Function.CORRIDOR, corridor_rect, storey, corridor[1])
     )
-    return cells
+    return front_cells + cells
 
 
 def _footprint(
@@ -487,9 +610,19 @@ def _footprint(
     if area >= envelope.area:
         return envelope
 
-    scale = math.sqrt(area / envelope.area)
-    width = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.w, int(envelope.w * scale)))
-    depth = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.h, int(envelope.h * scale)))
+    # Build to the side setbacks and control the depth. Scaling the whole
+    # envelope down proportionally makes a house as narrow as the block is
+    # deep -- 11 m wide and 22 m long on a block where a real project home
+    # is 13.6 m wide and 25 m long. Frontage is the dimension a plan wants,
+    # because rooms hang off a spine that runs the depth.
+    width = min(envelope.w, MAX_FRONTAGE)
+    depth = -(-area // max(1, width))
+    if depth > envelope.h:
+        # Too deep for the block: give back some frontage and try again.
+        depth = envelope.h
+        width = min(envelope.w, -(-area // max(1, depth)))
+    width = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.w, width))
+    depth = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.h, depth))
 
     # Push the building up against the road frontage; the slack falls behind.
     if plot.road_side == "south":
@@ -542,6 +675,13 @@ def solve(
         ),
         default=0,
     )
+    # Rooms do not tile a rectangle perfectly. Bands come out a little deeper
+    # than the rooms on them strictly need, rows leave slivers, and every
+    # tile gives up half a wall on each side. Asking for exactly the sum of
+    # the rooms guarantees every one of them is squeezed; this is the
+    # allowance that stops a twenty-room program shrinking its living room
+    # by a third.
+    needed = int(needed * 1.14)
     footprint = _footprint(envelope, needed, plot, max_footprint, layout.warnings)
     layout.envelope = footprint
 
