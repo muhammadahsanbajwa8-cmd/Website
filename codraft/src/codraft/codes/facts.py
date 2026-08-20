@@ -284,6 +284,15 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
                 facts.doors.append(record)
             elif opening.kind is OpeningKind.WINDOW:
                 record["area_m2"] = round(opening.width * opening.height / 1e6, 3)
+                # How far this window sits from the boundary it faces, and how
+                # far its floor is above the ground. Both are what a visual
+                # privacy control is written against: a window looking at a
+                # neighbour from 600 mm above the ground is nobody's problem,
+                # and the same window on a first floor is.
+                record["boundary_setback_mm"] = _boundary_setback(
+                    building.plot, wall
+                )
+                record["floor_above_ground_mm"] = storey.elevation
                 facts.windows.append(record)
 
         for stair in storey.stairs:
@@ -378,3 +387,21 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
         "dwelling_units": 1 if building.use == "residential" else 0,
     }
     return facts
+
+
+def _boundary_setback(plot, wall) -> int | None:
+    """Perpendicular distance from a wall to the boundary it faces.
+
+    Returns None when it cannot be worked out -- a wall on a polygon lot
+    whose edges are not orthogonal to it, say. None means unknown, and a rule
+    that needs it reports UNCHECKED rather than passing, which is the whole
+    reason it is not simply 0.
+    """
+    if wall is None or plot is None:
+        return None
+    rect = getattr(plot, "rect", None)
+    if rect is None:
+        return None
+    if wall.vertical:
+        return max(0, min(wall.start.x - rect.x, rect.x1 - wall.start.x))
+    return max(0, min(wall.start.y - rect.y, rect.y1 - wall.start.y))

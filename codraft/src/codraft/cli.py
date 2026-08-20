@@ -21,13 +21,18 @@ from pathlib import Path
 
 from . import __version__, codes
 from .export import write_dxf, write_ifc, write_model_json, write_svg
+from .schedule import (
+    format_schedule,
+    opening_specification,
+    schedule,
+)
 from .services import design_electrical, design_plumbing
 from .geom import Point, Rect
 from .ingest import PdfError, read_pdf
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, place_pool, solve
-from .model import Plot, Roof
+from .model import OpeningKind, Plot, Roof
 from .program import (
     PROGRAM_JSON_SCHEMA,
     template,
@@ -404,9 +409,33 @@ def cmd_plan(args) -> int:
             print(f"  - {warning}")
         print()
 
-    # -- 5. check it ------------------------------------------------------
+    # -- 5. schedule the openings ----------------------------------------
+    # The schedule is what an opening is actually built from: the size, where
+    # its head sits in courses, and the specification that goes with it. A
+    # plan that draws a rectangle in a wall has described almost none of it.
+    rows, schedule_warnings = schedule(building)
+    windows = [r for r in rows if r.kind is OpeningKind.WINDOW]
+    doors = [r for r in rows if r.kind is OpeningKind.DOOR]
+    schedule_text = "\n".join(
+        format_schedule(windows, "WINDOW SCHEDULE")
+        + [""]
+        + format_schedule(doors, "DOOR SCHEDULE")
+        + ["", "SPECIFICATION AT EVERY EXTERNAL OPENING", "-" * 72,
+           "  NONE OF THIS IS CHECKED. It cannot be read off a plan. These are",
+           "  the items to be drawn, priced and built, each against the standard",
+           "  that governs it -- listing them is how they stop being forgotten.",
+           ""]
+        + [f"  {title}\n      [{clause}]\n      {body}\n"
+           for title, clause, body in opening_specification()]
+    )
+    (out / f"{stem}-schedule.txt").write_text(schedule_text + "\n", encoding="utf-8")
+    print(schedule_text)
+    print(f"  Written: {out / f'{stem}-schedule.txt'}\n")
+
+    # -- 6. check it ------------------------------------------------------
     report = codes.check(
-        building, jurisdiction, layout.warnings + service_warnings
+        building, jurisdiction,
+        layout.warnings + service_warnings + schedule_warnings,
     )
     if args.json:
         (out / f"{stem}-report.json").write_text(

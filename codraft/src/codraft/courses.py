@@ -28,6 +28,26 @@ STANDARD_CEILING_COURSES = 28
 RAISED_CEILING_COURSES = 31
 
 
+# Where openings sit, in courses off the floor. These are the numbers a
+# Perth permit set calls up: a window head at 25c, a sill at 10c. A wet-area
+# sill goes higher for privacy -- 18c clears a vanity, and 25c less 18c
+# leaves a 7-course window, which is what these sheets draw.
+WINDOW_HEAD_COURSES = 25
+WINDOW_SILL_COURSES = 10
+WET_SILL_COURSES = 18
+DOOR_HEAD_COURSES = 24
+
+
+def course_level(courses: int) -> int:
+    """A setting-out height off the floor, in millimetres.
+
+    No plate: the plate sits on the TOP course and only matters at ceiling
+    level. A window head at 25c is 25 courses of brickwork above the floor,
+    which is where the bricklayer puts the lintel.
+    """
+    return courses * COURSE_MM
+
+
 def ceiling_height(courses: int, plate: int = PLATE_MM) -> int:
     """Finished ceiling level for a number of courses, in millimetres."""
     return courses * COURSE_MM + plate

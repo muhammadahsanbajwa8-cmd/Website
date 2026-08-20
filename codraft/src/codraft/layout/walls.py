@@ -17,7 +17,13 @@ from __future__ import annotations
 import itertools
 import math
 
-from ..courses import snap_to_course
+from ..courses import (
+    WET_SILL_COURSES,
+    WINDOW_HEAD_COURSES,
+    WINDOW_SILL_COURSES,
+    course_level,
+    snap_to_course,
+)
 from ..geom import EPS, Point, Rect
 from ..model import (
     Building,
@@ -66,7 +72,16 @@ DOOR_WIDTHS = {
 }
 DEFAULT_DOOR_WIDTH = 915
 ENTRY_DOOR_WIDTH = 1000
-DOOR_HEIGHT = 2100
+# A 2040 leaf in a frame wants about 2100 to the head -- but 2100 is not a
+# whole course, so the head is snapped UP to 25c. Up, never down: a head laid
+# a course low is a door that does not fit.
+DOOR_HEIGHT = snap_to_course(2100, plate=0)   # 25c = 2150
+
+# Below this an opening is not a door anyone can use, whatever a wall's
+# length says. It is not a code figure -- the NCC sets no minimum width for
+# an ordinary door in a house -- it is the point at which the solver stops
+# pretending and says the room needs re-planning.
+DOOR_MIN_STRUCTURAL = 720
 
 # In anything but a house, every door is on somebody's way out, and egress
 # rules apply to all of them rather than to the front door alone. A store
@@ -74,11 +89,27 @@ DOOR_HEIGHT = 2100
 # an office, so non-residential work starts from a wider leaf.
 NON_RESIDENTIAL_MIN_DOOR = 965
 
-WINDOW_HEAD = 2100
-WINDOW_SILL = 900
+# Openings are set out in brick courses, not round millimetres. A bricklayer
+# builds to courses, so a head called up at 2100 gets laid at 24c and finishes
+# at 2064, or at 25c and finishes at 2150 -- and which one it is decides where
+# the lintel bears. Giving the course is giving the answer; giving 2100 hands
+# the trade a decision it should not have to make.
+WINDOW_HEAD = course_level(WINDOW_HEAD_COURSES)      # 25c = 2150
+WINDOW_SILL = course_level(WINDOW_SILL_COURSES)      # 10c = 860
 WET_WINDOW_WIDTH = 600
-WET_WINDOW_HEIGHT = 600
-WET_WINDOW_SILL = 1500
+WET_WINDOW_SILL = course_level(WET_SILL_COURSES)     # 18c = 1548
+WET_WINDOW_HEIGHT = WINDOW_HEAD - WET_WINDOW_SILL    #  7c =  602
+
+# The widest single window unit worth drawing. Past this a window is made and
+# delivered as two units with a mullion or a masonry pier between them, and
+# drawing one 5 m opening instead hides both the pier and the lintel span it
+# creates. Practical manufacture, not a code figure.
+MAX_WINDOW_UNIT = 2400
+
+# Masonry between two openings in the same wall. Kept so the units read as
+# units on the elevation and so there is something for the lintels to bear
+# on. The engineer sets what a pier must actually be.
+WINDOW_PIER = 450
 
 # Glazing as a share of floor area. Most codes land between 8% and 12% for
 # daylight; 15% leaves headroom and is what a designer would draw anyway.
@@ -309,13 +340,32 @@ def _openings_for_storey(
         if required_clear:
             width = max(width, required_clear + Opening("", "", OpeningKind.DOOR,
                                                         0, 0, 0).leaf_thickness)
+        available = max(0, wall.length - 300)
+        if width > available:
+            # The wall cannot take the door the room is owed. Say which, and
+            # by how much -- a 390 mm opening drawn without comment reads as
+            # a design decision rather than as the failure it is.
+            if available < DOOR_MIN_STRUCTURAL:
+                warnings.append(
+                    f"{cell.name} opens off a wall only {wall.length} mm long, "
+                    f"which leaves {available} mm of doorway against the "
+                    f"{DOOR_MIN_STRUCTURAL} mm a usable leaf needs. That is a "
+                    "planning problem, not a dimension to be adjusted."
+                )
+            else:
+                warnings.append(
+                    f"{cell.name}'s door is narrowed to {available} mm to fit "
+                    f"its {wall.length} mm wall, from the {width} mm the room "
+                    "would otherwise get."
+                )
+            width = available
         openings.append(
             Opening(
                 id=opening_id(),
                 wall=wall.id,
                 kind=OpeningKind.DOOR,
                 offset=_centre_opening(wall, width),
-                width=min(width, max(0, wall.length - 300)),
+                width=width,
                 height=DOOR_HEIGHT,
             )
         )
@@ -446,18 +496,18 @@ def _openings_for_storey(
         # habitable half that decides how much daylight it is owed.
         if cell.function.is_habitable:
             floor_area = clear[cell.key].area
-            required = int(floor_area * glazing / FRAME_ALLOWANCE)
+            required = math.ceil(floor_area * glazing / FRAME_ALLOWANCE)
             if ventilation:
                 # Ventilation is required on the area that OPENS, so a window
                 # sized only for daylight can still fall short.
-                required = max(required, int(floor_area * ventilation / openable))
+                required = max(required, math.ceil(floor_area * ventilation / openable))
             height, sill = WINDOW_HEAD - WINDOW_SILL, WINDOW_SILL
         elif cell.function.is_wet:
             height, sill = WET_WINDOW_HEIGHT, WET_WINDOW_SILL
             required = WET_WINDOW_WIDTH * height
             if ventilation:
                 required = max(
-                    required, int(clear[cell.key].area * ventilation / openable)
+                    required, math.ceil(clear[cell.key].area * ventilation / openable)
                 )
         else:
             height, sill = WINDOW_HEAD - WINDOW_SILL, WINDOW_SILL
@@ -477,19 +527,46 @@ def _openings_for_storey(
             # Round the width up. Truncating lands a room at 9.99% of the
             # 10% it needs, which is a failure caused by integer division
             # rather than by the design.
-            width = min(max(600, -(-remaining // height)), available)
-            openings.append(
-                Opening(
-                    id=opening_id(),
-                    wall=candidate.id,
-                    kind=OpeningKind.WINDOW,
-                    offset=_centre_opening(candidate, width),
-                    width=width,
-                    height=height,
-                    sill=sill,
+            wanted = min(max(600, -(-remaining // height)), available)
+
+            # Split the glazing into units that can be made, with a pier
+            # between them. A single 5 m opening is not a window -- it is two
+            # or three, and the pier between them is what the lintels bear on.
+            # The cap is absolute: where the wall cannot carry enough units to
+            # reach the glazing the room wants, the room gets less glazing and
+            # is told so, rather than one unit nobody can manufacture.
+            def _to_ten(value: int) -> int:
+                return -(-value // 10) * 10
+
+            def _unit(count: int) -> int:
+                return min(MAX_WINDOW_UNIT, max(600, _to_ten(-(-wanted // count))))
+
+            fits = max(1, (available + WINDOW_PIER) // (600 + WINDOW_PIER))
+            units = min(fits, max(1, -(-wanted // MAX_WINDOW_UNIT)))
+            unit_width = _unit(units)
+            while units > 1 and units * unit_width + (units - 1) * WINDOW_PIER > available:
+                units -= 1
+                unit_width = _unit(units)
+            span = units * unit_width + (units - 1) * WINDOW_PIER
+            if span > available:
+                units = 1
+                unit_width = min(MAX_WINDOW_UNIT, available)
+                span = unit_width
+
+            start = _centre_opening(candidate, span)
+            for unit in range(units):
+                openings.append(
+                    Opening(
+                        id=opening_id(),
+                        wall=candidate.id,
+                        kind=OpeningKind.WINDOW,
+                        offset=start + unit * (unit_width + WINDOW_PIER),
+                        width=unit_width,
+                        height=height,
+                        sill=sill,
+                    )
                 )
-            )
-            remaining -= width * height
+            remaining -= units * unit_width * height
 
         if remaining > 0 and cell.function.is_habitable:
             warnings.append(

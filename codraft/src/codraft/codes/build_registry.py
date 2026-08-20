@@ -658,7 +658,7 @@ SUBDIVISIONS = {
                  "is encoded."},
         {"slug": "wa", "name": "Western Australia",
          "authority": "WA Building and Energy; permit authority",
-         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-pool-barrier", "au-wa-rcodes"],
+         "rule_packs": ["baseline", "au-ncc-housing", "au-ncc-vol1", "au-pool-barrier", "au-wa-rcodes", "au-wa-privacy"],
          "note": "Western Australia deferred the livable housing provisions, "
                  "so that pack is not applied here. The R-Codes set setbacks, "
                  "site coverage and open space, and are not encoded."},

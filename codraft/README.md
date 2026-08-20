@@ -368,6 +368,58 @@ a window it takes the outer half — which half that is depends on which side of
 the passage the band sits, since the outside is the low edge on one side and the
 high edge on the other.
 
+**Openings are the most worked-over part of a house**, and a plan that draws a
+rectangle in a wall has described almost none of it. `codraft plan` writes a
+door and window schedule beside the drawings:
+
+```
+WINDOW SCHEDULE
+  MARK  CODE   SIZE (W x H)     SET OUT                                NO  LOCATION
+  W01   1216   1690 x 1290      head 25c (2150 mm), sill 10c (860 mm)   2  Living
+  W06   0608   820 x 602        head 25c (2150 mm), sill 18c (1548 mm)  1  WC
+```
+
+Heads and sills are given in **courses first**, because that is how the wall is
+built — one course is 86 mm, and a head called up at 2100 gets laid at either
+2064 or 2150 depending on which way the bricklayer rounds. Giving the course is
+giving the answer; giving 2100 hands the trade a decision it should not have to
+make. The size code reads height then width in units of 100 mm, the commoner
+Australian convention — but suppliers differ, so the schedule carries the
+millimetre sizes and says which way round the code reads. A schedule a supplier
+can misread is worse than no schedule.
+
+Windows are drawn as **units somebody can manufacture**, capped at 2400 mm with
+a masonry pier between them. The first schedule this code produced had a 5206 mm
+window in a bedroom; that is not a window, it is two with a pier between them,
+and the pier is what the lintels bear on.
+
+**What the schedule will not do** is the part that matters most about being
+honest with a builder:
+
+| | |
+|---|---|
+| Sizes and setting out | Derived. Every head and sill lands on a whole course. |
+| Lintels | **Identified, never sized.** Which openings need one is geometry — any opening in a loadbearing wall does. What size it is depends on span, load and wind classification, which is engineering. |
+| Flashing, DPC, insulation, sealing | **Specification, not geometry.** Listed against the standard that governs each — NCC Housing Provisions Part 7.3, AS 3700, AS 2047, AS 1288, AS 3660.1 — and labelled as items to be drawn, priced and built. Nothing here is verified, because none of it can be verified from a plan. |
+| R-values | Not stated. They are set by climate zone and by which NCC edition the state has adopted. A test asserts no spec line contains one. |
+| Columns and reinforcement | Not attempted at all. |
+
+**Visual privacy, and the neighbours.** The `au-wa-privacy` pack checks major
+openings against the R-Codes overlooking setbacks — 4.5 m from a bedroom or
+study, 6 m from other habitable rooms, 7.5 m from an unenclosed balcony — but
+only where the floor is more than 0.5 m above natural ground, so a
+slab-on-ground single storey never triggers it and a first floor does.
+
+The pack is deliberately reported as a **warning and never a violation**,
+because the R-Codes swing a *cone of vision* — a 45° arc from each opening —
+and what is checked here is the perpendicular distance to the boundary. That is
+the cone at its worst case: a pass is meaningful, but a fail may still comply
+once the cone is drawn across a corner of the lot rather than across the
+neighbour. So a fail is a prompt to draw the cone, not a finding. Where the
+distance cannot be worked out — a boundary not orthogonal to the wall — it is
+left unknown and reported, rather than assumed to be zero.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 

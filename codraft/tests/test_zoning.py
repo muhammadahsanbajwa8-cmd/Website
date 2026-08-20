@@ -172,3 +172,61 @@ class TestPairedRoomsPutTheWindowOutside(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVisualPrivacyToTheNeighbours(unittest.TestCase):
+    """The R-Codes privacy pack: it must fire upstairs and stay quiet down.
+
+    A window 1 m from the boundary on a slab-on-ground floor overlooks
+    nothing -- the control is written against a floor more than 0.5 m above
+    natural ground. Firing on the ground floor would bury the real finding in
+    noise; not firing upstairs would miss it.
+    """
+
+    def _findings(self, storeys):
+        from codraft.codes import check
+        from codraft.codes.jurisdiction import resolve
+        from codraft.layout import build_building
+
+        program = template("au-house", bedrooms=4, bathrooms=2, storeys=storeys)
+        plot = _plot()
+        layout = solve(program, plot)
+        building = build_building(program, plot, layout)
+        report = check(building, resolve("Perth"), layout.warnings)
+        return [f for f in report.failures
+                if f.rule_id.startswith("au.wa.privacy")]
+
+    def test_a_single_storey_on_the_slab_raises_nothing(self):
+        self.assertEqual(
+            [f.rule_id for f in self._findings(1)], [],
+            "privacy fired on a floor that is not above natural ground",
+        )
+
+    def test_a_first_floor_bedroom_a_metre_off_the_boundary_is_raised(self):
+        found = self._findings(2)
+        self.assertTrue(
+            any(f.rule_id == "au.wa.privacy.bedroom" for f in found),
+            f"a first-floor bedroom window 1 m from the boundary was not "
+            f"raised; got {[f.rule_id for f in found]}",
+        )
+
+    def test_it_is_raised_as_a_question_not_a_violation(self):
+        # The check is a perpendicular setback; the R-Codes swing a cone of
+        # vision. A fail here means draw the cone, not that the design is
+        # non-compliant -- so it must never be reported as a violation.
+        from codraft.codes import check
+        from codraft.codes.jurisdiction import resolve
+        from codraft.layout import build_building
+
+        program = template("au-house", bedrooms=4, bathrooms=2, storeys=2)
+        plot = _plot()
+        layout = solve(program, plot)
+        report = check(
+            build_building(program, plot, layout), resolve("Perth"), layout.warnings
+        )
+        self.assertEqual(
+            [f.rule_id for f in report.violations
+             if f.rule_id.startswith("au.wa.privacy")],
+            [],
+            "a simplified privacy check was reported as a violation",
+        )

@@ -3,7 +3,7 @@
   "publisher": "Western Australian Planning Commission",
   "edition": "State Planning Policy 7.3",
   "url": "https://www.wa.gov.au/government/document-collections/state-planning-policy-73-residential-design-codes",
-  "disclaimer": "PLANNING, NOT BUILDING CODE. The R-Codes set what may be built on a lot -- setbacks, site cover, open space -- and are a separate instrument from the NCC, which sets how it must be built. Both apply. Controls are keyed by the R-code density of the lot, so the answer is wrong unless the right one is given: pass --zone R20 or whatever the certificate of title or local scheme says. Local Development Plans and structure plans routinely override these figures for a specific estate, and where one exists it governs. Boundary walls, overshadowing, visual privacy, garage width and street surveillance are not encoded.",
+  "disclaimer": "PLANNING, NOT BUILDING CODE. The R-Codes set what may be built on a lot -- setbacks, site cover, open space -- and are a separate instrument from the NCC, which sets how it must be built. Both apply. Controls are keyed by the R-code density of the lot, so the answer is wrong unless the right one is given: pass --zone R20 or whatever the certificate of title or local scheme says. Local Development Plans and structure plans routinely override these figures for a specific estate, and where one exists it governs. Boundary walls, overshadowing, garage width and street surveillance are not encoded. Visual privacy is, in the separate au-wa-privacy pack, but simplified to a perpendicular setback rather than the cone of vision the R-Codes actually swing -- read that pack's disclaimer before relying on it.",
   "applies_to_uses": [
     "residential"
   ],
