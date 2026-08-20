@@ -10,6 +10,7 @@ legal one.
 
 from __future__ import annotations
 
+from ..courses import RAISED_CEILING_COURSES, STANDARD_CEILING_COURSES, storey_height_for
 from ..model import Function
 from ..units import area_mm2, mm
 from .schema import SpaceProgram, SpaceRequirement
@@ -158,9 +159,10 @@ def au_house(
         use="residential",
         spaces=spaces,
         storeys=storeys,
-        # 31 course brickwork gives about 2.55 m ceilings, which is what a
-        # project home is built to and comfortably over the NCC's 2.4 m.
-        storey_height=2750,
+        # Set out in brick courses, the way the bricklayer builds it. 28c
+        # is the standard project-home ceiling and lands at 2435 mm --
+        # comfortably over the NCC's 2400, which 27c would miss.
+        storey_height=storey_height_for(STANDARD_CEILING_COURSES),
         source="template",
         notes=[
             "Room names follow Australian project-home practice.",

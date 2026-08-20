@@ -19,8 +19,9 @@ from ..model import Building, Function
 from ..symbols import NAMES, symbol
 from ..units import fmt_area
 from ._plan import storey_walls
+from .elevation import elevations as build_elevations
 
-SHEETS = ("architectural", "electrical", "plumbing")
+SHEETS = ("architectural", "electrical", "plumbing", "elevations")
 
 # Layer name, then an AutoCAD colour index.
 # Layer names follow the AIA/NCS convention, so the file drops into an
@@ -43,6 +44,11 @@ LAYERS = {
     "P-DOMW-CWTR": 5,    # cold water
     "P-DOMW-HWTR": 1,    # hot water
     "P-ANNO": 7,
+    "A-ELEV": 7,          # elevation outlines
+    "A-ELEV-ROOF": 8,
+    "A-ELEV-GLAZ": 4,
+    "A-ELEV-DOOR": 3,
+    "A-ELEV-LEVL": 1,     # levels and their labels
 }
 
 RUN_LAYERS = {
@@ -221,6 +227,13 @@ def write_dxf(
     w.tag(0, "SECTION")
     w.tag(2, "ENTITIES")
 
+    if sheet == "elevations":
+        _dxf_elevations(w, building)
+        w.tag(0, "ENDSEC")
+        w.tag(0, "EOF")
+        path.write_text(w.out.getvalue(), encoding="ascii", errors="replace")
+        return path
+
     storeys = (
         [s for s in building.storeys if s.index == storey_index]
         if storey_index is not None
@@ -304,6 +317,46 @@ def write_dxf(
     w.tag(0, "EOF")
     path.write_text(w.out.getvalue(), encoding="ascii", errors="replace")
     return path
+
+
+def _dxf_elevations(w: _Writer, building: Building) -> None:
+    """All four elevations, side by side, with their levels."""
+    cursor = 0
+    for view in build_elevations(building):
+        lines = view.roof + view.outline
+        left = min((l.x0 for l in lines), default=0)
+        right = max((l.x1 for l in lines), default=0)
+        dx = cursor - left
+
+        for line in view.roof:
+            w.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "A-ELEV-ROOF")
+        for line in view.outline:
+            w.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "A-ELEV")
+        for panel in view.panels:
+            layer = "A-ELEV-DOOR" if panel.kind == "door" else "A-ELEV-GLAZ"
+            x0, y0 = panel.x + dx, panel.y
+            x1, y1 = x0 + panel.width, y0 + panel.height
+            w.line(x0, y0, x1, y0, layer)
+            w.line(x1, y0, x1, y1, layer)
+            w.line(x1, y1, x0, y1, layer)
+            w.line(x0, y1, x0, y0, layer)
+        if view.ground:
+            g = view.ground
+            w.line(g.x0 + dx, g.y0, g.x1 + dx, g.y1, "A-ELEV")
+
+        seen: set[int] = set()
+        for level in sorted(view.levels, key=lambda l: l.y):
+            if level.y in seen:
+                continue
+            seen.add(level.y)
+            w.line(left + dx - 2600, level.y, right + dx + 400, level.y,
+                   "A-ELEV-LEVL")
+            w.text(left + dx - 2500, level.y + 120, 200, level.label,
+                   "A-ELEV-LEVL", centred=False)
+
+        w.text((left + right) // 2 + dx, -2400, 400,
+               f"{view.title.upper()}  1:100", "A-ANNO-DIMS")
+        cursor += (right - left) + 9000
 
 
 def _dxf_legend(w: _Writer, building, services, sheet: str, x: int) -> None:

@@ -17,12 +17,13 @@ import math
 from pathlib import Path
 
 from ..annotate import dimension_storey, room_dimension_text
+from .elevation import elevations as build_elevations
 from ..model import Building, Function
 from ..symbols import NAMES, footprint, symbol
 from ..units import fmt_area
 from ._plan import storey_walls
 
-SHEETS = ("architectural", "electrical", "plumbing")
+SHEETS = ("architectural", "electrical", "plumbing", "elevations")
 
 STYLE = """
   .sheet { fill: #fbfaf7; }
@@ -70,6 +71,19 @@ STYLE = """
   .run-waste { stroke: #4a4a4a; stroke-width: 26; fill: none; }
   .run-vent { stroke: #4a4a4a; stroke-width: 14; fill: none;
               stroke-dasharray: 200 140 60 140; }
+
+  /* Elevations */
+  .elev-wall { stroke: #14110d; stroke-width: 34; fill: none; }
+  .elev-roof { stroke: #14110d; stroke-width: 34; fill: #f0ede6; }
+  .elev-glaz { stroke: #1565c0; stroke-width: 22; fill: #eaf1f8; }
+  .elev-door { stroke: #2f7d32; stroke-width: 22; fill: #f0f5f0; }
+  .elev-ground { stroke: #6b6357; stroke-width: 40; }
+  .elev-level { stroke: #b03030; stroke-width: 10; stroke-dasharray: 260 140; }
+  .elev-level-text { font: 600 210px "IBM Plex Mono", ui-monospace, monospace;
+                     fill: #b03030; }
+  .elev-note { font: 210px system-ui, sans-serif; fill: #6b6357; }
+  .elev-code { font: 600 180px "IBM Plex Mono", ui-monospace, monospace;
+               fill: #3a352d; text-anchor: middle; }
 
   .legend-box { fill: #ffffff; stroke: #d6d1c7; stroke-width: 10; }
   .legend-title { font: 700 320px system-ui, sans-serif; fill: #14110d; }
@@ -215,6 +229,46 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
             canvas.line(s.x0 + dx, s.y0, s.x1 + dx, s.y1, "glaz")
 
 
+def _draw_elevation(canvas: _Canvas, view, dx: int) -> None:
+    """One elevation: walls, roof, openings and the levels up the side."""
+    for line in view.roof:
+        canvas.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "elev-roof")
+    for line in view.outline:
+        canvas.line(line.x0 + dx, line.y0, line.x1 + dx, line.y1, "elev-wall")
+
+    for panel in view.panels:
+        cls = "elev-door" if panel.kind == "door" else "elev-glaz"
+        canvas.add(
+            f'<rect class="{cls}" x="{panel.x + dx}" y="{panel.y}" '
+            f'width="{panel.width}" height="{panel.height}"/>'
+        )
+        canvas.saw(panel.x + dx, panel.y)
+        canvas.saw(panel.x + dx + panel.width, panel.y + panel.height)
+        if panel.label:
+            canvas.text(panel.x + dx + panel.width // 2,
+                        panel.y + panel.height + 250, panel.label, "elev-code")
+
+    if view.ground:
+        g = view.ground
+        canvas.line(g.x0 + dx, g.y0, g.x1 + dx, g.y1, "elev-ground")
+
+    # Levels run off to the left of the drawing, as a sheet sets them out.
+    left = min((l.x0 for l in view.outline), default=0) + dx
+    right = max((l.x1 for l in view.outline), default=0) + dx
+    seen: set[int] = set()
+    for level in sorted(view.levels, key=lambda l: l.y):
+        if level.y in seen:
+            continue
+        seen.add(level.y)
+        canvas.line(left - 2600, level.y, right + 400, level.y, "elev-level")
+        canvas.add(
+            f'<g transform="translate({left - 2500},{level.y}) scale(1,-1)">'
+            f'<text class="elev-level-text" y="-120">'
+            f'{html.escape(level.label)}</text></g>'
+        )
+        canvas.saw(left - 2600, level.y, 400)
+
+
 def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -> None:
     for dim in dimension_storey(storey, footprint, system):
         canvas.line(dim.line.x0 + dx, dim.line.y0, dim.line.x1 + dx, dim.line.y1, "dim")
@@ -324,6 +378,9 @@ def write_svg(
     if not storeys:
         raise ValueError(f"the building has no storey {storey_index}")
 
+    if sheet == "elevations":
+        return _write_elevations(building, path)
+
     margin = 3000
     ghost = sheet != "architectural"
     # An architectural sheet shows the plot and its setbacks, so the storeys
@@ -409,6 +466,46 @@ def write_svg(
         f'<rect class="sheet" x="0" y="0" width="{width}" height="{height}"/>'
         f'<g transform="translate({offset_x},{offset_y}) scale(1,-1)">'
         f"{body}</g></svg>"
+    )
+    path.write_text(svg, encoding="utf-8")
+    return path
+
+
+def _write_elevations(building: Building, path: Path) -> Path:
+    """All four elevations on one sheet, numbered from the street."""
+    views = build_elevations(building)
+    canvas = _Canvas()
+    margin = 3500
+
+    cursor = 0
+    for view in views:
+        width = max((l.x1 for l in view.roof + view.outline), default=0)
+        left = min((l.x0 for l in view.roof + view.outline), default=0)
+        dx = cursor - left
+        _draw_elevation(canvas, view, dx)
+        canvas.text(
+            (left + width) // 2 + dx, -2400,
+            f"{view.title}  1:100", "title",
+        )
+        cursor += (width - left) + 9000
+
+    for index, note in enumerate(views[0].notes):
+        canvas.add(
+            f'<g transform="translate({0},{-4200 - index * 700}) scale(1,-1)">'
+            f'<text class="elev-note">{html.escape(note)}</text></g>'
+        )
+        canvas.saw(0, 4200 + index * 700, 9000)
+
+    width = int(canvas.maxx - canvas.minx) + margin * 2
+    height = int(canvas.maxy - canvas.miny) + margin * 2
+    body = "\n".join(canvas.parts)
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        f'width="100%" style="max-width:100%;height:auto">'
+        f"<style>{STYLE}</style>"
+        f'<rect class="sheet" x="0" y="0" width="{width}" height="{height}"/>'
+        f'<g transform="translate({int(-canvas.minx) + margin},'
+        f'{int(canvas.maxy) + margin}) scale(1,-1)">{body}</g></svg>'
     )
     path.write_text(svg, encoding="utf-8")
     return path

@@ -8,6 +8,7 @@ touches a code rule.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable
@@ -203,15 +204,43 @@ class Stair:
 
 
 @dataclass(slots=True)
+class Roof:
+    """The roof, to the level of detail an elevation needs.
+
+    Project homes in Perth are hipped metal at 22 to 27 degrees, with the
+    ridge along the long axis and eaves oversailing the brickwork. That is
+    enough to draw four elevations and to state an overall height, which is
+    the number a planning scheme cares about. It is not enough to build
+    from: trusses, battens, valleys and the flashing are the roof plumber's
+    and the truss supplier's.
+    """
+
+    pitch_degrees: float = 25.0
+    overhang_mm: int = 600
+    kind: str = "hip"          # 'hip' or 'gable'
+    material: str = "metal"
+
+    def rise_over(self, span_mm: int) -> int:
+        """How high the roof climbs over half a span."""
+        return int(round(span_mm / 2 * math.tan(math.radians(self.pitch_degrees))))
+
+
+@dataclass(slots=True)
 class Storey:
     index: int
     name: str
     elevation: int          # of the finished floor, above site datum
     height: int             # floor to floor
+    ceiling: int = 0        # floor to ceiling; falls back to height - 200
     spaces: list[Space] = field(default_factory=list)
     walls: list[Wall] = field(default_factory=list)
     openings: list[Opening] = field(default_factory=list)
     stairs: list[Stair] = field(default_factory=list)
+
+    @property
+    def ceiling_height(self) -> int:
+        """Floor to ceiling. The plate sits here, not at floor-to-floor."""
+        return self.ceiling or max(0, self.height - 200)
 
     @property
     def floor_area(self) -> int:
@@ -352,6 +381,7 @@ class Building:
     storeys: list[Storey] = field(default_factory=list)
     jurisdiction: str = ""        # e.g. 'PK-PB-lahore', resolved by codes.registry
     use: str = "residential"      # the brief's word for it; codes map it themselves
+    roof: Roof | None = None
     parking_spaces: int = 0
     metadata: dict[str, str] = field(default_factory=dict)
 
@@ -380,6 +410,20 @@ class Building:
     @property
     def storey_count(self) -> int:
         return len(self.storeys)
+
+    @property
+    def overall_height(self) -> int:
+        """Floor level to ridge -- the number a planning scheme asks for."""
+        top = self.height
+        if self.roof is None or not self.storeys:
+            return top
+        footprint = self.storeys[0]
+        if not footprint.spaces:
+            return top
+        xs = [s.rect.x0 for s in footprint.spaces] + [s.rect.x1 for s in footprint.spaces]
+        ys = [s.rect.y0 for s in footprint.spaces] + [s.rect.y1 for s in footprint.spaces]
+        span = min(max(xs) - min(xs), max(ys) - min(ys))
+        return top + self.roof.rise_over(span)
 
     def all_spaces(self) -> Iterable[Space]:
         for storey in self.storeys:

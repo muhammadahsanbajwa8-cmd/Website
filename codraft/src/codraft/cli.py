@@ -27,7 +27,7 @@ from .ingest import PdfError, read_pdf
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, solve
-from .model import Plot
+from .model import Plot, Roof
 from .program import (
     PROGRAM_JSON_SCHEMA,
     template,
@@ -50,7 +50,7 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
-SHEETS = ("architectural", "electrical", "plumbing")
+SHEETS = ("architectural", "electrical", "plumbing", "elevations")
 
 SERVICES_WORDS = (
     "electrical", "electric", "wiring", "plumbing", "sanitary", "services",
@@ -277,6 +277,11 @@ def cmd_plan(args) -> int:
         program, plot, layout, name=program.name,
         jurisdiction=jurisdiction.key, design=design,
     )
+    building.roof = Roof(
+        pitch_degrees=float(design.get("roof_pitch_degrees", 25.0)),
+        overhang_mm=int(design.get("roof_overhang_mm", 600)),
+        kind=str(design.get("roof_kind", "hip")),
+    )
 
     if plot.boundary:
         print(f"Lot          : {fmt_area(plot.area)} surveyed "
@@ -313,6 +318,8 @@ def cmd_plan(args) -> int:
             )
     if "architectural" not in sheets:
         sheets.insert(0, "architectural")
+    if args.elevations and "elevations" not in sheets:
+        sheets.append("elevations")
 
     services: dict[str, dict[int, object]] = {}
     service_warnings: list[str] = []
@@ -363,6 +370,10 @@ def cmd_plan(args) -> int:
                     system=args.units,
                 )
             )
+    if "elevations" in sheets:
+        print(f"Overall height: {building.overall_height} mm to ridge "
+              f"({building.roof.pitch_degrees:.0f} degree "
+              f"{building.roof.kind} roof)")
 
     print("Written:")
     for p in written:
@@ -867,6 +878,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="units for dimensions on the drawings (default: metric)")
     plan.add_argument("--formats", default="dxf,ifc,svg",
                       help="comma separated: dxf, ifc, svg, json (default: dxf,ifc,svg)")
+    plan.add_argument("--elevations", action="store_true",
+                      help="also draw the four elevations")
     plan.add_argument("--json", action="store_true", help="also write the report as JSON")
     plan.add_argument("--show-passes", action="store_true",
                       help="list the rules that passed, not just those that failed")

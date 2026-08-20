@@ -355,6 +355,31 @@ rasterising rather than by offsetting the polygon, because offsetting goes wrong
 on exactly the reflex corners battle-axe lots are made of. Which edge is the
 frontage is decided by geometry, not by asking.
 
+## Set out in brick courses, and elevations to match
+
+Nothing vertical on a Perth permit set is given in millimetres first. Ceilings
+are "28c", a window head is "25c", and the elevation carries
+`CL 2435 (28c + PLATE)` — the millimetre figure is the derived one. A
+bricklayer builds to courses, so a ceiling asked for at 2400 gets laid at 28
+courses and finishes at 2434, and a tool that hands back 2400 is asking for a
+dimension nobody will lay. Requirements always round **up**: 27 courses is 2348,
+which fails the NCC by 52 mm through arithmetic rather than design.
+
+`--elevations` draws all four, numbered from the street, with the levels called
+up in courses beside them.
+
+The whole vertical chain is validated against a real set — Redink's "The Trio",
+28c ceilings at CL 2435, a 25° roof over an 11,690 span, overall height 5134:
+
+```
+28c = 2408 mm of brickwork, + 2726 rise = 5134 mm
+the sheet states                          5134 mm
+```
+
+The roof springs from the top of the brickwork, not from the plate above it.
+That is a 26 mm distinction, and it is the difference between reproducing a
+real sheet exactly and being a plate out.
+
 ## Fit the builder's range first, generate second
 
 A volume builder does not want a house invented for every enquiry. They sell a
@@ -481,7 +506,7 @@ the Approved Documents, which do not apply in Scotland at all.
 python3 -m unittest discover -s tests -t .
 ```
 
-112 tests. The ones worth knowing about: the solver's tiles must fill the
+125 tests. The ones worth knowing about: the solver's tiles must fill the
 footprint exactly and never overlap (walls are derived from those adjacencies,
 so a gap becomes a wall with nothing behind it); every dimension chain must add
 up to its overall; no room may ever be left without a route to an exit; every

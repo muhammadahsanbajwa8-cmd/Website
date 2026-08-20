@@ -17,6 +17,7 @@ from __future__ import annotations
 import itertools
 import math
 
+from ..courses import snap_to_course
 from ..geom import EPS, Point, Rect
 from ..model import (
     Building,
@@ -42,9 +43,14 @@ PARTY_THICKNESS = 230
 # the eastern states build brick veneer over a frame. Taking one for the
 # other puts every room out by 30 to 40 mm, which is enough to fail a
 # minimum that the design would otherwise have met.
+# The double-brick figures are read off a Redink permit set, which states
+# it outright: "external walls consists of 230mm wide cavity brick const...
+# external leaf & 90mm internal leaf". Internal walls are the 90 mm leaf,
+# dry lined -- the lining adds about 20 mm and is not drawn, which is why a
+# survey of those drawings recovers 90 mm.
 CONSTRUCTION = {
     "solid_masonry":  {"exterior": 230, "interior": 115},
-    "double_brick":   {"exterior": 250, "interior": 110},
+    "double_brick":   {"exterior": 230, "interior": 90},
     "brick_veneer":   {"exterior": 240, "interior": 90},
     "timber_frame":   {"exterior": 200, "interior": 90},
     "steel_frame":    {"exterior": 200, "interior": 90},
@@ -627,6 +633,9 @@ def build_building(
             name="Ground floor" if index == 0 else f"Floor {index}",
             elevation=index * height,
             height=height,
+            # Snapped to a whole brick course, because that is what gets
+            # built and a ceiling asked for at 2400 is laid at 2434.
+            ceiling=snap_to_course(height - 200),
             spaces=[
                 Space(
                     id=cell.key,
