@@ -30,6 +30,7 @@ from .sheet import TitleBlock
 from .services import design_electrical, design_plumbing
 from .geom import Point, Rect
 from .ingest import PdfError, read_pdf
+from .library.catalogue import read_catalogue
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, place_pool, solve
@@ -593,10 +594,39 @@ def cmd_library(args) -> int:
               "the frontage and a depth to be fittable.")
         return 0
 
+    if args.library_command == "import":
+        if not args.file:
+            return _fail("`library import` needs --file pointing at a CSV or TSV")
+        source = Path(args.file)
+        if not source.exists():
+            return _fail(f"{source} does not exist")
+        report = read_catalogue(source, builder=args.builder)
+        for line in report.summary():
+            print(line)
+        print()
+        if not report.imported:
+            print("Nothing was imported, so nothing was written.")
+            return 1
+        if args.dry_run:
+            print(f"--dry-run: {len(report.imported)} designs would be written "
+                  f"to {library.path}/. Nothing was.")
+            return 0
+        for design in report.imported:
+            library.add(design)
+        print(f"Written to {library.path}/:")
+        for design in report.imported:
+            area = f"{design.total_m2:.0f} m²" if design.total_m2 else "area not given"
+            print(f"  {design.id:26} {design.width_mm} x {design.depth_mm} mm  {area}")
+        print()
+        print("Run `codraft fit --lot 15mx30m --location Perth --zone R20` to "
+              "see which of them go on a block.")
+        return 0
+
     if not library.designs:
         return _fail(
             f"no designs in {library.path}/. Run `codraft library seed` for a "
-            "starter range, or add one JSON file per design."
+            "starter range, `codraft library import --file range.csv` to read "
+            "a spreadsheet, or add one JSON file per design."
         )
 
     print(f"{len(library)} design(s) in {library.path}/")
@@ -995,10 +1025,17 @@ def build_parser() -> argparse.ArgumentParser:
     program.set_defaults(func=cmd_program)
 
     library = subs.add_parser("library", help="the builder's range of designs")
-    library.add_argument("library_command", choices=("list", "seed"), nargs="?",
-                         default="list")
+    library.add_argument("library_command", choices=("list", "seed", "import"),
+                         nargs="?", default="list")
     library.add_argument("--path", default=DEFAULT_LIBRARY,
                          help=f"directory of designs (default: {DEFAULT_LIBRARY})")
+    library.add_argument("--file", help="CSV or TSV of the builder's range, for "
+                                        "`library import`. A name, a frontage "
+                                        "width and a depth are the minimum row.")
+    library.add_argument("--builder", default="",
+                         help="builder name, where the file does not carry one")
+    library.add_argument("--dry-run", action="store_true", dest="dry_run",
+                         help="read the file and report, without writing anything")
     library.set_defaults(func=cmd_library)
 
     fit = subs.add_parser(

@@ -510,6 +510,58 @@ ignores them, which keeps one signature across the writers — pretending to
 honour them would be worse than not having them.
 
 
+**Importing a builder's range.** A catalogue lives in a spreadsheet somebody
+maintains by hand, so `codraft library import` reads one:
+
+```
+$ codraft library import --file examples/builder-range.csv --dry-run
+
+7 rows read, 5 imported, 2 skipped.
+Columns used:
+  'Min Lot Width (m)' -> lot_width_mm (unit from the heading: m)
+  'Squares'           -> squares
+Columns ignored, because nothing here knows what they mean: 'Facade Options'
+Not imported:
+  line 5 (Narrow Block 3B): frontage width '250' reads as 250000 mm, which is
+    outside 3-100 m. That is a typo in the sheet rather than a design.
+  line 7: no design name
+```
+
+Reading as many rows as possible is not the goal. Forty designs of which six
+are quietly wrong is worse than thirty-four and a list, so four things are
+refused rather than guessed:
+
+**Ambiguous units.** A frontage written `12.5` is metres; written `12500` it is
+millimetres; written `250` it is neither — 250 mm is not a house and 250 m is
+not a lot — so that row is skipped and named. Guessing is the same fault as
+reading a drawing's scale wrong: a number that looks right and is out by a
+factor of a thousand. A unit in the *column heading* is used when the cells
+lack one, but it never overrides an obvious millimetre: a sheet headed `(m)`
+whose cells hold `16000` had its units changed and its heading left alone, and
+16 000 m is not a frontage.
+
+**Squares, which are a real unit and exactly defined.** Australian builders
+quote in squares, and a 25-square home is 232 m², not 25. One square is 100
+square feet and a foot is exactly 0.3048 m, so a square is exactly 9.290304 m².
+Where a sheet gives *both* squares and an area and they disagree, the design
+records that they disagree and which was used — the sheet is wrong somewhere
+and the builder needs to know where.
+
+**Rows that cannot be fitted.** A name, a frontage width and a depth are the
+minimum. Anything short of that is reported by line number with what was
+missing.
+
+**Lot dimensions posing as house dimensions.** A "minimum lot width" already
+contains the setbacks. Feed one to a fitter that subtracts setbacks again and
+every design reads as too big by exactly the setbacks — so lot columns map to
+their own fields, a house dimension wins where both exist, and a design built
+from lot columns carries a note saying the fit will be conservative.
+
+The report also names every column it *ignored*. A `Min Lot Width` that went
+unrecognised is the difference between a catalogue that fits blocks and one
+that does not, and silence about it is how that goes unnoticed.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 
