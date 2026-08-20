@@ -230,3 +230,54 @@ class TestVisualPrivacyToTheNeighbours(unittest.TestCase):
             [],
             "a simplified privacy check was reported as a violation",
         )
+
+
+class TestTheFrontageCapAndWhatOutranksIt(unittest.TestCase):
+    """A two-band corridor plan can only use so much frontage.
+
+    Band depth is (frontage - passage) / 2, and that depth is the width of
+    every room off the passage. Past about 6.5 m a bedroom arrives as 2.0 x
+    6.0 -- a corridor with a bed in it. But going narrower makes the house
+    deeper, and depth comes out of the back garden, so the cap has to yield
+    where it would cost the yard.
+    """
+
+    def _footprint(self, width, depth, **kwargs):
+        program = template("au-house", bedrooms=kwargs.pop("bedrooms", 4),
+                           bathrooms=2, storeys=kwargs.pop("storeys", 1))
+        plot = _plot(width=width, depth=depth, **kwargs)
+        return solve(program, plot).envelope, plot
+
+    def test_a_wide_lot_does_not_produce_a_wide_house(self):
+        from codraft.layout.solver import MAX_FRONTAGE
+
+        footprint, plot = self._footprint(24000, 40000)
+        self.assertLessEqual(
+            footprint.w, MAX_FRONTAGE,
+            f"a {plot.rect.w} mm lot produced a {footprint.w} mm frontage; the "
+            "rooms off a passage that wide stop being rooms",
+        )
+
+    def test_the_yard_outranks_the_cap_on_a_shallow_lot(self):
+        from codraft.layout.solver import MAX_FRONTAGE, MIN_REAR_YARD
+
+        # Short and wide: holding the frontage cap here would push the house
+        # into the rear setback, so it is allowed to widen instead.
+        footprint, plot = self._footprint(20000, 24000)
+        rear = plot.rect.h - plot.setback_rear - (footprint.y + footprint.h)
+        if footprint.w > MAX_FRONTAGE:
+            self.assertGreaterEqual(
+                rear, 0,
+                "the frontage was widened past the cap and the house still "
+                "runs past the rear setback",
+            )
+
+    def test_a_deep_lot_keeps_a_yard_behind_the_house(self):
+        from codraft.layout.solver import MIN_REAR_YARD
+
+        footprint, plot = self._footprint(18000, 38000)
+        behind = plot.rect.h - plot.setback_rear - (footprint.y + footprint.h)
+        self.assertGreaterEqual(
+            behind + MIN_REAR_YARD, 0,
+            "no garden was left behind the house on a 38 m block",
+        )

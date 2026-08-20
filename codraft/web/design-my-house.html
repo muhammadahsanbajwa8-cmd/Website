@@ -97,7 +97,20 @@ input{font:500 1rem/1.3 "IBM Plex Mono",monospace;color:var(--ink);background:va
    millimetres throughout, as in the Python, so a wall that is 3500 long is
    3500 everywhere. */
 
-const COURSE = 86, PLATE = 26, WALL_ALLOW = 115, MIN_DIM = 900, MAX_FRONTAGE = 16000;
+const COURSE = 86, PLATE = 26, WALL_ALLOW = 115, MIN_DIM = 900;
+
+// The widest frontage a two-band corridor plan can use. Band depth is
+// (frontage - passage) / 2, and that depth becomes the width of every room
+// off the passage -- past about 6.5 m a bedroom arrives as 2.0 x 6.0, which
+// is a corridor with a bed in it. A limit of the corridor model, not of
+// houses: a genuinely wide house is planned as an L or a U, which this does
+// not do, so on a wide lot it builds narrower and deeper instead.
+const MAX_FRONTAGE = 14000;
+
+// Rear yard kept clear before that cap gives way. Depth comes straight out
+// of the back garden, which is where the outdoor living goes and where a
+// pool goes if there is one.
+const MIN_REAR_YARD = 7000;
 const CONSTRUCTION = {
   double_brick: { ext: 230, int: 90 }, brick_veneer: { ext: 240, int: 90 },
 };
@@ -614,6 +627,18 @@ function design(a) {
 
   let fw = Math.min(env.w, MAX_FRONTAGE);
   let fd = Math.ceil(needed / Math.max(1, fw));
+
+  // The frontage cap is a preference and the rear yard outranks it: rooms
+  // that are slightly wide beat a house with no garden behind it.
+  if (fd > env.h - MIN_REAR_YARD && env.w > fw) {
+    let widened = false;
+    for (let candidate = fw; candidate <= env.w; candidate += 250) {
+      if (Math.ceil(needed / candidate) <= env.h - MIN_REAR_YARD) {
+        fw = candidate; fd = Math.ceil(needed / candidate); widened = true; break;
+      }
+    }
+    if (!widened) { fw = env.w; fd = Math.ceil(needed / Math.max(1, fw)); }
+  }
   if (fd > env.h) { fd = env.h; fw = Math.min(env.w, Math.ceil(needed / Math.max(1, fd))); }
   fw = Math.max(MIN_DIM * 2, Math.min(env.w, fw));
   fd = Math.max(MIN_DIM * 2, Math.min(env.h, fd));

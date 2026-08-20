@@ -78,17 +78,27 @@ _WALL_ALLOWANCE = 115
 # instead, two abreast.
 _MAX_ASPECT = 2.2
 
-# Wider than this and the roof spans, the corridor runs and the structure all
-# start costing more than the frontage is worth. Project homes cluster just
-# under it.
+# The widest frontage a two-band corridor plan can actually use.
 #
-# Narrowing it to 12 m would suit the corridor -- a band is really only two
-# rooms deep, so a single spine wants about that -- and measurably improves
-# room proportions. It also starves the double garage and shrinks the rear
-# yard below what a pool and its barrier need. Those are real requirements
-# and the room proportions are a preference, so this stays where it is, and
-# a band too deep for its rooms is reported instead.
-MAX_FRONTAGE = 16000
+# Band depth is (frontage - corridor) / 2, and that depth becomes the width of
+# every room hanging off the passage. A bedroom wants to be roughly square, so
+# a band much past 6.5 m deep gives rooms that are wide and shallow -- 12 m2
+# arriving as 2.0 x 6.0, which is a corridor with a bed in it. Two 6.5 m bands
+# and a passage is about 14 m, and measuring bears it out: capping here
+# recovers 27 undersized rooms across the sweep, and capping tighter recovers
+# none, because below this the shortfall is depth rather than shape.
+#
+# It is a limit of the CORRIDOR MODEL, not of houses. A genuinely wide house
+# is planned as an L or a U around a courtyard, which this solver does not do;
+# on a wide lot it builds narrower and deeper instead, which is what a project
+# home does anyway.
+MAX_FRONTAGE = 14000
+
+# Rear yard kept clear of the building before the frontage cap gives way.
+# Not a code figure -- the outdoor living requirement is a rule pack's job
+# and varies by state. This is the point at which making the house narrower
+# and deeper stops being worth what it costs the garden.
+MIN_REAR_YARD = 7000
 
 
 def _tile_width(req: SpaceRequirement) -> int:
@@ -1025,6 +1035,22 @@ def _footprint(
     # because rooms hang off a spine that runs the depth.
     width = min(envelope.w, MAX_FRONTAGE)
     depth = -(-area // max(1, width))
+
+    # The frontage cap is a preference, and the rear yard outranks it. Going
+    # narrower makes the house deeper, and depth comes straight out of the
+    # back garden -- which is where the outdoor living the R-Codes require
+    # goes, and where a pool goes if there is one. So where the capped width
+    # would push the building past the yard the block can spare, widen back
+    # towards the envelope until it fits. Rooms that are slightly wide beat a
+    # house with no garden behind it.
+    if depth > envelope.h - MIN_REAR_YARD and envelope.w > width:
+        for candidate in range(width, envelope.w + 1, 250):
+            if -(-area // candidate) <= envelope.h - MIN_REAR_YARD:
+                width, depth = candidate, -(-area // candidate)
+                break
+        else:
+            width = envelope.w
+            depth = -(-area // max(1, width))
     if depth > envelope.h:
         # Too deep for the block: give back some frontage and try again.
         depth = envelope.h
