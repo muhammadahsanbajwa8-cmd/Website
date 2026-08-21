@@ -134,6 +134,11 @@ class _Canvas:
 
     def __init__(self) -> None:
         self.parts: list[str] = []
+        # The same drawing, recorded as a display list rather than markup, so
+        # a second backend can render it without re-deriving any geometry.
+        # Every primitive appends to BOTH; nothing may reach `parts` alone, or
+        # the PDF quietly loses whatever it was.
+        self.ops: list[tuple] = []
         self.minx = self.miny = 10**9
         self.maxx = self.maxy = -(10**9)
 
@@ -157,19 +162,25 @@ class _Canvas:
         return self.maxx > self.minx
 
     def rect(self, r, cls: str, dx: int = 0) -> None:
-        self.add(f'<rect class="{cls}" x="{r.x + dx}" y="{r.y}" '
-                 f'width="{r.w}" height="{r.h}"/>')
-        self.saw(r.x + dx, r.y)
-        self.saw(r.x + dx + r.w, r.y + r.h)
+        self.box(r.x + dx, r.y, r.w, r.h, cls)
+
+    def box(self, x, y, w, h, cls: str) -> None:
+        self.add(f'<rect class="{cls}" x="{x}" y="{y}" '
+                 f'width="{w}" height="{h}"/>')
+        self.ops.append(("rect", cls, float(x), float(y), float(w), float(h)))
+        self.saw(x, y)
+        self.saw(x + w, y + h)
 
     def line(self, x0, y0, x1, y1, cls: str) -> None:
         self.add(f'<line class="{cls}" x1="{x0:.0f}" y1="{y0:.0f}" '
                  f'x2="{x1:.0f}" y2="{y1:.0f}"/>')
+        self.ops.append(("line", cls, float(x0), float(y0), float(x1), float(y1)))
         self.saw(x0, y0)
         self.saw(x1, y1)
 
     def circle(self, cx, cy, r, cls: str) -> None:
         self.add(f'<circle class="{cls}" cx="{cx:.0f}" cy="{cy:.0f}" r="{r:.0f}"/>')
+        self.ops.append(("circle", cls, float(cx), float(cy), float(r)))
         self.saw(cx, cy, r)
 
     def arc(self, cx, cy, r, a0, a1, cls: str) -> None:
@@ -180,6 +191,8 @@ class _Canvas:
         large = 1 if (a1 - a0) % 360 > 180 else 0
         self.add(f'<path class="{cls}" d="M {x0:.0f} {y0:.0f} '
                  f'A {r:.0f} {r:.0f} 0 {large} 1 {x1:.0f} {y1:.0f}"/>')
+        self.ops.append(("arc", cls, float(cx), float(cy), float(r),
+                         float(a0), float(a1)))
         self.saw(cx, cy, r)
 
     def polyline(self, points, cls: str, dx: int = 0) -> None:
@@ -187,15 +200,21 @@ class _Canvas:
             return
         d = " ".join(f"{x + dx:.0f},{y:.0f}" for x, y in points)
         self.add(f'<polyline class="{cls}" points="{d}"/>')
+        self.ops.append(("polyline", cls,
+                         tuple((float(x + dx), float(y)) for x, y in points)))
         for x, y in points:
             self.saw(x + dx, y)
 
-    def text(self, x, y, value: str, cls: str, dy: int = 0) -> None:
+    def text(self, x, y, value: str, cls: str, dy: int = 0,
+             rotate: int = 0) -> None:
         """Text is flipped back upright, one label at a time."""
+        spin = f" rotate({rotate})" if rotate else ""
         self.add(
-            f'<g transform="translate({x:.0f},{y:.0f}) scale(1,-1)">'
+            f'<g transform="translate({x:.0f},{y:.0f}) scale(1,-1){spin}">'
             f'<text class="{cls}" y="{dy}">{html.escape(value)}</text></g>'
         )
+        self.ops.append(("text", cls, float(x), float(y), float(dy),
+                         float(rotate), value))
         # Text is centred, so allow for roughly half its run either side.
         self.saw(x, y - dy, max(600, len(value) * 90))
 
@@ -279,12 +298,7 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
 
     for panel in view.panels:
         cls = "elev-door" if panel.kind == "door" else "elev-glaz"
-        canvas.add(
-            f'<rect class="{cls}" x="{panel.x + dx}" y="{panel.y + dy}" '
-            f'width="{panel.width}" height="{panel.height}"/>'
-        )
-        canvas.saw(panel.x + dx, panel.y + dy)
-        canvas.saw(panel.x + dx + panel.width, panel.y + dy + panel.height)
+        canvas.box(panel.x + dx, panel.y + dy, panel.width, panel.height, cls)
         if panel.label:
             canvas.text(panel.x + dx + panel.width // 2,
                         panel.y + dy + panel.height + 250, panel.label, "elev-code")
@@ -302,11 +316,8 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
             continue
         seen.add(level.y)
         canvas.line(left - 2600, level.y + dy, right + 400, level.y + dy, "elev-level")
-        canvas.add(
-            f'<g transform="translate({left - 2500},{level.y + dy}) scale(1,-1)">'
-            f'<text class="elev-level-text" y="-120">'
-            f'{html.escape(level.label)}</text></g>'
-        )
+        canvas.text(left - 2500, level.y + dy, level.label,
+                    "elev-level-text", dy=-120)
         canvas.saw(left - 2600, level.y + dy, 400)
 
 
@@ -319,11 +330,8 @@ def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -
             canvas.line(t.x0 + dx, t.y0, t.x1 + dx, t.y1, "dim-tick")
         cls = "dim-overall" if dim.is_overall else "dim-text"
         if dim.vertical:
-            canvas.add(
-                f'<g transform="translate({dim.text_x + dx},{dim.text_y}) '
-                f'scale(1,-1) rotate(-90)">'
-                f'<text class="{cls}" y="-110">{html.escape(dim.text)}</text></g>'
-            )
+            canvas.text(dim.text_x + dx, dim.text_y, dim.text, cls,
+                        dy=-110, rotate=-90)
         else:
             canvas.text(dim.text_x + dx, dim.text_y, dim.text, cls, dy=-110)
 
@@ -349,10 +357,7 @@ def _legend(canvas: _Canvas, x: int, y: int, width: int, title: str,
         sum(len(_wrap(n, 44)) for n in notes)
     ) + 400
 
-    canvas.add(f'<rect class="legend-box" x="{x}" y="{y - height}" '
-               f'width="{width}" height="{height}"/>')
-    canvas.saw(x, y - height)
-    canvas.saw(x + width, y)
+    canvas.box(x, y - height, width, height, "legend-box")
     cursor = y - 520
     canvas.text(x + 300, cursor, title, "legend-title")
     cursor -= 420
@@ -361,10 +366,7 @@ def _legend(canvas: _Canvas, x: int, y: int, width: int, title: str,
         along, out = footprint(kind)
         scale = min(1.0, legend_size / max(along, out, 1))
         _draw_symbol(canvas, kind, x + 700, cursor + 60, 0, scale=scale)
-        canvas.add(
-            f'<g transform="translate({x + 1600},{cursor}) scale(1,-1)">'
-            f'<text class="legend-item">{html.escape(label)}</text></g>'
-        )
+        canvas.text(x + 1600, cursor, label, "legend-item")
         cursor -= line_height
 
     cursor -= 200
@@ -372,10 +374,7 @@ def _legend(canvas: _Canvas, x: int, y: int, width: int, title: str,
         wrapped = _wrap(note, 44)
         for index, piece in enumerate(wrapped):
             cls = "note-strong" if index == 0 and note.startswith("Not ") else "note"
-            canvas.add(
-                f'<g transform="translate({x + 300},{cursor}) scale(1,-1)">'
-                f'<text class="{cls}">{html.escape(piece)}</text></g>'
-            )
+            canvas.text(x + 300, cursor, piece, cls)
             cursor -= note_height
         cursor -= 80
     return height
@@ -492,21 +491,21 @@ def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
     return "".join(out)
 
 
-def write_svg(
+def build_sheet(
     building: Building,
-    path: str | Path,
     storey_index: int | None = None,
     sheet: str = "architectural",
     services: dict[int, object] | None = None,
     footprint=None,
     system: str = "metric",
-    title: TitleBlock | None = None,
-    sheet_no: int = 1,
-    sheet_of: int = 1,
-    sheet_size: str = "A3",
-) -> Path:
-    """Write one sheet. `services` maps a storey index to its ServicesPlan."""
-    path = Path(path)
+) -> tuple["_Canvas", tuple[int, int], int, int, str]:
+    """Draw one sheet onto a canvas, without deciding what it is written to.
+
+    Returns the canvas, the origin that maps plan coordinates into a box of
+    content_w x content_h, those two sizes, and the sheet's name. Both the SVG
+    and the PDF writer go through here, so a drawing cannot come out different
+    in one format from the other -- there is only one drawing.
+    """
     if sheet not in SHEETS:
         raise ValueError(f"unknown sheet {sheet!r}; choose from {', '.join(SHEETS)}")
 
@@ -519,11 +518,7 @@ def write_svg(
         raise ValueError(f"the building has no storey {storey_index}")
 
     if sheet == "elevations":
-        return _write_elevations(
-            building, path,
-            title or TitleBlock(project=building.name or ""),
-            sheet_no, sheet_of, sheet_size,
-        )
+        return _elevation_canvas(building)
 
     margin = 3000
     ghost = sheet != "architectural"
@@ -599,12 +594,35 @@ def write_svg(
 
     content_w = int(canvas.maxx - canvas.minx) + margin * 2
     content_h = int(canvas.maxy - canvas.miny) + margin * 2
-    body = "\n".join(canvas.parts)
+    return (
+        canvas,
+        (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
+        content_w, content_h, f"{sheet.title()} plan",
+    )
+
+
+def write_svg(
+    building: Building,
+    path: str | Path,
+    storey_index: int | None = None,
+    sheet: str = "architectural",
+    services: dict[int, object] | None = None,
+    footprint=None,
+    system: str = "metric",
+    title: TitleBlock | None = None,
+    sheet_no: int = 1,
+    sheet_of: int = 1,
+    sheet_size: str = "A3",
+) -> Path:
+    """Write one sheet as SVG. `services` maps a storey index to its plan."""
+    canvas, origin, content_w, content_h, name = build_sheet(
+        building, storey_index, sheet, services, footprint, system
+    )
     return _write_sheet(
-        path, body, content_w, content_h,
-        origin=(int(-canvas.minx) + margin, int(canvas.maxy) + margin),
+        Path(path), "\n".join(canvas.parts), content_w, content_h,
+        origin=origin,
         title=title or TitleBlock(project=building.name or ""),
-        sheet_name=f"{sheet.title()} plan",
+        sheet_name=name,
         sheet_no=sheet_no, sheet_of=sheet_of, size=sheet_size,
     )
 
@@ -673,15 +691,8 @@ def _write_sheet(
     return path
 
 
-def _write_elevations(
-    building: Building,
-    path: Path,
-    title: TitleBlock | None = None,
-    sheet_no: int = 1,
-    sheet_of: int = 1,
-    sheet_size: str = "A3",
-) -> Path:
-    """All four elevations on one sheet, numbered from the street."""
+def _elevation_canvas(building: Building):
+    """All four elevations on one canvas, numbered from the street."""
     views = build_elevations(building)
     canvas = _Canvas()
     margin = 3500
@@ -710,10 +721,7 @@ def _write_elevations(
 
     notes_top = -((len(views) + 1) // 2 - 1) * row_h - 4200
     for index, note in enumerate(views[0].notes):
-        canvas.add(
-            f'<g transform="translate({0},{notes_top - index * 700}) scale(1,-1)">'
-            f'<text class="elev-note">{html.escape(note)}</text></g>'
-        )
+        canvas.text(0, notes_top - index * 700, note, "elev-note")
         # Register where the note actually IS. Sawing the positive y
         # instead pushed the sheet bounds 13 m the wrong way and left
         # the notes themselves outside them.
@@ -721,13 +729,13 @@ def _write_elevations(
 
     content_w = int(canvas.maxx - canvas.minx) + margin * 2
     content_h = int(canvas.maxy - canvas.miny) + margin * 2
-    return _write_sheet(
-        path, "\n".join(canvas.parts), content_w, content_h,
-        origin=(int(-canvas.minx) + margin, int(canvas.maxy) + margin),
-        title=title or TitleBlock(project=building.name or ""),
-        sheet_name="Elevations",
-        sheet_no=sheet_no, sheet_of=sheet_of, size=sheet_size,
+    return (
+        canvas,
+        (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
+        content_w, content_h, "Elevations",
     )
+
+
 
 
 def _bounds(storey):

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import __version__, codes
 from .export import write_dxf, write_ifc, write_model_json, write_svg
+from .export.pdf import write_pdf
 from .schedule import (
     format_schedule,
     opening_specification,
@@ -49,6 +50,9 @@ FORMATS = {
     "dxf": write_dxf,
     "ifc": write_ifc,
     "svg": write_svg,
+    # PDF is the one a customer is actually given, so it is a DOCUMENT rather
+    # than a sheet: every page in one file, because that is what gets emailed.
+    "pdf": write_pdf,
     # The JSON model is what the pyRevit script reads to build native
     # Revit walls and rooms, rather than importing IFC geometry.
     "json": write_model_json,
@@ -399,6 +403,20 @@ def cmd_plan(args) -> int:
 
     for name in formats:
         writer = FORMATS[name]
+        if name == "pdf":
+            # One file, every sheet, in the order the set reads.
+            written.append(
+                writer(
+                    building, out / f"{stem}.pdf",
+                    pages=[(sheet, index) for sheet, index, _ in pages],
+                    title=title_block,
+                    services=services,
+                    footprint=layout.envelope,
+                    system=args.units,
+                    sheet_size=args.sheet,
+                )
+            )
+            continue
         if name not in SHEET_FORMATS:
             # IFC and the JSON model describe the building itself, so there
             # is one of each however many sheets are drawn.

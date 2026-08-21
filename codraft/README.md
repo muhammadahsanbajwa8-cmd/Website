@@ -604,6 +604,57 @@ swallowed anything:
   otherwise have passed on its own terms.
 
 
+**PDF is the format a customer is actually given.** DXF opens in CAD, IFC in a
+BIM tool, SVG in a browser — none of them opens on a builder's phone in a car
+park, and none is what gets emailed to a client. `--formats pdf` writes the
+whole set as **one file, a page per sheet**, at the same scale and with the
+same title block as the printed sheets:
+
+```
+$ codraft plan "4 bed 2 bath house in Perth" --plot 15mx30m --zone R20 \
+      --storeys 2 --pool --elevations --formats pdf \
+      --project "THE MURRAY" --client "M. A. Bajwa" --job CD-0001
+
+  out/plan.pdf  (11,895 bytes)     3 pages: ground floor, floor 1, elevations
+```
+
+It is the *same* drawing, not a second implementation. `build_sheet` produces a
+display list and both writers render it, so a line cannot come out in one
+format and not the other. The `_Canvas` primitives record every operation
+alongside the SVG markup, and nothing may reach the markup alone — the seven
+raw-markup call sites that used to bypass them were converted to primitives to
+make that true.
+
+The stylesheet is shared the same way: the PDF writer **parses the SVG's own
+CSS** for stroke colours, line weights, dash patterns and fonts, rather than
+restating them. Change a wall's weight in one place and both formats follow.
+
+Written by hand against the PDF spec, with no dependency beyond `zlib` — which
+matches the reader already in `codraft.ingest.pdfread`, and buys the test worth
+having: codraft writes a set, **reads it back with its own reader**, and checks
+the 30 m lot depth comes back out as 30 000 mm once the sheet's stated scale is
+applied. The same scale-printed-is-scale-drawn property the SVG sheets are held
+to is asserted on the PDF's own transform matrix, and the cross-reference table
+is checked to point at the objects it claims — a wrong xref is the classic
+hand-rolled-PDF bug, forgiven by lenient readers and rejected by strict ones.
+
+Two things are approximations, and the module says so rather than leaving them
+to be discovered:
+
+- **Text is placed, not laid out.** The base-14 fonts need no embedding, which
+  keeps the file small, but centring a label needs the string's width. Courier
+  is exactly 0.6 em a character so its centring is exact; Helvetica is
+  proportional and estimated, so a label may sit a millimetre off centre.
+  Nothing dimensional depends on it.
+- **Colour is RGB, not a plot style.** A drawing office plots by pen weight and
+  colour table; this writes what the screen shows.
+
+If an operation has no PDF equivalent the writer **raises** rather than
+omitting it. A drawing missing a line it was asked to carry is exactly the
+failure the rest of this project exists to avoid, and a test sabotages the
+canvas to prove the alarm sounds.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 
