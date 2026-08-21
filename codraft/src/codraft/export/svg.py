@@ -16,7 +16,9 @@ import html
 import math
 from pathlib import Path
 
-from ..annotate import dimension_storey, room_dimension_text
+from ..annotate import (
+    dimension_site, dimension_storey, room_dimension_text,
+)
 from .elevation import elevations as build_elevations
 from ..sheet import (
     MARGIN,
@@ -545,8 +547,10 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
         canvas.saw(left - 2600, true_y + dy, 400)
 
 
-def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -> None:
-    for dim in dimension_storey(storey, footprint, system):
+def _draw_dims(canvas: _Canvas, dims, dx: int) -> None:
+    """Render a set of dimension lines. One renderer, so a site plan's chain
+    is drawn with the same weights and the same tick as a floor plan's."""
+    for dim in dims:
         canvas.line(dim.line.x0 + dx, dim.line.y0, dim.line.x1 + dx, dim.line.y1, "dim")
         for w in dim.witness:
             canvas.line(w.x0 + dx, w.y0, w.x1 + dx, w.y1, "dim-wit")
@@ -558,6 +562,16 @@ def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -
                         dy=-110, rotate=-90)
         else:
             canvas.text(dim.text_x + dx, dim.text_y, dim.text, cls, dy=-110)
+
+
+def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int,
+                     system: str) -> None:
+    _draw_dims(canvas, dimension_storey(storey, footprint, system), dx)
+
+
+def _draw_site_dimensions(canvas: _Canvas, plot, footprint, dx: int,
+                          system: str) -> None:
+    _draw_dims(canvas, dimension_site(plot, footprint, system), dx)
 
 
 def _draw_services(canvas: _Canvas, plan, dx: int) -> None:
@@ -978,7 +992,17 @@ def build_sheet(
                            site=(sheet == "site"))
         bounds = footprint or _bounds(storey)
 
-        if sheet == "architectural":
+        if sheet == "site":
+            # Boundary to building face on all four sides. These are the
+            # figures a certifier measures off a site plan, and without them
+            # the sheet shows that a house was drawn on a lot and says
+            # nothing about whether it may be.
+            _draw_site_dimensions(canvas, building.plot, bounds, dx, system)
+            for space in storey.spaces:
+                c = space.rect.centre
+                canvas.text(c.x + dx, c.y, space.name, "ghost-name",
+                            dy=int(-space.rect.h * 0.35))
+        elif sheet == "architectural":
             _draw_dimensions(canvas, storey, bounds, dx, system)
             obstacles = _floor_obstacles(storey)
             for space in storey.spaces:

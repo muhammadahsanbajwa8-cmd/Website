@@ -213,6 +213,35 @@ def dimension_storey(
     return dims
 
 
+def dimension_site(plot, footprint: Rect, system: str = "metric") -> list[DimLine]:
+    """The dimensions a SITE plan exists to carry.
+
+    Boundary to building face, on all four sides, and the lot itself. These
+    are the figures a certifier measures: the setback is the control, the
+    building is what has to sit inside it. A site plan without them shows
+    that a house was drawn on a lot and says nothing about whether it may be.
+
+    The chain runs boundary, near face, far face, boundary -- so the two
+    setbacks and the building come out as three figures that add to the lot,
+    and a reader can check the arithmetic across the sheet.
+    """
+    lot = plot.rect
+    dims: list[DimLine] = []
+
+    across = [lot.x0, footprint.x0, footprint.x1, lot.x1]
+    dims += _chain(sorted(set(across)), lot.y0, -1, FIRST_OFFSET, lot.y0,
+                   False, system)
+    dims += _chain([lot.x0, lot.x1], lot.y0, -1, FIRST_OFFSET + CHAIN_GAP,
+                   lot.y0, False, system, is_overall=True)
+
+    along = [lot.y0, footprint.y0, footprint.y1, lot.y1]
+    dims += _chain(sorted(set(along)), lot.x0, -1, FIRST_OFFSET, lot.x0,
+                   True, system)
+    dims += _chain([lot.y0, lot.y1], lot.x0, -1, FIRST_OFFSET + CHAIN_GAP,
+                   lot.x0, True, system, is_overall=True)
+    return dims
+
+
 def chains_close(dims: list[DimLine], footprint: Rect) -> list[str]:
     """Check every chain adds up to its overall.
 

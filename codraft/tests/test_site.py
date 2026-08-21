@@ -159,3 +159,82 @@ class TestConstruction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheSitePlanCarriesTheSetbacks(unittest.TestCase):
+    """A site plan without setback dimensions is a picture of a lot.
+
+    The setback is the control and the building is what has to sit inside
+    it, so boundary-to-face on all four sides is the figure a certifier
+    measures. The chain runs boundary, near face, far face, boundary, which
+    puts the two setbacks and the building on the sheet as three figures
+    that add to the lot -- so the arithmetic can be checked by reading.
+    """
+
+    def _drawn(self):
+        from codraft.export.svg import build_sheet
+        from codraft.geom import Rect
+        from codraft.layout import build_building, solve
+        from codraft.model import Plot
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=4, bathrooms=2, storeys=1)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        building = build_building(program, plot, layout)
+        canvas, *_ = build_sheet(building, storey_index=0, sheet="site",
+                                 footprint=layout.envelope)
+        return canvas, plot, layout.envelope
+
+    def _figures(self, canvas):
+        return {op[6] for op in canvas.ops
+                if op[0] == "text" and op[1] in ("dim-text", "dim-overall")}
+
+    def test_both_setbacks_are_dimensioned_on_both_axes(self):
+        canvas, plot, footprint = self._drawn()
+        figures = self._figures(canvas)
+        lot = plot.rect
+        for expected in (
+            footprint.x0 - lot.x0, lot.x1 - footprint.x1,
+            footprint.y0 - lot.y0, lot.y1 - footprint.y1,
+        ):
+            if expected <= 0:
+                continue
+            with self.subTest(setback=expected):
+                self.assertIn(str(expected), figures)
+
+    def test_the_lot_itself_is_dimensioned(self):
+        canvas, plot, _ = self._drawn()
+        figures = self._figures(canvas)
+        self.assertIn(str(plot.rect.w), figures)
+        self.assertIn(str(plot.rect.h), figures)
+
+    def test_the_setbacks_and_the_building_add_up_to_the_lot(self):
+        # The one arithmetic error a set must never contain: it is found by
+        # a builder with a tape, not by anybody in the office.
+        from codraft.annotate import chains_close, dimension_site
+
+        _, plot, footprint = self._drawn()
+        self.assertEqual(
+            chains_close(dimension_site(plot, footprint), plot.rect), [])
+
+    def test_the_floor_plan_does_not_repeat_them(self):
+        # The floor plan has no lot on it, so a setback there measures to
+        # nothing.
+        from codraft.export.svg import build_sheet
+        from codraft.geom import Rect
+        from codraft.layout import build_building, solve
+        from codraft.model import Plot
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=4, bathrooms=2, storeys=1)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        building = build_building(program, plot, layout)
+        canvas, *_ = build_sheet(building, storey_index=0,
+                                 footprint=layout.envelope)
+        self.assertNotIn(str(plot.rect.h), self._figures(canvas))
