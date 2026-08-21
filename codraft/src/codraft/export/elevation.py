@@ -48,6 +48,28 @@ class Panel:
 
 
 @dataclass(slots=True)
+class Face:
+    """One storey's wall face, as a rectangle on the elevation.
+
+    The outline already carries these as four lines each. A rectangle as
+    well, because a texture has to be drawn INSIDE something and four
+    unordered segments are not an inside.
+    """
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+# Construction systems whose external face is masonry, and so has a course
+# to draw. A framed wall is clad in something the model does not know --
+# weatherboard, sheet, render on foam -- so it gets no texture and a note
+# saying the cladding is unstated rather than a texture that implies brick.
+MASONRY = frozenset({"solid_masonry", "double_brick", "brick_veneer"})
+
+
+@dataclass(slots=True)
 class Level:
     """A height called up the side of the drawing."""
 
@@ -62,7 +84,9 @@ class ElevationView:
     outline: list[Line] = field(default_factory=list)
     roof: list[Line] = field(default_factory=list)
     panels: list[Panel] = field(default_factory=list)
+    faces: list[Face] = field(default_factory=list)
     levels: list[Level] = field(default_factory=list)
+    wall_material: str = ""
     ground: Line | None = None
     width_mm: int = 0
     height_mm: int = 0
@@ -175,6 +199,7 @@ def elevation(building: Building, direction: str, number: int = 1) -> ElevationV
         top = base + storey.ceiling_height
         plate = max(plate, top)
         s_lo, s_hi = _footprint_extent(storey, direction)
+        view.faces.append(Face(s_lo, base, s_hi - s_lo, top - base))
         view.outline += [
             Line(s_lo, base, s_hi, base),
             Line(s_lo, base, s_lo, top),
@@ -219,10 +244,31 @@ def elevation(building: Building, direction: str, number: int = 1) -> ElevationV
     view.ground = Line(lo - 1500, 0, hi + 1500, 0)
     view.width_mm = hi - lo
     view.height_mm = ridge
+    view.wall_material = building.metadata.get("construction", "")
     view.notes = [
         f"{roof.pitch_degrees:.0f} degree pitch {roof.material} roof",
-        "Metal gutters, fascia and downpipes",
         f"Overall height {ridge} mm above floor level",
+    ]
+    if view.wall_material in MASONRY:
+        view.notes.append(
+            f"External walls {view.wall_material.replace('_', ' ')}; the "
+            f"course lines are drawn at {COURSE_MM} mm"
+        )
+    elif view.wall_material:
+        view.notes.append(
+            f"External walls {view.wall_material.replace('_', ' ')}. The "
+            "cladding is not stated, so no texture is drawn"
+        )
+    # What is deliberately absent. A reference set has all of it and none of
+    # it follows from the model, so naming it beats drawing it somewhere
+    # plausible and letting the position read as a decision somebody made.
+    view.notes += [
+        "Openings are shown at the STRUCTURAL size; the frame within it is "
+        "the window schedule's",
+        "Downpipes not shown: how many and where is the roof drainage "
+        "design, not a consequence of this plan",
+        "Meter box, gutter and roof sheet profiles not shown: supplier and "
+        "utility requirements",
     ]
     return view
 

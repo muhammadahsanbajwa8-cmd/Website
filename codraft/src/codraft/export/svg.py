@@ -16,6 +16,7 @@ import html
 import math
 from pathlib import Path
 
+from ..courses import COURSE_MM
 from ..annotate import (
     dimension_site, dimension_storey, room_dimension_text,
 )
@@ -132,6 +133,9 @@ STYLE = """
   .elev-code { font: 600 180px "IBM Plex Mono", ui-monospace, monospace;
                fill: #3a352d; text-anchor: middle; }
 
+  .elev-course { stroke: #cfc9bd; stroke-width: 8; }
+  .elev-frame { fill: none; stroke: #6b7f9e; stroke-width: 14; }
+  .elev-sill { stroke: #4a453d; stroke-width: 22; stroke-linecap: square; }
   .legend-box { fill: #ffffff; stroke: #d6d1c7; stroke-width: 10; }
   .legend-title { font: 700 320px system-ui, sans-serif; fill: #14110d; }
   .legend-item { font: 250px system-ui, sans-serif; fill: #3a352d; }
@@ -266,6 +270,11 @@ class _Canvas:
         # with nowhere to go, so far. Collected here because the drawing is
         # where it is discovered.
         self.notes: list[str] = []
+        # Notes that belong on the SHEET, as opposed to `notes`, which is
+        # what the drawing DISCOVERED and which goes to the report. Kept
+        # apart because they land in different places and mixing them put
+        # "WC has no wall left for its pan" in the title block.
+        self.sheet_notes: list[str] = []
         self.minx = self.miny = 10**9
         self.maxx = self.maxy = -(10**9)
 
@@ -567,6 +576,49 @@ def _level_labels(levels, min_gap: int = 520):
     return out
 
 
+# The frame sightline drawn inside a structural opening.
+#
+# Nominal, and it has to be: the model carries the hole in the wall, not the
+# window that goes in it, and which window that is comes from a supplier's
+# range. The schedule already says as much about glazing ratios -- "a frame
+# typically takes 10 to 20 per cent of the opening" -- so the inner line is
+# drawn light, at a figure that is stated here rather than buried, and the
+# notes on the sheet say the schedule decides it.
+FRAME_SIGHTLINE = 45
+
+# How far a sill runs past the opening each side.
+SILL_RUN = 90
+
+
+def _course_lines(face, panels, spacing: int) -> list[tuple[int, int, int]]:
+    """Horizontal courses across one wall face, broken around the openings.
+
+    Returns (y, x0, x1) runs. Broken rather than drawn over and hidden by an
+    opaque panel: the panels are NOT opaque on an elevation -- a window is a
+    hole you see glass through -- so a course drawn across one would read as
+    brickwork in front of the glass.
+    """
+    runs: list[tuple[int, int, int]] = []
+    top = face.y + face.height
+    y = face.y + spacing
+    while y < top:
+        blockers = sorted(
+            (max(face.x, p.x), min(face.x + face.width, p.x + p.width))
+            for p in panels
+            if p.y < y < p.y + p.height
+            and p.x < face.x + face.width and p.x + p.width > face.x
+        )
+        cursor = face.x
+        for x0, x1 in blockers:
+            if x0 > cursor:
+                runs.append((y, cursor, x0))
+            cursor = max(cursor, x1)
+        if cursor < face.x + face.width:
+            runs.append((y, cursor, face.x + face.width))
+        y += spacing
+    return runs
+
+
 def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
     """One elevation: walls, roof, openings and the levels up the side.
 
@@ -574,12 +626,35 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
     """
     for line in view.roof:
         canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy, "elev-roof")
+
+    # Brick courses, under everything else and only where the walls are
+    # actually masonry. The pitch is the real 86 mm course the whole project
+    # measures in, not a texture spacing chosen to look right.
+    from .elevation import MASONRY
+
+    if view.wall_material in MASONRY:
+        for face in view.faces:
+            for y, x0, x1 in _course_lines(face, view.panels, COURSE_MM):
+                canvas.line(x0 + dx, y + dy, x1 + dx, y + dy, "elev-course")
+
     for line in view.outline:
         canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy, "elev-wall")
 
     for panel in view.panels:
         cls = "elev-door" if panel.kind == "door" else "elev-glaz"
         canvas.box(panel.x + dx, panel.y + dy, panel.width, panel.height, cls)
+
+        # The frame within the structural opening, and the sill under it.
+        inset = FRAME_SIGHTLINE
+        if panel.width > inset * 3 and panel.height > inset * 3:
+            canvas.box(panel.x + inset + dx, panel.y + inset + dy,
+                       panel.width - inset * 2, panel.height - inset * 2,
+                       "elev-frame")
+        if panel.kind != "door":
+            canvas.line(panel.x - SILL_RUN + dx, panel.y + dy,
+                        panel.x + panel.width + SILL_RUN + dx, panel.y + dy,
+                        "elev-sill")
+
         if panel.label:
             canvas.text(panel.x + dx + panel.width // 2,
                         panel.y + dy + panel.height + 250, panel.label, "elev-code")
@@ -685,7 +760,7 @@ def _wrap(text: str, width: int) -> list[str]:
 
 
 def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
-                 scale_note: str) -> str:
+                 scale_note: str, sheet_notes: list[str] | None = None) -> str:
     """Draw the box down the right edge, in paper millimetres.
 
     y here runs DOWN from the top of the sheet, like SVG's own axis: this is
@@ -787,7 +862,26 @@ def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
                 wrapped = wrapped[:3] + ["..."]
             for i, chunk in enumerate(wrapped):
                 text(x + 4, cursor + 4.0 + i * 3.0, chunk, "tb-small")
-            cursor += 4.0 + 3.0 * min(3, len(_wrap(block.area_note, 46)))
+            # Advance past what was just printed. Leaving this out in one
+            # renderer and not the other is how the areas note came out
+            # printed through the NOTES heading below it in the PDF and
+            # cleanly in the SVG -- the same block, two arithmetics.
+            cursor += 4.0 + 3.0 * len(wrapped)
+
+    # This sheet's own notes, under the areas. Same argument as the areas:
+    # here they cost the drawing nothing, and under the drawing they cost it
+    # a scale step.
+    if sheet_notes:
+        cursor += 6
+        text(x + 4, cursor, "NOTES", "tb-label")
+        cursor += 1.5
+        line(x, cursor, x + w, cursor, "tb-hair")
+        cursor += 2.6
+        for note in sheet_notes:
+            for chunk in _wrap(note, 44):
+                text(x + 4, cursor, chunk, "tb-small")
+                cursor += 3.0
+            cursor += 1.2
 
     # The disclaimer sits at the foot of the block, where a drawing set puts
     # its status. It is the same sentence the report ends with, because a
@@ -1189,7 +1283,7 @@ def write_svg(
         Path(path), "\n".join(canvas.parts), content_w, content_h,
         origin=origin,
         title=title or TitleBlock(project=building.name or ""),
-        sheet_name=name,
+        sheet_name=name, sheet_notes=canvas.sheet_notes,
         sheet_no=sheet_no, sheet_of=sheet_of, size=sheet_size,
     )
 
@@ -1205,6 +1299,7 @@ def _write_sheet(
     sheet_no: int,
     sheet_of: int,
     size: str,
+    sheet_notes: list[str] | None = None,
 ) -> Path:
     """Place a drawing on a real sheet, at a real scale, with a title block.
 
@@ -1251,7 +1346,7 @@ def _write_sheet(
         f'<rect class="sheet" x="0" y="0" width="{frame.width}" '
         f'height="{frame.height}"/>'
         f'<g transform="{place}">{body}</g>'
-        f"{_title_block(frame, title, sheet_name, sheet_no, sheet_of, scale_note)}"
+        f"{_title_block(frame, title, sheet_name, sheet_no, sheet_of, scale_note, sheet_notes or [])}"
         f"</svg>"
     )
     path.write_text(svg, encoding="utf-8")
@@ -1327,16 +1422,17 @@ def _elevation_page(building: Building, page: int = 0):
         _draw_elevation(canvas, view, dx, dy)
         canvas.text((left + right) // 2 + dx, dy - 2400, view.title, "title")
 
-    # The notes go on the first sheet only. Repeating them on the second is
-    # how a set ends up with two versions of the same note that disagree.
+    # The notes go in the TITLE BLOCK, not under the drawing.
+    #
+    # Under the drawing they are deducted from the paper before a scale is
+    # chosen, and they are not free: six lines of note took these sheets
+    # from 1:100 straight back to 1:200. That is paying for the caption with
+    # the drawing it captions. The title block has the room, costs the
+    # drawing nothing, and is where a builder's set carries general notes
+    # anyway. On the first sheet only -- two copies of a note is how a set
+    # ends up with two that disagree.
     if page == 0:
-        notes_top = -(len(views) - 1) * row_h - 2000
-        for index, note in enumerate(every[0].notes):
-            canvas.text(0, notes_top - index * 550, note, "elev-note")
-            # Register where the note actually IS. Sawing the positive y
-            # instead pushed the sheet bounds 13 m the wrong way and left
-            # the notes themselves outside them.
-            canvas.saw(0, notes_top - index * 550, 3000, pad_y=300)
+        canvas.sheet_notes.extend(every[0].notes)
 
     name = "Elevations"
     if len(every) > PER_ELEVATION_SHEET:

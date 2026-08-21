@@ -688,6 +688,11 @@ def build_building(
         plot=plot,
         jurisdiction=jurisdiction,
         use=program.use,
+        # Recorded, not inferred. An elevation that wants to draw brickwork
+        # has to know the walls ARE brick, and guessing it back from a
+        # 230 mm thickness is a guess: 230 is also a rendered blockwork wall
+        # and 200 is a framed one with thick cladding.
+        metadata={"construction": system} if system else {},
     )
     warnings = layout.warnings
 

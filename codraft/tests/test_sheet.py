@@ -207,3 +207,82 @@ class TestAFloorPlanGetsTheScaleABuilderReads(unittest.TestCase):
             self._scale(self._building(), "architectural", 0),
             self._scale(self._building(), "site", 0),
         )
+
+
+class TestTheTitleBlockDoesNotPrintOverItself(unittest.TestCase):
+    """Two renderers draw this block, so it has two chances to disagree.
+
+    It took one: the areas note advanced the cursor in the SVG and not in
+    the PDF, so on the PDF the note printed straight through the NOTES
+    heading below it while the SVG came out clean. Nothing counted that --
+    both files had every line in them.
+    """
+
+    def _ops(self, notes):
+        from codraft.export.pdf import _title_block_ops
+        from codraft.sheet import TitleBlock, fit_scale
+
+        block = TitleBlock(
+            project="THE MURRAY", client="Vista Homes",
+            areas=[("LIVING", "158.0 m2"), ("GARAGE", "30.6 m2"),
+                   ("TOTAL INTERNAL", "207.9 m2"),
+                   ("FOOTPRINT", "225.0 m2")],
+            area_note="Clear inside the wall faces drawn. A quoted area is "
+                      "measured over the external walls: that is FOOTPRINT, "
+                      "not the total.",
+        )
+        frame = fit_scale(20000, 20000, "A3")
+        return _title_block_ops(frame, block, "ELEVATIONS 1-2", 3, 5,
+                                "window", notes)
+
+    def test_no_two_lines_of_text_land_on_top_of_each_other(self):
+        for notes in ([], ["25 degree pitch metal roof",
+                           "Overall height 5385 mm above floor level",
+                           "Downpipes not shown: how many and where is the "
+                           "roof drainage design"]):
+            rows: dict[float, list[str]] = {}
+            for op in self._ops(notes):
+                if op[0] != "text":
+                    continue
+                rows.setdefault(round(op[3], 1), []).append(op[6])
+            with self.subTest(notes=len(notes)):
+                clashes = {y: v for y, v in rows.items() if len(v) > 1}
+                # A label and its value share a row by design only where the
+                # renderer places them side by side, which it does with an
+                # x offset; same y AND same left edge is the bug.
+                self.assertEqual(
+                    {y: v for y, v in clashes.items()
+                     if len({round(op[2], 1) for op in self._ops(notes)
+                             if op[0] == "text" and round(op[3], 1) == y}) == 1},
+                    {},
+                )
+
+    def test_the_notes_start_below_the_areas(self):
+        ops = [op for op in self._ops(["a note"]) if op[0] == "text"]
+        note_y = next(op[3] for op in ops if op[6] == "a note")
+        area_y = min(op[3] for op in ops
+                     if op[6].startswith("Clear inside"))
+        # Paper y runs UP in the PDF, so "below" is a smaller y.
+        self.assertLess(note_y, area_y)
+
+    def test_both_renderers_agree_on_what_the_block_holds(self):
+        import re
+
+        from codraft.export.svg import _title_block
+        from codraft.sheet import TitleBlock, fit_scale
+
+        notes = ["25 degree pitch metal roof", "Overall height 5385 mm"]
+        block = TitleBlock(
+            project="THE MURRAY",
+            areas=[("LIVING", "158.0 m2"), ("FOOTPRINT", "225.0 m2")],
+            area_note="Clear inside the wall faces drawn.",
+        )
+        frame = fit_scale(20000, 20000, "A3")
+        markup = _title_block(frame, block, "ELEVATIONS 1-2", 3, 5, "window",
+                              notes)
+        svg_text = set(re.findall(r">([^<>]+)</text>", markup))
+        pdf_text = {op[6] for op in self._ops(notes) if op[0] == "text"}
+        for value in ("AREAS", "NOTES", "LIVING", "FOOTPRINT", *notes):
+            with self.subTest(value=value):
+                self.assertIn(value, svg_text)
+                self.assertIn(value, pdf_text)

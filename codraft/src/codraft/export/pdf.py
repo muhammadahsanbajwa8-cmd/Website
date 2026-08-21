@@ -274,7 +274,8 @@ def _arc(stream: _Stream, cx: float, cy: float, r: float, a0: float, a1: float) 
 # The document
 # ---------------------------------------------------------------------------
 def _title_block_ops(frame, block: TitleBlock, sheet_name: str,
-                     sheet_no: int, sheet_of: int, scale_note: str) -> list[tuple]:
+                     sheet_no: int, sheet_of: int, scale_note: str,
+                     sheet_notes: list[str] | None = None) -> list[tuple]:
     """The same title block the sheets carry, as a display list in paper mm.
 
     Built here rather than shared with the SVG because the two coordinate
@@ -364,6 +365,23 @@ def _title_block_ops(frame, block: TitleBlock, sheet_name: str,
                 wrapped = wrapped[:3] + ["..."]
             for i, chunk in enumerate(wrapped):
                 text(x + 4, cursor - 4.0 - i * 3.0, chunk, "tb-small")
+            # Advance past what was just printed. Leaving this out in one
+            # renderer and not the other is how the areas note came out
+            # printed through the NOTES heading below it in the PDF and
+            # cleanly in the SVG -- the same block, two arithmetics.
+            cursor -= 4.0 + 3.0 * len(wrapped)
+
+    if sheet_notes:
+        cursor -= 6
+        text(x + 4, cursor, "NOTES", "tb-label")
+        cursor -= 1.5
+        line(x, cursor, x + w, cursor, "tb-hair")
+        cursor -= 2.6
+        for note in sheet_notes:
+            for chunk in _wrap(note, 44):
+                text(x + 4, cursor, chunk, "tb-small")
+                cursor -= 3.0
+            cursor -= 1.2
 
     foot = bottom + 15
     line(x, foot + 4, x + w, foot + 4, "tb-hair")
@@ -392,7 +410,8 @@ def _wrap(text: str, width: int) -> list[str]:
 
 
 def _page_stream(canvas, origin, content_w, content_h, frame, block,
-                 sheet_name, sheet_no, sheet_of, styles) -> tuple[bytes, int]:
+                 sheet_name, sheet_no, sheet_of, styles,
+                 sheet_notes=None) -> tuple[bytes, int]:
     """One page: the drawing placed at scale, then the title block."""
     drawn_w = content_w / frame.scale
     drawn_h = content_h / frame.scale
@@ -426,7 +445,8 @@ def _page_stream(canvas, origin, content_w, content_h, frame, block,
             f"{covers_w / 1000:.1f} x {covers_h / 1000:.1f} m")
     skipped += _emit(
         stream,
-        _title_block_ops(frame, block, sheet_name, sheet_no, sheet_of, note),
+        _title_block_ops(frame, block, sheet_name, sheet_no, sheet_of, note,
+                         sheet_notes),
         styles, 1.0,
     )
     stream.op("Q")
@@ -484,7 +504,7 @@ def write_pdf(
         frame = fit_scale(content_w, content_h, size=sheet_size)
         stream, skipped = _page_stream(
             canvas, origin, content_w, content_h, frame, block,
-            name, number, len(pages), styles,
+            name, number, len(pages), styles, canvas.sheet_notes,
         )
         unsupported += skipped
         contents.append(stream)
