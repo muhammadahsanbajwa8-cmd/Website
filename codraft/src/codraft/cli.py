@@ -216,6 +216,44 @@ def cmd_plan(args) -> int:
         if not key.startswith("$")
     }
 
+    # A plan drawn where nobody has supplied the planning controls is not a
+    # concept plan, it is a picture: the solver fills the envelope, and the
+    # sheet reports a site coverage that no rule was ever applied to. Adelaide
+    # came out at 56 per cent with no setbacks at all. Refuse, and say which
+    # figures are missing and where they go.
+    missing = codes.missing_essential_controls(jurisdiction)
+    absent = codes.missing_site_controls(jurisdiction)
+    if missing and not args.no_site_controls:
+        return _fail(
+            f"no planning controls have been supplied for "
+            f"{jurisdiction.label}.\n\n"
+            "  Missing: " + ", ".join(missing) + "\n\n"
+            "  Those figures live in rules/states/"
+            f"{codes.state_of(jurisdiction.key) or '<state>'}.yaml, and "
+            "rules/CHECKLIST.md\n"
+            "  lists every one still outstanding with the instrument to read "
+            "it from.\n"
+            "  Fill them in, set status: confirmed with the date, and this "
+            "will draw.\n\n"
+            "  To draw anyway as an unregulated massing study, pass "
+            "--no-site-controls.\n"
+            "  The sheets are stamped so nobody mistakes it for a compliant "
+            "plan."
+        )
+    # Not every gap stops a drawing. A missing height limit is worth saying
+    # and not worth refusing over.
+    advisory = [k for k in absent if k not in missing]
+    if advisory and not missing:
+        print(f"Not supplied : {', '.join(advisory)} -- see rules/CHECKLIST.md. "
+              "Everything needed to set out the plan is present.\n")
+    if missing and args.no_site_controls:
+        print("!! NO PLANNING CONTROLS APPLIED. Nobody has supplied "
+              f"{', '.join(missing)}\n"
+              f"   for {jurisdiction.label}. Setbacks and site coverage are "
+              "UNCHECKED and the\n"
+              "   footprint is whatever the lot allows. This is a massing "
+              "study, not a plan.\n")
+
     size = _plot_from(args, brief)
     if not size:
         return _fail(
@@ -1066,6 +1104,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-driveway", action="store_true", dest="no_driveway",
         help="do not draw a driveway. For a lot served off a rear laneway, "
              "where the frontage has no crossing.",
+    )
+    plan.add_argument(
+        "--no-site-controls", action="store_true", dest="no_site_controls",
+        help="draw even where no planning controls have been supplied for the "
+             "jurisdiction. The result is a massing study with no setbacks "
+             "and no coverage cap applied, and it is stamped as such.",
     )
     plan.add_argument(
         "--crossover", type=int, default=0,

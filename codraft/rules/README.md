@@ -37,6 +37,26 @@ A test asserts that regenerating changes nothing, so a value hand-edited into
 the YAML instead of into the pack fails the build rather than being silently
 dropped at the next regeneration.
 
+## These files drive the engine
+
+`codraft.codes.states` reads them, and whatever they supply wins over the rule
+packs — so a figure verified here overrides one inherited from a pack, and a
+state with no pack behind it starts working the moment its file is filled in.
+
+Only a value somebody stands behind is read: `status: missing` and `TODO` are
+ignored. A half-filled file yields half the controls, and the missing half is
+named rather than silently treated as zero.
+
+**Where the essentials are missing, `codraft plan` refuses.** Setbacks and site
+coverage are what give the solver an envelope; without them it fills the lot
+and reports a coverage percentage that no rule was ever applied to. Adelaide
+came out at 56% with no setbacks at all before this existed. The refusal names
+the missing figures and points here. `--no-site-controls` overrides it and
+stamps the result as a massing study.
+
+A missing *height limit* is reported and does not refuse. That would be
+pedantry rather than care.
+
 ## What to fill in first
 
 `CHECKLIST.md` lists every outstanding value, grouped by jurisdiction. The

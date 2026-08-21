@@ -114,6 +114,26 @@ def _quote(text: str) -> str:
     return '"' + str(text).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _kept(key: str, description: str, unit: str, held: dict) -> list[str]:
+    """Re-emit an entry a person filled in, unchanged but for the wording."""
+    lines = [f"  - id: {key}",
+             f"    description: {_quote(description)}",
+             f"    unit: {unit}"]
+    value = held.get("value")
+    if isinstance(value, dict):
+        lines.append("    value:")
+        for sub, val in value.items():
+            lines.append(f"      {sub}: {val}")
+    else:
+        lines.append(f"    value: {value}")
+    source = held.get("source")
+    lines.append(f"    source: {_quote(source) if source else 'TODO'}")
+    checked = held.get("last_checked")
+    lines.append(f"    last_checked: {checked if checked else 'null'}")
+    lines.append(f"    status: {held.get('status', 'confirm')}")
+    return lines
+
+
 def _entry(key: str, description: str, unit: str, value, source: str) -> list[str]:
     known = value is not None
     lines = [f"  - id: {key}",
@@ -131,8 +151,28 @@ def _entry(key: str, description: str, unit: str, value, source: str) -> list[st
     return lines
 
 
+def _existing(path: Path) -> dict[str, dict]:
+    """What a person has already put in this file, by rule id.
+
+    The generator MERGES. An earlier version of it treated the YAML as a pure
+    view over the packs and rewrote it wholesale, which would have thrown away
+    the figures this file exists to collect the moment anyone regenerated --
+    and the states with no pack behind them are exactly the ones a person has
+    to fill in by hand. Anything already carrying a value, a source, a date or
+    a status is kept; only missing fields are added.
+    """
+    if not path.exists():
+        return {}
+    try:
+        import yaml
+    except ImportError:            # pragma: no cover - yaml ships with the repo
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {r["id"]: r for r in data.get("rules", []) if "id" in r}
+
+
 def build() -> list[tuple[str, str, str, str]]:
-    """Write the YAML files. Returns the checklist rows."""
+    """Write the YAML files, keeping anything a person has supplied."""
     OUT.mkdir(parents=True, exist_ok=True)
     heights = _ncc_heights()
     rows: list[tuple[str, str, str, str]] = []
@@ -167,9 +207,16 @@ def build() -> list[tuple[str, str, str, str]]:
             "rules:",
         ]
 
+        held = _existing(OUT / f"{code}.yaml")
         for key, description, unit, site_key in FIELDS:
             value = None
             source = ""
+            kept = held.get(key)
+            if kept is not None and kept.get("value") not in (None, "TODO"):
+                # Somebody supplied this. It is theirs, not the generator's.
+                lines += _kept(key, description, unit, kept)
+                lines.append("")
+                continue
             if site_key and site_key in site:
                 raw = site[site_key]
                 value = dict(raw) if isinstance(raw, dict) else raw

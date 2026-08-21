@@ -116,19 +116,47 @@ class TestEveryEntryHasTheShapeTheBriefAsksFor(unittest.TestCase):
 
 
 class TestTheGeneratorsAreTheSourceOfTruth(unittest.TestCase):
-    def test_regenerating_changes_nothing(self):
-        # The YAML is a view over the packs. If running the generator would
-        # change it, someone hand-edited a value into the view instead of the
-        # pack, and the next regeneration would silently drop it.
-        before = {p.name: p.read_text(encoding="utf-8")
-                  for p in sorted(STATES.glob("*.yaml"))}
-        subprocess.run(
-            [sys.executable, "tools/build_state_rules.py"],
-            cwd=ROOT, check=True, capture_output=True,
-        )
-        after = {p.name: p.read_text(encoding="utf-8")
-                 for p in sorted(STATES.glob("*.yaml"))}
-        self.assertEqual(before, after, "the YAML is out of step with its generator")
+    def test_regenerating_keeps_what_a_person_supplied(self):
+        # The states with no pack behind them are exactly the ones somebody
+        # has to fill in by hand, so a generator that rewrote the file
+        # wholesale would throw away the only figures that matter. It merges.
+        import shutil
+        import tempfile
+
+        target = STATES / "sa.yaml"
+        with tempfile.TemporaryDirectory() as tmp:
+            backup = Path(tmp) / "sa.yaml"
+            shutil.copy(target, backup)
+            try:
+                text = target.read_text(encoding="utf-8").replace(
+                    "  - id: site.max_coverage\n"
+                    '    description: "Maximum site coverage"\n'
+                    "    unit: ratio\n"
+                    "    value: TODO\n"
+                    "    source: TODO\n"
+                    "    last_checked: null\n"
+                    "    status: missing",
+                    "  - id: site.max_coverage\n"
+                    '    description: "Maximum site coverage"\n'
+                    "    unit: ratio\n"
+                    "    value: 0.6\n"
+                    '    source: "Planning and Design Code, checked by hand"\n'
+                    "    last_checked: 2026-08-21\n"
+                    "    status: confirmed",
+                )
+                target.write_text(text, encoding="utf-8")
+                subprocess.run(
+                    [sys.executable, "tools/build_state_rules.py"],
+                    cwd=ROOT, check=True, capture_output=True,
+                )
+                after = yaml.safe_load(target.read_text(encoding="utf-8"))
+                rule = next(r for r in after["rules"]
+                            if r["id"] == "site.max_coverage")
+                self.assertEqual(rule["value"], 0.6)
+                self.assertEqual(rule["status"], "confirmed")
+                self.assertIsNotNone(rule["last_checked"])
+            finally:
+                shutil.copy(backup, target)
 
     def test_the_checklist_lists_everything_outstanding(self):
         text = CHECKLIST.read_text(encoding="utf-8")
@@ -148,3 +176,64 @@ class TestTheGeneratorsAreTheSourceOfTruth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEveryAustralianJurisdictionFindsItsFile(unittest.TestCase):
+    """Slug drift is silent and it looks exactly like a missing figure.
+
+    The registry abbreviates some subdivisions ('wa', 'sa', 'nt', 'act') and
+    spells others out ('victoria', 'queensland', 'tasmania'). Splitting a key
+    and trusting the middle part sent Melbourne and Brisbane to files that do
+    not exist, so both were refused as though nobody had supplied their
+    planning figures -- when in fact codraft has carried them all along.
+    """
+
+    def test_every_state_and_territory_resolves_to_a_file(self):
+        from codraft.codes.jurisdiction import resolve
+        from codraft.codes.states import state_of
+
+        cities = {
+            "Perth": "wa", "Sydney": "nsw", "Melbourne": "vic",
+            "Brisbane": "qld", "Adelaide": "sa", "Hobart": "tas",
+            "Darwin": "nt", "Canberra": "act",
+        }
+        for city, expected in cities.items():
+            key = resolve(city).key
+            self.assertEqual(
+                state_of(key), expected,
+                f"{city} resolves to {key!r}, which does not map to "
+                f"rules/states/{expected}.yaml",
+            )
+            self.assertTrue((STATES / f"{expected}.yaml").exists())
+
+    def test_the_states_with_packs_are_not_reported_as_missing(self):
+        # WA, NSW, VIC and QLD have carried planning figures since long before
+        # these files existed. If any of them reports its essentials missing,
+        # something has stopped finding them.
+        from codraft.codes.jurisdiction import resolve
+        from codraft.codes.states import missing_essential
+
+        for city in ("Perth", "Sydney", "Melbourne", "Brisbane"):
+            self.assertEqual(
+                missing_essential(resolve(city).key), [],
+                f"{city} reports essential controls missing",
+            )
+
+    def test_the_states_without_packs_are_reported_as_missing(self):
+        from codraft.codes.jurisdiction import resolve
+        from codraft.codes.states import missing_essential
+
+        for city in ("Adelaide", "Hobart", "Darwin", "Canberra"):
+            self.assertTrue(
+                missing_essential(resolve(city).key),
+                f"{city} has no pack and no supplied figures, yet reports "
+                "nothing missing -- a plan there would be drawn on nothing",
+            )
+
+    def test_somewhere_outside_australia_is_unaffected(self):
+        from codraft.codes.jurisdiction import resolve
+        from codraft.codes.states import missing_essential, state_of
+
+        key = resolve("Lahore").key
+        self.assertIsNone(state_of(key))
+        self.assertEqual(missing_essential(key), [])

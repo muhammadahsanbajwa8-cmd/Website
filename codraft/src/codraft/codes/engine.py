@@ -329,4 +329,11 @@ def site_parameters(
                     site[key] = local
             else:
                 site[key] = value
+    # Whatever a person has supplied or verified in rules/states/<code>.yaml
+    # wins over the packs. That file is where the four jurisdictions with no
+    # pack behind them get their figures, and where a verified figure lands
+    # after somebody has read it off the instrument itself.
+    from .states import site_controls
+
+    site.update(site_controls(jurisdiction.key, zone))
     return site
