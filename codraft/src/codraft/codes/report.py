@@ -320,4 +320,24 @@ def _apply(rule: Rule, pack: RulePack, item: dict) -> Finding:
 
     if passed:
         return Finding(**base, status=STATUS_PASS, message=_format(rule.message, item))
+
+    # It failed -- but a failure only means something if the rule could only
+    # have been satisfied the way it was tested. Where the code allows another
+    # route the model cannot see, the failure is not evidence of
+    # non-compliance, and reporting one would be asserting more than has been
+    # established. A PASS above is still a pass: that route was visible and
+    # sufficient on its own.
+    if rule.inconclusive_when:
+        try:
+            if bool(evaluate_expression(rule.inconclusive_when, item)):
+                return Finding(
+                    **base, status=STATUS_UNCHECKED, message="",
+                    reason=_format(rule.inconclusive_reason, item),
+                )
+        except (_MissingFact, RuleError, ZeroDivisionError) as exc:
+            return Finding(
+                **base, status=STATUS_UNCHECKED, message="",
+                reason=f"this rule failed, and whether that failure is "
+                       f"conclusive could not be determined: {exc}",
+            )
     return Finding(**base, status=STATUS_FAIL, message=_format(rule.message, item))

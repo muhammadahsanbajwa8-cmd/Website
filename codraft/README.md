@@ -562,6 +562,48 @@ unrecognised is the difference between a catalogue that fits blocks and one
 that does not, and silence about it is how that goes unnoticed.
 
 
+**A failure only means something if the rule could only have been met the way
+it was tested.** NCC Part 10.6 is satisfied by natural ventilation *or* by a
+mechanical system. codraft's model carries windows; it carries no exhaust fans,
+no ducts and no flow rates. So a bathroom falling short of 5% openable area is
+not evidence of non-compliance — the second route was never looked at — and
+reporting a violation there asserts more than has been established.
+
+Rules can now say so. `inconclusive_when` marks the cases where a *failure*
+proves nothing, and the finding becomes `unchecked` with a stated reason:
+
+```
+Result: 12 failed of 182 checked (0 violations, 12 warnings); 3 could not be checked
+
+COULD NOT BE CHECKED
+  - Natural ventilation (au.h.ventilation): Ensuite does not reach 5% openable
+    area naturally. For a wet room that is not a finding: Part 10.6 is satisfied
+    naturally OR mechanically, and the model carries windows, not exhaust fans
+    — so the other route was never looked at. This is NOT a pass. An
+    unventilated bathroom is a defect and a wet one is a mould problem.
+```
+
+Before this, `unchecked` was reachable only by *erroring* — a missing fact, a
+division by zero — so a rule that knew it could not settle a case had to report
+a violation anyway. An `inconclusive_reason` is mandatory: unchecked without one
+is a shrug, and reads to a builder as though the tool did not bother.
+
+The whole risk of this reasoning is that it becomes a loophole, so
+`tests/test_inconclusive.py` spends most of its effort showing it has not
+swallowed anything:
+
+- a **bedroom** short of ventilation is still a violation — it is not wet, and
+  mechanical exhaust is not an answer to a bedroom;
+- a **kitchen** is still a violation — it is wet *and* habitable, and it is the
+  habitable half that decides, which is what `is_wet and not is_habitable`
+  is for;
+- **natural light** is untouched — there is no mechanical alternative to a
+  window, so that rule has no second route and no case for being inconclusive;
+- a room that meets the rule **naturally still passes**, because the
+  inconclusive path runs only after a failure. It excuses nothing that would
+  otherwise have passed on its own terms.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 

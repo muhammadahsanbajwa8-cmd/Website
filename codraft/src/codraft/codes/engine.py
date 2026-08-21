@@ -153,6 +153,20 @@ class Rule:
     reference: str = ""
     note: str = ""
 
+    # Some rules can be satisfied by a route the model cannot see. Part 10.6
+    # is met by natural ventilation OR by a mechanical system; the model
+    # carries windows and no exhaust fans. Such a rule can still PASS on its
+    # own terms -- natural ventilation is visible and sufficient on its own --
+    # but a FAILURE proves nothing, because the other route was never looked
+    # at. `inconclusive_when` marks those failures as unchecked instead of
+    # asserting non-compliance the model has no grounds for.
+    #
+    # Until this existed, `unchecked` was reachable only by erroring, so a
+    # rule that knew it could not settle a case had to report a violation
+    # anyway. The reason is required: "unchecked" without one is a shrug.
+    inconclusive_when: str = ""
+    inconclusive_reason: str = ""
+
     @classmethod
     def from_dict(cls, data: dict, pack: str) -> "Rule":
         for required in ("id", "scope", "assert"):
@@ -163,6 +177,12 @@ class Rule:
             raise RuleError(
                 f"{pack}:{data['id']}: severity {severity!r} is not one of "
                 + ", ".join(SEVERITIES)
+            )
+        if data.get("inconclusive_when") and not data.get("inconclusive_reason"):
+            raise RuleError(
+                f"{pack}:{data['id']}: inconclusive_when needs an "
+                "inconclusive_reason -- reporting a rule as unchecked without "
+                "saying why is worse than not reporting it"
             )
         confidence = data.get("confidence", "seed")
         if confidence not in CONFIDENCES:
@@ -182,6 +202,8 @@ class Rule:
             message=data.get("message", ""),
             reference=data.get("reference", ""),
             note=data.get("note", ""),
+            inconclusive_when=data.get("inconclusive_when", ""),
+            inconclusive_reason=data.get("inconclusive_reason", ""),
         )
 
 

@@ -57,7 +57,9 @@
       "applies_when": "is_habitable or is_wet",
       "assert": "openable_ratio >= 0.05",
       "message": "{name} has an estimated openable area of {openable_ratio} of its floor area; Part 10.6 requires 5%.",
-      "note": "Openable area is estimated from the glazed area -- see the assumptions. Part 10.6 also allows ventilation to be borrowed from an adjoining room, which is not modelled, so this can read as a fail where the design would pass."
+      "note": "Openable area is estimated from the glazed area -- see the assumptions. Part 10.6 also allows ventilation to be borrowed from an adjoining room, which is not modelled, so this can read as a fail where the design would pass. A wet room with no window is reported as unchecked rather than failed, because natural ventilation is one of two ways to satisfy the provision and the other one is not modelled.",
+      "inconclusive_when": "is_wet and not is_habitable",
+      "inconclusive_reason": "{name} does not reach 5% openable area naturally. For a wet room that is not a finding: Part 10.6 is satisfied naturally OR mechanically, and the model carries windows, not exhaust fans, ducts or flow rates -- so the other route was never looked at. This is NOT a pass. An unventilated bathroom is a defect and a wet one is a mould problem. Confirm the exhaust against the mechanical specification, and against the edition of the NCC your state has adopted."
     },
     {
       "id": "au.h.stair.riser",
