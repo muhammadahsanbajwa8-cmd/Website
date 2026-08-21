@@ -30,6 +30,12 @@ CORNER = 150
 # Between fittings along a run.
 GAP = 120
 
+# Fittings that do not go against a wall at all. A floor waste sits in the
+# middle of the fall of the floor, and it is drawn centred on its own origin
+# rather than on its back edge -- so it is placed by a different rule, not by
+# the wall rule with a fudge.
+CENTRED = {"floor_drain"}
+
 
 @dataclass(slots=True)
 class Placed:
@@ -73,15 +79,25 @@ def _wanted(space: Space) -> tuple[str, ...]:
     return BY_FUNCTION.get(space.function, ())
 
 
-def joinery(space: Space) -> Rect | None:
-    """A bench or a run of shelving against the room's longest wall."""
+def _joinery_side(space: Space) -> str | None:
+    """Which wall a run of joinery goes against, if the room gets one."""
     depth = JOINERY.get(space.function)
     if depth is None:
         return None
     rect = space.rect
     if min(rect.w, rect.h) < depth + 600:
         return None                      # no room to stand in front of it
-    if rect.w >= rect.h:
+    return "top" if rect.w >= rect.h else "left"
+
+
+def joinery(space: Space) -> Rect | None:
+    """A bench or a run of shelving against the room's longest wall."""
+    side = _joinery_side(space)
+    if side is None:
+        return None
+    depth = JOINERY[space.function]
+    rect = space.rect
+    if side == "top":
         return Rect(rect.x0, rect.y1 - depth, rect.w, depth)
     return Rect(rect.x0, rect.y0, depth, rect.h)
 
@@ -95,18 +111,29 @@ def _walls(rect: Rect) -> list[tuple[str, int]]:
 
 
 def _put(rect: Rect, side: str, cursor: int, kind: str) -> Placed:
-    length, depth = footprint(kind)
+    """Anchor one fitting against one wall face.
+
+    Every plumbing symbol in `codraft.symbols` is built with its origin at
+    the MIDDLE OF ITS BACK EDGE, running along local x and projecting out
+    along local +y. So the point handed to `symbol()` is a point on the wall
+    face itself, not the middle of the fitting -- offsetting it by half the
+    depth pushes the fitting through the wall into the next room, which is
+    exactly what the first version of this did.
+
+    Rotation follows from that: local +y must point INTO the room. At 90
+    degrees local +y is -x, so 90 belongs to the RIGHT-hand wall and 270 to
+    the left. Those two were the wrong way round as well, and the two errors
+    together put a bath half in the bedroom next door.
+    """
+    length, _depth = footprint(kind)
+    along = cursor + length // 2
     if side == "bottom":
-        return Placed(kind, rect.x0 + cursor + length // 2,
-                      rect.y0 + depth // 2, 0)
+        return Placed(kind, rect.x0 + along, rect.y0, 0)
     if side == "top":
-        return Placed(kind, rect.x0 + cursor + length // 2,
-                      rect.y1 - depth // 2, 180)
+        return Placed(kind, rect.x0 + along, rect.y1, 180)
     if side == "left":
-        return Placed(kind, rect.x0 + depth // 2,
-                      rect.y0 + cursor + length // 2, 90)
-    return Placed(kind, rect.x1 - depth // 2,
-                  rect.y0 + cursor + length // 2, 270)
+        return Placed(kind, rect.x0, rect.y0 + along, 270)
+    return Placed(kind, rect.x1, rect.y0 + along, 90)
 
 
 def place(space: Space) -> tuple[list[Placed], str | None]:
@@ -127,11 +154,27 @@ def place(space: Space) -> tuple[list[Placed], str | None]:
 
     rect = space.rect
     walls = _walls(rect)
+
+    # A sink goes IN the bench, not on the wall opposite it. The bench is
+    # drawn from the same room, so ask it which wall it took and try that
+    # one first; without this the kitchen came out with a run of joinery
+    # down one side and a sink plumbed into the far wall.
+    bench_side = _joinery_side(space)
+    if bench_side is not None:
+        walls = (
+            [pair for pair in walls if pair[0] == bench_side]
+            + [pair for pair in walls if pair[0] != bench_side]
+        )
+
     cursors = {side: CORNER for side, _ in walls}
     placed: list[Placed] = []
     unplaced: list[str] = []
 
     for kind in kinds:
+        if kind in CENTRED:
+            centre = rect.centre
+            placed.append(Placed(kind, centre.x, centre.y, 0))
+            continue
         length, depth = footprint(kind)
         for side, run in walls:
             across = rect.h if side in ("bottom", "top") else rect.w

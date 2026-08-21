@@ -418,25 +418,6 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
                     canvas.text(position + dx, end, label, "mark-text",
                                 dy=-150)
 
-    # Fittings and joinery, so a room reads as somewhere you could stand
-    # rather than as a rectangle with a caption. Not on the site plan: at
-    # 1:200 a WC pan is under a millimetre of paper and reads as dirt.
-    if not ghost and not site:
-        from .fixtures import for_storey
-
-        fittings, benches, fixture_notes = for_storey(storey)
-        canvas.notes.extend(fixture_notes)
-        for bench in benches:
-            canvas.box(bench.x0 + dx, bench.y0, bench.w, bench.h, "bench")
-        for item, _space in fittings:
-            geometry = symbol(item.kind, item.x + dx, item.y, item.rotation)
-            for line in geometry.lines:
-                canvas.line(line.x0, line.y0, line.x1, line.y1, "fixture")
-            for circle in geometry.circles:
-                canvas.circle(circle.cx, circle.cy, circle.r, "fixture")
-            for arc in geometry.arcs:
-                canvas.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, "fixture")
-
     for space in storey.spaces:
         canvas.rect(space.rect, "ghost-room" if ghost else _fill(space.function), dx)
 
@@ -487,6 +468,27 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
             canvas.arc(a.cx + dx, a.cy, a.radius, a.start_deg, a.end_deg, "door")
         for s in drawn.window_lines:
             canvas.line(s.x0 + dx, s.y0, s.x1 + dx, s.y1, "glaz")
+
+    # Fittings and joinery LAST, so a room reads as somewhere you could stand
+    # rather than as a rectangle with a caption. Last is not a preference:
+    # the room fills are opaque, so a bath drawn before them is a bath that
+    # is not on the drawing. Not on the site plan either -- at 1:200 a WC pan
+    # is under a millimetre of paper and reads as dirt.
+    if not ghost and not site:
+        from .fixtures import for_storey
+
+        fittings, benches, fixture_notes = for_storey(storey)
+        canvas.notes.extend(fixture_notes)
+        for bench in benches:
+            canvas.box(bench.x0 + dx, bench.y0, bench.w, bench.h, "bench")
+        for item, _space in fittings:
+            geometry = symbol(item.kind, item.x + dx, item.y, item.rotation)
+            for line in geometry.lines:
+                canvas.line(line.x0, line.y0, line.x1, line.y1, "fixture")
+            for circle in geometry.circles:
+                canvas.circle(circle.cx, circle.cy, circle.r, "fixture")
+            for arc in geometry.arcs:
+                canvas.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, "fixture")
 
 
 def _level_labels(levels, min_gap: int = 520):
