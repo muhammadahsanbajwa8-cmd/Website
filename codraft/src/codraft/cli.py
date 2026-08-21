@@ -62,7 +62,7 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
-SHEETS = ("architectural", "electrical", "plumbing", "elevations", "sections")
+SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations", "sections")
 
 SERVICES_WORDS = (
     "electrical", "electric", "wiring", "plumbing", "sanitary", "services",
@@ -549,9 +549,16 @@ def cmd_plan(args) -> int:
     print(f"  Written: {out / f'{stem}-schedule.txt'}\n")
 
     # -- 6. check it ------------------------------------------------------
+    # Anything the drawing itself discovered -- a fitting with nowhere to go
+    # in a room that is otherwise fine.
+    drawing_notes: list[str] = []
+    for storey in building.storeys:
+        from .export.fixtures import for_storey as _fittings
+        drawing_notes.extend(_fittings(storey)[2])
+
     report = codes.check(
         building, jurisdiction,
-        layout.warnings + service_warnings + schedule_warnings,
+        layout.warnings + service_warnings + schedule_warnings + drawing_notes,
     )
     if args.json:
         (out / f"{stem}-report.json").write_text(

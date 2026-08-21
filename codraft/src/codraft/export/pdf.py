@@ -432,9 +432,12 @@ def write_pdf(
     styles = parse_style(STYLE)
 
     if pages is None:
-        pages = [("architectural", s.index) for s in building.storeys]
+        # The order a set reads: where it sits, then what it is, then how it
+        # looks, then how it is put together.
+        pages = [("site", None)]
+        pages += [("architectural", s.index) for s in building.storeys]
         if len(building.storeys) == 1:
-            pages = [("architectural", None)]
+            pages = [("site", None), ("architectural", None)]
         if building.roof is not None:
             # A permit set is plans, elevations and at least one section.
             pages.append(("elevations", None))

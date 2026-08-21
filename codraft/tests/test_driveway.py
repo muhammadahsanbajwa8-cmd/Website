@@ -128,11 +128,17 @@ class TestItReachesTheDrawing(unittest.TestCase):
         plot, layout, building, garage = _built()
         drive, _ = place_driveway(plot, layout.envelope, garage.rect, 4000)
         building.driveway = drive
-        canvas, *_ = build_sheet(building, storey_index=0)
+        canvas, *_ = build_sheet(building, storey_index=0, sheet="site")
         markup = "\n".join(canvas.parts)
         self.assertIn("DRIVEWAY", markup)
         self.assertIn(f"{drive.width_mm} wide x {drive.length_mm} long", markup)
         self.assertIn("drive-cross", markup, "the crossover was not drawn")
+
+        # Paving belongs to the lot, so it goes on the site plan and not on
+        # the floor plan. Drawing the lot alongside the house is what forced
+        # the floor plans down to 1:200.
+        floor, *_ = build_sheet(building, storey_index=0)
+        self.assertNotIn("DRIVEWAY", "\n".join(floor.parts))
 
     def test_it_is_not_repeated_on_the_upper_floor(self):
         from codraft.export.svg import build_sheet
@@ -146,7 +152,7 @@ class TestItReachesTheDrawing(unittest.TestCase):
         building.driveway = place_driveway(
             plot, layout.envelope, garage.rect, 4000
         )[0]
-        upper, *_ = build_sheet(building, storey_index=1)
+        upper, *_ = build_sheet(building, storey_index=1, sheet="site")
         self.assertNotIn("DRIVEWAY", "\n".join(upper.parts))
 
     def test_the_sheet_title_clears_the_paving(self):
@@ -158,7 +164,7 @@ class TestItReachesTheDrawing(unittest.TestCase):
         building.driveway = place_driveway(
             plot, layout.envelope, garage.rect, 4000
         )[0]
-        canvas, *_ = build_sheet(building, storey_index=0)
+        canvas, *_ = build_sheet(building, storey_index=0, sheet="site")
         titles = [op for op in canvas.ops
                   if op[0] == "text" and op[1] == "title"]
         self.assertTrue(titles)

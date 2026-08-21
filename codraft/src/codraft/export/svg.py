@@ -32,7 +32,7 @@ from ..symbols import NAMES, footprint, symbol
 from ..units import fmt_area
 from ._plan import storey_walls
 
-SHEETS = ("architectural", "electrical", "plumbing", "elevations", "sections")
+SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations", "sections")
 
 STYLE = """
   .sheet { fill: #fbfaf7; }
@@ -63,6 +63,12 @@ STYLE = """
   .room { fill: #ffffff; }
   .room-wet { fill: #eef4fa; }
   .room-circ { fill: #f4f1ea; }
+  /* Poche: the wall filled through its thickness. Without it a wall reads as
+     a line on a diagram; with it, it reads as something solid, which is the
+     single change that most makes a plan look like a plan. */
+  .wall-fill { fill: #14110d; stroke: none; }
+  .wall-fill-int { fill: #4a453d; stroke: none; }
+  .wall-gap { fill: #fbfaf7; stroke: none; }
   .wall-ext { stroke: #14110d; stroke-width: 40; stroke-linecap: square; }
   .wall-int { stroke: #14110d; stroke-width: 26; stroke-linecap: square; }
   .jamb { stroke: #14110d; stroke-width: 20; }
@@ -87,6 +93,10 @@ STYLE = """
   .ghost-name { font: 250px system-ui, sans-serif; fill: #b3ada2; text-anchor: middle; }
 
   .sym { stroke: #14110d; stroke-width: 22; fill: none; }
+  /* Fittings and joinery on the architectural plan. Lighter than the walls,
+     because they are what is IN the room rather than what encloses it. */
+  .fixture { stroke: #4a453d; stroke-width: 20; fill: none; }
+  .bench { fill: #f1efe9; stroke: #8a8577; stroke-width: 18; }
   .sym-fill { fill: #14110d; stroke: none; }
   .sym-text { font: 600 150px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
 
@@ -238,6 +248,10 @@ class _Canvas:
         # Every primitive appends to BOTH; nothing may reach `parts` alone, or
         # the PDF quietly loses whatever it was.
         self.ops: list[tuple] = []
+        # Anything the drawing found and the reader needs told -- a fitting
+        # with nowhere to go, so far. Collected here because the drawing is
+        # where it is discovered.
+        self.notes: list[str] = []
         self.minx = self.miny = 10**9
         self.maxx = self.maxy = -(10**9)
 
@@ -342,9 +356,20 @@ def _draw_symbol(canvas: _Canvas, kind: str, x: int, y: int, rotation: int,
         canvas.text(label.x, label.y, label.text, "sym-text", dy=-50)
 
 
-def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) -> None:
+def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
+                       site: bool = True) -> None:
+    """Draw one storey.
+
+    `site` says whether the lot goes on this sheet. A real set separates
+    them: the SITE PLAN carries the boundary, the setbacks, the driveway and
+    the pool, and the FLOOR PLAN carries only the house. That is not a
+    stylistic choice -- the lot is three times the size of the house, and
+    drawing it alongside forces the whole sheet down a scale step. The floor
+    plans here came out at 1:200 for exactly that reason, where a builder's
+    set draws them at 1:100.
+    """
     plot = building.plot
-    if not ghost:
+    if not ghost and site:
         canvas.rect(plot.rect, "plot", dx)
         canvas.rect(plot.buildable, "setback", dx)
         # Paving goes down before anything else, so the house sits on it
@@ -362,28 +387,8 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
                 "drive-text", dy=180,
             )
 
-        # Where the section was cut. A section without this on the plan is a
-        # picture of a building, not a drawing of this one.
-        if not ghost and building.roof is not None:
-            from .section import section_marker
-
-            axis, position, run_from, run_to = section_marker(building)
-            if run_to > run_from:
-                if axis == "x":
-                    canvas.line(run_from + dx, position, run_to + dx, position,
-                                "mark-line")
-                    for end, label in ((run_from, "A"), (run_to, "A")):
-                        canvas.text(end + dx, position, label, "mark-text",
-                                    dy=-620)
-                else:
-                    canvas.line(position + dx, run_from, position + dx, run_to,
-                                "mark-line")
-                    for end, label in ((run_from, "A"), (run_to, "A")):
-                        canvas.text(position + dx, end, label, "mark-text",
-                                    dy=-150)
-
         pool = building.pool
-        if pool is not None and storey.index == 0:
+        if site and pool is not None and storey.index == 0:
             canvas.rect(pool.barrier.inset(-pool.non_climbable_zone_mm),
                         "pool-ncz", dx)
             canvas.rect(pool.barrier, "pool-barrier", dx)
@@ -392,6 +397,45 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
             canvas.text(centre.x + dx, centre.y, "POOL", "pool-text", dy=-90)
             canvas.text(centre.x + dx, centre.y,
                         f"{pool.rect.w} x {pool.rect.h}", "area", dy=260)
+
+    # Where the section was cut. A section without this on the plan is a
+    # picture of a building, not a drawing of this one.
+    if not ghost and not site and building.roof is not None:
+        from .section import section_marker
+
+        axis, position, run_from, run_to = section_marker(building)
+        if run_to > run_from:
+            if axis == "x":
+                canvas.line(run_from + dx, position, run_to + dx, position,
+                            "mark-line")
+                for end, label in ((run_from, "A"), (run_to, "A")):
+                    canvas.text(end + dx, position, label, "mark-text",
+                                dy=-620)
+            else:
+                canvas.line(position + dx, run_from, position + dx, run_to,
+                            "mark-line")
+                for end, label in ((run_from, "A"), (run_to, "A")):
+                    canvas.text(position + dx, end, label, "mark-text",
+                                dy=-150)
+
+    # Fittings and joinery, so a room reads as somewhere you could stand
+    # rather than as a rectangle with a caption. Not on the site plan: at
+    # 1:200 a WC pan is under a millimetre of paper and reads as dirt.
+    if not ghost and not site:
+        from .fixtures import for_storey
+
+        fittings, benches, fixture_notes = for_storey(storey)
+        canvas.notes.extend(fixture_notes)
+        for bench in benches:
+            canvas.box(bench.x0 + dx, bench.y0, bench.w, bench.h, "bench")
+        for item, _space in fittings:
+            geometry = symbol(item.kind, item.x + dx, item.y, item.rotation)
+            for line in geometry.lines:
+                canvas.line(line.x0, line.y0, line.x1, line.y1, "fixture")
+            for circle in geometry.circles:
+                canvas.circle(circle.cx, circle.cy, circle.r, "fixture")
+            for arc in geometry.arcs:
+                canvas.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, "fixture")
 
     for space in storey.spaces:
         canvas.rect(space.rect, "ghost-room" if ghost else _fill(space.function), dx)
@@ -410,6 +454,21 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
                     canvas.line(r.x0 + dx, r.y0 + offset, r.x1 + dx, r.y0 + offset, "tread")
                 else:
                     canvas.line(r.x0 + offset + dx, r.y0, r.x0 + offset + dx, r.y1, "tread")
+
+    # Fill every wall solid first, then punch the openings back out, then
+    # draw the linework over the top. That is the order CAD uses and the
+    # order that makes a doorway read as a hole rather than as a wall with
+    # lines across it.
+    if not ghost:
+        for wall, drawn in storey_walls(storey):
+            if drawn.band is None:
+                continue
+            b = drawn.band
+            canvas.box(b.x + dx, b.y, b.w, b.h,
+                       "wall-fill" if wall.is_exterior else "wall-fill-int")
+        for wall, drawn in storey_walls(storey):
+            for g in drawn.gaps:
+                canvas.box(g.x + dx, g.y, g.w, g.h, "wall-gap")
 
     for wall, drawn in storey_walls(storey):
         if ghost:
@@ -683,12 +742,19 @@ def build_sheet(
     if sheet == "sections":
         return _section_canvas(building)
 
-    margin = 3000
-    ghost = sheet != "architectural"
+    # Breathing room around the drawing, in real millimetres. It is deducted
+    # from the paper before a scale is chosen, so it is not free: 3000 here
+    # cost 60mm of an A3's 277mm of height, which was the difference between
+    # a floor plan at 1:100 and one at 1:200.
+    margin = 1500
+    ghost = sheet not in ("architectural", "site")
+    if sheet == "site":
+        # One sheet, the ground storey, the whole lot.
+        storeys = storeys[:1]
     # An architectural sheet shows the plot and its setbacks, so the storeys
     # are spaced by the plot. A services sheet does not, so spacing by the
     # plot would leave two thirds of the page empty.
-    reference = building.plot.rect if not ghost else (
+    reference = building.plot.rect if sheet == "site" else (
         footprint or _bounds(storeys[0])
     )
     step = reference.w + (7000 if not ghost else 5000)
@@ -700,12 +766,13 @@ def build_sheet(
     plan_bottom = min(
         (footprint or _bounds(storey)).y0 for storey in storeys
     )
-    title_y = plan_bottom - (5200 if sheet == "architectural" else 2600)
+    title_y = plan_bottom - 2600
     titles: list[tuple[int, str]] = []
 
     for column, storey in enumerate(storeys):
         dx = column * step
-        _draw_architecture(canvas, building, storey, dx, ghost)
+        _draw_architecture(canvas, building, storey, dx, ghost,
+                           site=(sheet == "site"))
         bounds = footprint or _bounds(storey)
 
         if sheet == "architectural":

@@ -8,7 +8,7 @@ drawing the same building rather than three similar ones.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..model import Opening, OpeningKind, Storey, Wall
 
@@ -31,12 +31,29 @@ class Arc:
 
 
 @dataclass(slots=True)
+class Band:
+    """A filled rectangle of wall, in plan."""
+
+    x: int
+    y: int
+    w: int
+    h: int
+
+
+@dataclass(slots=True)
 class DrawnWall:
     faces: list[Segment]     # the two sides, broken at every opening
     jambs: list[Segment]     # the short lines closing each opening
     door_leaves: list[Segment]
     door_swings: list[Arc]
     window_lines: list[Segment]
+    # The wall as a solid, and the holes punched in it. A drawing shows a
+    # wall as POCHE -- filled through its thickness -- not as two hairlines
+    # with white between them. Two hairlines read as a line on a diagram; a
+    # filled band reads as something you cannot walk through, which is the
+    # single thing that most makes a plan look like a plan.
+    band: Band | None = None
+    gaps: list[Band] = field(default_factory=list)
 
 
 def _axis(wall: Wall) -> tuple[int, int, int, int]:
@@ -106,7 +123,26 @@ def draw_wall(wall: Wall, openings: list[Opening]) -> DrawnWall:
                     max(start_angle, swing_angle))
             )
 
-    return DrawnWall(faces, jambs, leaves, swings, window_lines)
+    # The wall as a solid, and a hole for every opening in it. Openings are
+    # measured along the wall from its start; a wall runs either north-south
+    # or east-west, so the band is one rectangle either way.
+    half = wall.thickness // 2
+    if wall.vertical:
+        low = min(wall.start.y, wall.end.y)
+        band = Band(wall.start.x - half, low, wall.thickness, wall.length)
+        gaps = [
+            Band(wall.start.x - half, low + o.offset, wall.thickness, o.width)
+            for o in openings
+        ]
+    else:
+        low = min(wall.start.x, wall.end.x)
+        band = Band(low, wall.start.y - half, wall.length, wall.thickness)
+        gaps = [
+            Band(low + o.offset, wall.start.y - half, o.width, wall.thickness)
+            for o in openings
+        ]
+
+    return DrawnWall(faces, jambs, leaves, swings, window_lines, band, gaps)
 
 
 def storey_walls(storey: Storey) -> list[tuple[Wall, DrawnWall]]:

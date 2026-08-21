@@ -158,3 +158,52 @@ class TestTheSheetIsRealPaper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAFloorPlanGetsTheScaleABuilderReads(unittest.TestCase):
+    """1:100 for the house, 1:200 for the lot -- and why they are separate.
+
+    A builder's permit set draws floor plans at 1:100. Ours came out at 1:200
+    because the floor plan also carried the lot, and a suburban lot is three
+    times the size of the house sitting on it. Splitting the site plan off
+    bought the scale step back. This is the test that says so, because the
+    failure mode is silent: a plan at 1:200 is still a valid drawing, it is
+    just half the size a chippy expects to measure off.
+    """
+
+    def _building(self, storeys=1):
+        from codraft.geom import Rect
+        from codraft.layout import build_building, solve
+        from codraft.model import Plot
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=4, bathrooms=2,
+                           storeys=storeys)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        return build_building(program, plot, solve(program, plot))
+
+    def _scale(self, building, sheet, index):
+        from codraft.export.svg import build_sheet
+
+        _, _, w, h, _ = build_sheet(building, storey_index=index, sheet=sheet)
+        return fit_scale(w, h, "A3").scale
+
+    def test_a_four_bedroom_floor_plan_fits_a3_at_one_to_one_hundred(self):
+        for storeys in (1, 2):
+            building = self._building(storeys)
+            for storey in building.storeys:
+                with self.subTest(storeys=storeys, floor=storey.index):
+                    self.assertEqual(
+                        self._scale(building, "architectural", storey.index),
+                        100,
+                    )
+
+    def test_the_lot_goes_on_its_own_sheet_and_may_be_smaller(self):
+        # The site plan is allowed to be at 1:200 -- nobody measures joinery
+        # off one. It just must not drag the floor plan down with it.
+        self.assertLessEqual(
+            self._scale(self._building(), "architectural", 0),
+            self._scale(self._building(), "site", 0),
+        )
