@@ -340,6 +340,31 @@ def _title_block_ops(frame, block: TitleBlock, sheet_name: str,
             text(x + w - 12, cursor + 1.4, revision.by[:4], "tb-small")
         line(x, cursor, x + w, cursor, "tb-hair")
 
+    # Areas, under the revisions, matching the SVG line for line. Two
+    # renderers is two chances to disagree, so the arithmetic here is the
+    # same as export/svg.py's with the sign of the cursor flipped.
+    if block.areas:
+        cursor -= 6
+        text(x + 4, cursor, "AREAS", "tb-label")
+        cursor -= 1.5
+        line(x, cursor, x + w, cursor, "tb-hair")
+        for index, (label, value) in enumerate(block.areas):
+            cursor -= 5
+            strong = index >= len(block.areas) - 2
+            text(x + 4, cursor + 1.4, label,
+                 "tb-value" if strong else "tb-small")
+            text(x + w - 5, cursor + 1.4, value,
+                 "tb-fig-strong" if strong else "tb-fig")
+            line(x, cursor, x + w, cursor, "tb-hair")
+        if block.area_note:
+            wrapped = _wrap(block.area_note, 46)
+            if len(wrapped) > 3:
+                # The box holds three lines. Saying the rest is missing beats
+                # letting a truncated note read as the whole of it.
+                wrapped = wrapped[:3] + ["..."]
+            for i, chunk in enumerate(wrapped):
+                text(x + 4, cursor - 4.0 - i * 3.0, chunk, "tb-small")
+
     foot = bottom + 15
     line(x, foot + 4, x + w, foot + 4, "tb-hair")
     text(x + 4, foot, "NOT FOR CONSTRUCTION", "tb-warn")

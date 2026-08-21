@@ -54,6 +54,11 @@ class DrawnWall:
     # single thing that most makes a plan look like a plan.
     band: Band | None = None
     gaps: list[Band] = field(default_factory=list)
+    # The opening each gap was punched for, in the same order, so a caller
+    # can put a schedule mark on the right hole. Pairing by position against
+    # `storey.openings_on(...)` would work today and break the first time the
+    # order here changes.
+    gap_ids: list[str] = field(default_factory=list)
 
 
 def _axis(wall: Wall) -> tuple[int, int, int, int]:
@@ -142,7 +147,8 @@ def draw_wall(wall: Wall, openings: list[Opening]) -> DrawnWall:
             for o in openings
         ]
 
-    return DrawnWall(faces, jambs, leaves, swings, window_lines, band, gaps)
+    return DrawnWall(faces, jambs, leaves, swings, window_lines, band, gaps,
+                     [o.id for o in openings])
 
 
 def storey_walls(storey: Storey) -> list[tuple[Wall, DrawnWall]]:

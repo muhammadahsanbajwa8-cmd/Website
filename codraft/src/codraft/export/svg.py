@@ -31,6 +31,7 @@ from ..sheet import (
 from ..geom import Rect
 from ..model import Building, Function
 from ..symbols import NAMES, footprint, symbol
+from ..schedule import marks as opening_marks
 from ..units import fmt_area
 from ._plan import storey_walls
 
@@ -82,6 +83,7 @@ STYLE = """
   .name-xs { font: 600 150px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
   .area { font: 260px system-ui, sans-serif; fill: #6b6357; text-anchor: middle; }
   .roomdim { font: 240px system-ui, sans-serif; fill: #8a8577; text-anchor: middle; }
+  .tag { font: 600 200px "IBM Plex Mono", ui-monospace, monospace; fill: #2c4a7c; text-anchor: middle; }
   .title { font: 700 460px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
 
   /* Dimensions */
@@ -133,6 +135,12 @@ STYLE = """
   .legend-box { fill: #ffffff; stroke: #d6d1c7; stroke-width: 10; }
   .legend-title { font: 700 320px system-ui, sans-serif; fill: #14110d; }
   .legend-item { font: 250px system-ui, sans-serif; fill: #3a352d; }
+  .area-head { font: 700 260px system-ui, sans-serif; fill: #14110d; letter-spacing: 30px; }
+  .area-row { font: 250px system-ui, sans-serif; fill: #3a352d; }
+  .area-fig { font: 250px "IBM Plex Mono", ui-monospace, monospace; fill: #3a352d; text-anchor: end; }
+  .area-total { font: 700 250px system-ui, sans-serif; fill: #14110d; }
+  .area-total-fig { font: 700 250px "IBM Plex Mono", ui-monospace, monospace; fill: #14110d; text-anchor: end; }
+  .area-rule { stroke: #d6d1c7; stroke-width: 12; }
   .note { font: 235px system-ui, sans-serif; fill: #6b6357; }
   .note-strong { font: 600 250px system-ui, sans-serif; fill: #8c1c1c; }
 
@@ -149,6 +157,8 @@ STYLE = """
   .tb-scale { font: 700 6.6px "IBM Plex Mono", ui-monospace, monospace;
               fill: #14110d; }
   .tb-small { font: 2.4px system-ui, sans-serif; fill: #6b6357; }
+  .tb-fig { font: 2.6px "IBM Plex Mono", ui-monospace, monospace; fill: #3a352d; text-anchor: end; }
+  .tb-fig-strong { font: 600 3.0px "IBM Plex Mono", ui-monospace, monospace; fill: #14110d; text-anchor: end; }
   .tb-warn { font: 600 2.4px system-ui, sans-serif; fill: #8c1c1c; }
   .tb-blank { stroke: #c9c4bb; stroke-width: 0.3; }
 """
@@ -360,8 +370,13 @@ def _draw_symbol(canvas: _Canvas, kind: str, x: int, y: int, rotation: int,
         canvas.text(label.x, label.y, label.text, "sym-text", dy=-50)
 
 
+# How far outside the wall a schedule mark sits. Far enough to clear the
+# wall poché and the dimension witness lines that run just outside it.
+MARK_OFFSET = 620
+
+
 def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
-                       site: bool = True) -> None:
+                       site: bool = True, marks: dict[str, str] | None = None) -> None:
     """Draw one storey.
 
     `site` says whether the lot goes on this sheet. A real set separates
@@ -472,6 +487,41 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
             canvas.arc(a.cx + dx, a.cy, a.radius, a.start_deg, a.end_deg, "door")
         for s in drawn.window_lines:
             canvas.line(s.x0 + dx, s.y0, s.x1 + dx, s.y1, "glaz")
+
+    # Schedule marks, on the exterior openings. This is the join between the
+    # sheet and the window schedule: without it the schedule is a list of
+    # sizes with no way to tell which hole is which.
+    #
+    # The MARK goes on the plan, not the supplier's size code, even though
+    # the code is what a WA plan usually carries. Two different sizes can
+    # share a code -- W05 and W06 are both 1209 on a four-bedroom plan --
+    # so the code alone cannot find a row, and a tag a builder trusts and
+    # that points at the wrong window is worse than no tag. The code is in
+    # the schedule beside the mark, where it is unambiguous.
+    #
+    # Exterior only. Every internal door tagged as well is thirty labels on
+    # a plan that has to stay readable, and the internal doors are all one
+    # of four sizes that the schedule already lists room by room.
+    if not ghost and not site and marks:
+        centre = _bounds(storey).centre
+        for wall, drawn in storey_walls(storey):
+            if not wall.is_exterior:
+                continue
+            for gap, opening_id in zip(drawn.gaps, drawn.gap_ids):
+                mark = marks.get(opening_id)
+                if mark is None:
+                    continue
+                gx, gy = gap.x + gap.w // 2, gap.y + gap.h // 2
+                # Outside the building, which is away from its middle. On a
+                # vertical wall that is left or right; on a horizontal one,
+                # up or down.
+                if gap.h > gap.w:
+                    ox = MARK_OFFSET if gx > centre.x else -MARK_OFFSET
+                    oy = 0
+                else:
+                    ox, oy = 0, (MARK_OFFSET if gy > centre.y else -MARK_OFFSET)
+                canvas.text(gx + ox + dx, gy + oy, mark, "tag",
+                            dy=-70, rotate=-90 if gap.h > gap.w else 0)
 
     # Fittings and joinery LAST, so a room reads as somewhere you could stand
     # rather than as a rectangle with a caption. Last is not a preference:
@@ -713,6 +763,31 @@ def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
         if revision.by:
             text(x + w - 12, cursor - 1.4, revision.by[:4], "tb-small")
         line(x, cursor, x + w, cursor, "tb-hair")
+
+    # Areas, under the revisions, which is where a builder's sheet carries
+    # them. Here they cost the drawing nothing; beside the plan they cost
+    # 10.6 m of width, which took a five-bedroom house from 1:100 to 1:200.
+    if block.areas:
+        cursor += 6
+        text(x + 4, cursor, "AREAS", "tb-label")
+        cursor += 1.5
+        line(x, cursor, x + w, cursor, "tb-hair")
+        for index, (label, value) in enumerate(block.areas):
+            cursor += 5
+            strong = index >= len(block.areas) - 2
+            text(x + 4, cursor - 1.4, label, "tb-value" if strong else "tb-small")
+            text(x + w - 5, cursor - 1.4, value,
+                 "tb-fig-strong" if strong else "tb-fig")
+            line(x, cursor, x + w, cursor, "tb-hair")
+        if block.area_note:
+            wrapped = _wrap(block.area_note, 46)
+            if len(wrapped) > 3:
+                # The box holds three lines. Saying the rest is missing beats
+                # letting a truncated note read as the whole of it.
+                wrapped = wrapped[:3] + ["..."]
+            for i, chunk in enumerate(wrapped):
+                text(x + 4, cursor + 4.0 + i * 3.0, chunk, "tb-small")
+            cursor += 4.0 + 3.0 * min(3, len(_wrap(block.area_note, 46)))
 
     # The disclaimer sits at the foot of the block, where a drawing set puts
     # its status. It is the same sentence the report ends with, because a
@@ -993,7 +1068,9 @@ def build_sheet(
     for column, storey in enumerate(storeys):
         dx = column * step
         _draw_architecture(canvas, building, storey, dx, ghost,
-                           site=(sheet == "site"))
+                           site=(sheet == "site"),
+                           marks=opening_marks(building)
+                           if sheet == "architectural" else None)
         bounds = footprint or _bounds(storey)
 
         if sheet == "site":

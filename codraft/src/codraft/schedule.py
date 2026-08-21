@@ -138,6 +138,34 @@ def schedule(building: Building) -> tuple[list[ScheduleRow], list[str]]:
     return ordered, sorted(set(warnings))
 
 
+def marks(building: Building) -> dict[str, str]:
+    """Which schedule mark belongs to each opening, by opening id.
+
+    Built by re-running the same grouping `schedule` does, so a mark on the
+    plan and a mark in the schedule cannot come out different. Duplicating
+    the keying instead would work until the day somebody changes what makes
+    two openings the same type, and then the plan would point at the wrong
+    row -- which is worse than no mark, because a builder would trust it.
+    """
+    rows, _ = schedule(building)
+    by_key = {
+        (row.kind, row.width, row.height, row.sill, row.exterior): row.mark
+        for row in rows
+    }
+    out: dict[str, str] = {}
+    for storey in building.storeys:
+        for opening in storey.openings:
+            wall = next((w for w in storey.walls if w.id == opening.wall), None)
+            exterior = wall.kind is WallKind.EXTERIOR if wall else False
+            mark = by_key.get(
+                (opening.kind, opening.width, opening.height, opening.sill,
+                 exterior)
+            )
+            if mark:
+                out[opening.id] = mark
+    return out
+
+
 def _room_for(building: Building, storey, opening: Opening) -> str:
     """Which room this opening serves, for the 'location' column."""
     wall = next((w for w in storey.walls if w.id == opening.wall), None)

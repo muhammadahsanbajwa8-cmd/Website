@@ -79,6 +79,13 @@ class TitleBlock:
     checked_by: str = ""
     issued: str = ""
     revisions: list[Revision] = field(default_factory=list)
+    # Label and value, printed under the revisions. This is where the areas
+    # go: a builder's sheet carries them in the title block, and there they
+    # cost the drawing nothing. Beside the plan they cost 10.6 m of width,
+    # which took a five-bedroom house from 1:100 to 1:200 -- paying for a
+    # table with the drawing it annotates.
+    areas: list[tuple[str, str]] = field(default_factory=list)
+    area_note: str = ""
 
     def __post_init__(self) -> None:
         if not self.issued:

@@ -270,3 +270,65 @@ def room_dimension_text(space, system: str = "metric") -> str:
     return (
         f"{format_mm(space.rect.w, system)} x {format_mm(space.rect.h, system)}"
     )
+
+
+# What goes on which line of the areas table, and in what order. A builder's
+# quote separates these because they are priced differently: a garage is not
+# a living area and an alfresco is not one either.
+#
+# PORCH is matched by NAME, not by function. Function.ENTRY covers both the
+# portico outside the front door and the entry hall inside it, and those are
+# not the same thing to price -- the hall is living area. Keying the line on
+# the function put 18.2 m2 of porch on a house with an 8.9 m2 one.
+def _is_porch(space) -> bool:
+    return space.name.strip().lower().split()[:1] in (["portico"], ["porch"])
+
+
+AREA_GROUPS = (
+    ("LIVING", None),          # everything not claimed by a line below
+    ("GARAGE", lambda sp: sp.function.value == "garage"),
+    ("ALFRESCO", lambda sp: sp.function.value in ("alfresco", "balcony")),
+    ("PORCH", _is_porch),
+)
+
+
+def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]:
+    """The areas a builder quotes, and an honest note on how they were got.
+
+    Every figure is the CLEAR area inside the wall faces the sheet draws,
+    because that is the only area codraft actually knows. A quoted area is
+    normally measured over the external brickwork, which on a house this size
+    is several square metres more -- so the footprint goes on its own line
+    rather than the internal total being passed off as the figure somebody
+    would price from. The note says which is which, on the sheet, because the
+    sheet is what gets forwarded.
+    """
+    from .units import fmt_area
+
+    spaces = [sp for storey in building.storeys for sp in storey.spaces]
+    tests = [test for _label, test in AREA_GROUPS if test is not None]
+
+    rows: list[tuple[str, str]] = []
+    for label, test in AREA_GROUPS:
+        if test is None:
+            total = sum(sp.area for sp in spaces
+                        if not any(t(sp) for t in tests))
+        else:
+            total = sum(sp.area for sp in spaces if test(sp))
+        if total:
+            rows.append((label, fmt_area(total)))
+
+    rows.append(("TOTAL INTERNAL", fmt_area(sum(sp.area for sp in spaces))))
+    if footprint is not None:
+        rows.append((
+            "FOOTPRINT",
+            fmt_area(footprint.w * footprint.h * len(building.storeys)),
+        ))
+    # Kept to three lines at the title block's 46 characters. A note that
+    # runs off the box is a note whose last clause -- the one saying which
+    # figure to price from -- is the clause that goes missing.
+    note = (
+        "Clear inside the wall faces drawn. A quoted area is measured "
+        "over the external walls: that is FOOTPRINT, not the total."
+    )
+    return rows, note

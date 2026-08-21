@@ -457,7 +457,14 @@ def cmd_plan(args) -> int:
             slug = storey.name.lower().replace(" ", "-")
             pages.append((sheet, storey.index, f"{stem_part}-{slug}"))
 
+    # The areas go in the title block, which is where a builder's sheet
+    # carries them and where they cost the drawing nothing.
+    from .annotate import area_schedule
+
+    area_rows, area_note = area_schedule(building, layout.envelope)
     title_block = TitleBlock(
+        areas=area_rows,
+        area_note=area_note,
         project=args.project or building.name or "",
         client=args.client or "",
         address=args.address or "",
