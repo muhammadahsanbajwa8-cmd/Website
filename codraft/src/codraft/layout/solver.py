@@ -923,6 +923,214 @@ def _place_front(
     ]
 
 
+def _two_bands(
+    storey: int,
+    left_rooms: list,
+    right_rooms: list,
+    corridor: tuple[str, SpaceRequirement],
+    envelope: Rect,
+    vertical: bool,
+    corridor_width: int,
+    left_depth: int,
+    right_depth: int,
+    road_first: bool,
+    warnings: list[str],
+) -> list[Cell]:
+    """The single spine: band, passage, band. The default form."""
+    left_rooms = _order_for_road(left_rooms, road_first)
+    right_rooms = _order_for_road(right_rooms, road_first)
+
+    cells: list[Cell] = []
+    if vertical:
+        left_band = Rect(envelope.x, envelope.y, left_depth, envelope.h)
+        corridor_rect = Rect(envelope.x + left_depth, envelope.y,
+                             corridor_width, envelope.h)
+        right_band = Rect(corridor_rect.x1, envelope.y, right_depth, envelope.h)
+        # The left band's outside wall is its low edge; the right band's is
+        # its high edge, because the corridor is on its low side.
+        placed = _stack(left_rooms, left_band, True, warnings, outer_low=True)
+        placed += _stack(right_rooms, right_band, True, warnings, outer_low=False)
+    else:
+        left_band = Rect(envelope.x, envelope.y, envelope.w, left_depth)
+        corridor_rect = Rect(envelope.x, envelope.y + left_depth,
+                             envelope.w, corridor_width)
+        right_band = Rect(envelope.x, corridor_rect.y1, envelope.w, right_depth)
+        placed = _stack(left_rooms, left_band, False, warnings, outer_low=True)
+        placed += _stack(right_rooms, right_band, False, warnings, outer_low=False)
+
+    for key, req, rect in placed:
+        cells.append(Cell(key, req.name, req.function, rect, storey, req))
+    cells.append(Cell(corridor[0], corridor[1].name, Function.CORRIDOR,
+                      corridor_rect, storey, corridor[1]))
+    return cells
+
+
+def _awkward(cells: list[Cell]) -> tuple[int, int]:
+    """How badly a layout treats the rooms that need daylight.
+
+    (how many read as a passage, by how much in total). Lower is better, and
+    it is the thing being optimised, so it is what gets measured -- not a
+    proxy for it. Only lit rooms count: a robe or a linen press is allowed to
+    be a slot, and counting those would let a layout win by making the
+    bathrooms rounder.
+    """
+    count = excess = 0
+    for cell in cells:
+        req = cell.requirement
+        if req is None or not req.needs_exterior_wall:
+            continue
+        short = max(1, min(cell.rect.w, cell.rect.h))
+        ratio = max(cell.rect.w, cell.rect.h) / short
+        if ratio > _MAX_ASPECT:
+            count += 1
+            excess += int((ratio - _MAX_ASPECT) * 1000)
+    return count, excess
+
+
+def _core_split(
+    left: list[tuple[str, SpaceRequirement]],
+    right: list[tuple[str, SpaceRequirement]],
+    usable: int,
+    run: int,
+) -> tuple[list, list, list] | None:
+    """Pull the unlit rooms into a middle band, or decline to.
+
+    A single spine puts every room across one of two bands, so on a wide
+    frontage each band is half the frontage deep and every room spans it: a
+    bedroom on an 18 m frontage comes out 7161 x 2127. Pairing is the usual
+    answer and it cannot help here, because two rooms that both need daylight
+    can never share a slice -- and a sleep wing is nothing but rooms that need
+    daylight.
+
+    What a wide house actually does is put the rooms that DON'T need a window
+    -- bathrooms, robes, the laundry, the pantry -- in the middle, with a
+    passage down each side of them. Three shallower bands instead of two deep
+    ones, and every lit room still has an external wall.
+
+    Returns (left, core, right) or None when the form does not apply: when the
+    bands are not deep enough to be worth splitting, or when there are too few
+    unlit rooms to make a middle out of.
+    """
+    lit = [kr for kr in left + right if kr[1].needs_exterior_wall]
+    unlit = [kr for kr in left + right if not kr[1].needs_exterior_wall]
+    if not lit or len(unlit) < 3:
+        return None
+
+    # Count what a two-band layout would actually do to the lit rooms, rather
+    # than compare depths to a target depth.
+    #
+    # A room of area A spanning a band of depth d is d long by A/d wide, so
+    # its proportion is d*d/A, and it reads as a passage past _MAX_ASPECT.
+    # Counting the casualties is the honest test because it is the thing
+    # being optimised. Two earlier tries measured a DEPTH instead and both
+    # were wrong in the same way: whichever room happened to be the largest
+    # -- the living room, which is genuinely allowed to be deep -- set the
+    # target, and the four bedrooms it was meant to protect never registered.
+    two_band_depth = usable // 2
+    hurt = [
+        kr for kr in lit
+        if two_band_depth * two_band_depth
+        > _MAX_ASPECT * max(1, _target(kr[1]) or 0)
+    ]
+    # One awkward room is not worth a second passage; a wing of them is.
+    if len(hurt) < 3:
+        return None
+
+    core_area = sum(_target(r) or 0 for _k, r in unlit)
+    core_depth = -(-core_area // max(1, run))
+    if core_depth < _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE:
+        return None
+    if usable - core_depth < 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE):
+        return None
+
+    lit_left = [kr for kr in left if kr[1].needs_exterior_wall]
+    lit_right = [kr for kr in right if kr[1].needs_exterior_wall]
+    if not lit_left or not lit_right:
+        return None
+    return lit_left, unlit, lit_right
+
+
+def _core_bands(
+    storey: int,
+    split: tuple[list, list, list],
+    corridor: tuple[str, SpaceRequirement],
+    envelope: Rect,
+    vertical: bool,
+    corridor_width: int,
+    run: int,
+    road_first: bool,
+    warnings: list[str],
+) -> list[Cell] | None:
+    """Lay out band / passage / core / passage / band.
+
+    The two passages have to JOIN. Separated by a core that spans the whole
+    run, the far one is reachable only by walking through a bathroom, and
+    every room beyond it fails the rule that it can be walked out of -- which
+    is the one guarantee this solver will not trade away for a nicer shape.
+
+    So the core band carries a link at one end: the middle strip is laid out
+    as [core rooms][link], the link runs the full depth of the middle band,
+    and both passages meet it along their ends. That keeps the tiling exact,
+    reuses the same stacker as every other band, and costs one room's worth
+    of length rather than a special case in the wall builder.
+    """
+    lit_left, unlit, lit_right = split
+    key, req = corridor
+
+    core_area = sum(_target(r) or 0 for _k, r in unlit)
+    core_depth = max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE,
+                     -(-core_area // max(1, run)))
+    usable = (envelope.w if vertical else envelope.h) - 2 * corridor_width
+    core_depth = min(core_depth, usable - 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE))
+    if core_depth < _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE:
+        return None
+
+    spare = usable - core_depth
+    left_target = sum(_target(r) or 1 for _k, r in lit_left)
+    right_target = sum(_target(r) or 1 for _k, r in lit_right)
+    left_depth = max(
+        _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE,
+        min(spare - (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE),
+            spare * left_target // max(1, left_target + right_target)),
+    )
+    right_depth = spare - left_depth
+
+    # The link, as a room on the core band. It is the corridor requirement
+    # again, so it is as wide as a passage has to be and is checked as one.
+    link = (f"{key}_link", req)
+    core_rooms = _order_for_road(list(unlit), road_first) + [link]
+
+    cells: list[Cell] = []
+    if vertical:
+        left_band = Rect(envelope.x, envelope.y, left_depth, envelope.h)
+        near = Rect(left_band.x1, envelope.y, corridor_width, envelope.h)
+        core_band = Rect(near.x1, envelope.y, core_depth, envelope.h)
+        far = Rect(core_band.x1, envelope.y, corridor_width, envelope.h)
+        right_band = Rect(far.x1, envelope.y, right_depth, envelope.h)
+        placed = _stack(_order_for_road(lit_left, road_first), left_band, True,
+                        warnings, outer_low=True)
+        placed += _stack(core_rooms, core_band, True, warnings)
+        placed += _stack(_order_for_road(lit_right, road_first), right_band,
+                         True, warnings, outer_low=False)
+    else:
+        left_band = Rect(envelope.x, envelope.y, envelope.w, left_depth)
+        near = Rect(envelope.x, left_band.y1, envelope.w, corridor_width)
+        core_band = Rect(envelope.x, near.y1, envelope.w, core_depth)
+        far = Rect(envelope.x, core_band.y1, envelope.w, corridor_width)
+        right_band = Rect(envelope.x, far.y1, envelope.w, right_depth)
+        placed = _stack(_order_for_road(lit_left, road_first), left_band, False,
+                        warnings, outer_low=True)
+        placed += _stack(core_rooms, core_band, False, warnings)
+        placed += _stack(_order_for_road(lit_right, road_first), right_band,
+                         False, warnings, outer_low=False)
+
+    for k, r, rect in placed:
+        cells.append(Cell(k, r.name, r.function, rect, storey, r))
+    cells.append(Cell(key, req.name, Function.CORRIDOR, near, storey, req))
+    cells.append(Cell(f"{key}_far", req.name, Function.CORRIDOR, far, storey, req))
+    return cells
+
+
 def _layout_storey(
     storey: int,
     rooms: list[tuple[str, SpaceRequirement]],
@@ -1051,29 +1259,60 @@ def _layout_storey(
             )
 
     road_first = plot.road_side in ("south", "west")
-    left_rooms = _order_for_road(left_rooms, road_first)
-    right_rooms = _order_for_road(right_rooms, road_first)
 
-    cells: list[Cell] = []
-    if corridor_vertical:
-        left_band = Rect(envelope.x, envelope.y, left_depth, envelope.h)
-        corridor_rect = Rect(envelope.x + left_depth, envelope.y, corridor_width, envelope.h)
-        right_band = Rect(corridor_rect.x1, envelope.y, right_depth, envelope.h)
-        # The left band's outside wall is its low edge; the right band's is
-        # its high edge, because the corridor is on its low side.
-        placed = _stack(left_rooms, left_band, True, warnings, outer_low=True)
-        placed += _stack(right_rooms, right_band, True, warnings, outer_low=False)
-    else:
-        left_band = Rect(envelope.x, envelope.y, envelope.w, left_depth)
-        corridor_rect = Rect(envelope.x, envelope.y + left_depth, envelope.w, corridor_width)
-        right_band = Rect(envelope.x, corridor_rect.y1, envelope.w, right_depth)
-        placed = _stack(left_rooms, left_band, False, warnings, outer_low=True)
-        placed += _stack(right_rooms, right_band, False, warnings, outer_low=False)
+    # Three bands with a service core, where it beats two bands.
+    #
+    # Beats, measured -- not "where the frontage is wide", which is what the
+    # first two versions of this tried. A core is the right answer on a
+    # 20 x 32 m lot (five awkward rooms down to none) and the wrong one on a
+    # 26 x 28 (none up to five), and no rule of thumb about frontage told
+    # those apart. Both layouts are cheap to build, so both get built and the
+    # one that treats the lit rooms better wins.
+    core = _core_split(left_rooms, right_rooms, usable, run)
+    plain = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
+                       corridor_vertical, corridor_width, left_depth,
+                       right_depth, road_first, [])
+    # Scored on what was BUILT, not on an estimate of it. The estimate said a
+    # 15 x 30 m block wanted a core; building it says two of its rooms are
+    # awkward, which a second passage is not worth -- and the core it would
+    # have chosen there squeezed the double garage to 4897 mm, which is not a
+    # double garage. A single spine stays the default and has to be plainly
+    # failing before a third band is considered.
+    if core is not None and _awkward(plain)[0] >= 3:
+        aside: list[str] = []
+        core_cells = _core_bands(
+            storey, core, corridor, envelope, corridor_vertical,
+            corridor_width, run, road_first, aside,
+        )
+        if core_cells and _awkward(core_cells) < _awkward(plain):
+            warnings.extend(aside)
+            front_cells: list[Cell] = []
+            if strip is not None:
+                passage = next(
+                    (c for c in core_cells
+                     if c.function is Function.CORRIDOR), None
+                )
+                meets = (
+                    (passage.rect.x0, passage.rect.x1)
+                    if passage is not None and corridor_vertical
+                    else None
+                )
+                front_cells = _place_front(front_rooms, strip, meets, warnings)
+            warnings.append(
+                "This floor is wide enough that two bands off one passage "
+                "would leave rooms spanning half the frontage, so the rooms "
+                "that need no window -- the bathrooms, the robes, the "
+                "laundry -- were put in a middle band with a passage down "
+                "each side of it. Every room that needs daylight still has "
+                "an external wall."
+            )
+            return front_cells + core_cells
 
-    for key, req, rect in placed:
-        cells.append(Cell(key, req.name, req.function, rect, storey, req))
-    cells.append(
-        Cell(corridor[0], corridor[1].name, Function.CORRIDOR, corridor_rect, storey, corridor[1])
+    cells = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
+                       corridor_vertical, corridor_width, left_depth,
+                       right_depth, road_first, warnings)
+    corridor_rect = next(
+        c.rect for c in cells if c.function is Function.CORRIDOR
     )
 
     # Now the passage is fixed, the frontage can be set out around it, with
