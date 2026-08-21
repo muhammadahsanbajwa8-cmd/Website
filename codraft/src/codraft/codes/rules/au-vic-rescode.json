@@ -29,7 +29,8 @@
     },
     "setback_right_mm": {
       "default": 1000
-    }
+    },
+    "min_outdoor_living_dimension_mm": null
   },
   "rules": [
     {
@@ -53,6 +54,17 @@
       "assert": "setback_front_mm >= 4000",
       "message": "The street setback is {setback_front_mm} mm. Post-VC282 the state standard is commonly 6 m, reducing to 4 m in some cases.",
       "note": "The standard is partly set by the setbacks of adjoining dwellings, which is not modelled."
+    },
+    {
+      "id": "vic.outdoor.living",
+      "title": "Private open space",
+      "clause": "ResCode Clause 54/55 (private open space)",
+      "scope": "building",
+      "severity": "violation",
+      "confidence": "medium",
+      "assert": "outdoor_living_m2 >= min_outdoor_living_m2 and outdoor_living_min_dim_mm >= min_outdoor_living_dim_mm",
+      "message": "The private open space is {outdoor_living_m2} m2 at the {outdoor_living_where} of the lot, {outdoor_living_min_dim_mm} mm across at its narrowest; this standard requires {min_outdoor_living_m2} m2 and {min_outdoor_living_dim_mm} mm.",
+      "note": "TWO LIMBS, TESTED TOGETHER. ResCode sets an area and a minimum dimension for the part with convenient access from a living room, and an area met by a long thin strip does not comply. Only the area figure is encoded here, so until the dimension is supplied this reports UNCHECKED rather than passing on one limb. Measured as ONE rectangle of open ground outside the street setback."
     }
   ],
   "design": {

@@ -160,7 +160,7 @@ Instrument: ResCode, Clauses 54 and 55
 |---|---|---|---|
 | `setback.side.by_wall_height` | How the side setback varies with wall height and lot width | rule | — |
 | `site.max_building_height` | Maximum building height | mm | — |
-| `site.min_open_space_dimension` | Minimum dimension of the private open space | mm | — |
+| `site.min_open_space_dimension` | Minimum dimension of the private open space | mm | as amended by VC282, 8 September 2025 |
 | `room.min_area_by_type` | Minimum floor area by room type | m2 | — |
 | `room.min_dimension_by_type` | Minimum plan dimension by room type | mm | — |
 | `energy.nathers_stars` | NatHERS star rating required | stars | — |
@@ -178,7 +178,7 @@ Instrument: R-Codes (SPP 7.3); density code drives setbacks
 |---|---|---|---|
 | `setback.side.by_wall_height` | How the side setback varies with wall height and lot width | rule | — |
 | `site.max_building_height` | Maximum building height | mm | — |
-| `site.min_open_space_dimension` | Minimum dimension of the private open space | mm | — |
+| `site.min_open_space_dimension` | Minimum dimension of the private open space | mm | State Planning Policy 7.3 |
 | `room.min_area_by_type` | Minimum floor area by room type | m2 | — |
 | `room.min_dimension_by_type` | Minimum plan dimension by room type | mm | — |
 | `energy.nathers_stars` | NatHERS star rating required | stars | — |

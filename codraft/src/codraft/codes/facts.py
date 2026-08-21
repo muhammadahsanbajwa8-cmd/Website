@@ -164,8 +164,14 @@ def _opening_point(start: Point, end: Point, opening) -> Point:
     )
 
 
-def derive(building: Building, parameters: dict | None = None) -> FactSet:
-    """Read the model and produce the facts rules are written against."""
+def derive(building: Building, parameters: dict | None = None,
+           site: dict | None = None) -> FactSet:
+    """Read the model and produce the facts rules are written against.
+
+    `site` is the jurisdiction's planning controls already resolved for this
+    lot's density code. They are separate from `parameters` because they are
+    keyed by that code -- R20 and R60 are different numbers on the same lot.
+    """
     parameters = parameters or {}
     factors = parameters.get("occupant_load_factors", {}) or {}
     slab = int(parameters.get("slab_and_finish_mm", ASSUMED_SLAB_AND_FINISH))
@@ -386,6 +392,89 @@ def derive(building: Building, parameters: dict | None = None) -> FactSet:
         "exit_count": sum(s["exit_count"] for s in facts.storeys),
         "dwelling_units": 1 if building.use == "residential" else 0,
     }
+    facts.building.update(outdoor_living(building, site))
+    if facts.building.get("outdoor_living_m2") is not None:
+        # The measurement goes in the assumptions whether or not the rule
+        # could decide it. A control reported as unchecked still leaves the
+        # reader wanting the number, and this is the number.
+        facts.assumptions.append(
+            f"Outdoor living measures "
+            f"{facts.building['outdoor_living_m2']} m2 at the "
+            f"{facts.building['outdoor_living_where']} of the lot, "
+            f"{facts.building['outdoor_living_min_dim_mm']} mm across at its "
+            "narrowest. It is taken as the largest single rectangle of open "
+            "ground outside the street setback; a roofed alfresco is not "
+            "counted towards it, though the R-Codes let part of one count -- "
+            "how much is not a figure these packs carry, so the measurement "
+            "is conservative rather than generous."
+        )
+    return facts
+
+
+def outdoor_living(building, site: dict | None = None) -> dict:
+    """The open ground a plan actually leaves, and where.
+
+    The R-Codes and ResCode both require an outdoor living area: a minimum
+    size, a minimum dimension, behind the street setback and reachable from
+    a living room. Only the first of those is a figure the packs carry, so
+    only the first is checked -- the rest are reported as unchecked rather
+    than waved through, which is the difference between "we looked" and "it
+    complies".
+
+    What is measured is the largest single rectangle of open ground that is
+    NOT in the street setback. A lot minus a rectangular footprint leaves at
+    most four strips, and the biggest of them is the yard; the 1 m ribbons
+    down the sides come out with a min dimension of 1000 and are not mistaken
+    for somewhere to sit.
+
+    A roofed alfresco is NOT counted, though the R-Codes let part of one
+    count, because how much is a figure the packs do not carry. That makes
+    this conservative and says so, rather than generous and silent.
+    """
+    plot = getattr(building, "plot", None)
+    if plot is None or not building.storeys:
+        return {}
+    lot = plot.rect
+    rects = [s.rect for s in building.storeys[0].spaces]
+    if not rects:
+        return {}
+    x0 = min(r.x0 for r in rects)
+    x1 = max(r.x1 for r in rects)
+    y0 = min(r.y0 for r in rects)
+    y1 = max(r.y1 for r in rects)
+
+    road = getattr(plot, "road_side", "south")
+    strips = {
+        "south": (lot.x1 - lot.x0, y0 - lot.y0),
+        "north": (lot.x1 - lot.x0, lot.y1 - y1),
+        "west": (x0 - lot.x0, lot.y1 - lot.y0),
+        "east": (lot.x1 - x1, lot.y1 - lot.y0),
+    }
+    # Front is the street setback and does not count towards outdoor living.
+    candidates = {
+        where: size for where, size in strips.items() if where != road
+    }
+    best_where, best = max(
+        candidates.items(), key=lambda kv: kv[1][0] * kv[1][1]
+    )
+    width, depth = best
+    area = max(0, width) * max(0, depth)
+    facts = {
+        "outdoor_living_m2": round(area / 1_000_000, 2),
+        "outdoor_living_min_dim_mm": max(0, min(width, depth)),
+        "outdoor_living_where": best_where,
+    }
+    # A control that has not been supplied is LEFT OUT, not set to None. The
+    # engine reports a rule whose fact is missing as unchecked with a reason
+    # naming it; a None sitting in the namespace instead just makes the
+    # comparison raise. Absent is the honest encoding of "nobody told us",
+    # and it is the one the engine already knows how to report.
+    limits = {
+        "min_outdoor_living_m2": (site or {}).get("min_outdoor_living_m2"),
+        "min_outdoor_living_dim_mm": (site or {}).get(
+            "min_outdoor_living_dimension_mm"),
+    }
+    facts.update({k: v for k, v in limits.items() if v is not None})
     return facts
 
 

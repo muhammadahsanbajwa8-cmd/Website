@@ -235,8 +235,15 @@ def check(
     building: Building,
     jurisdiction: Jurisdiction,
     design_warnings: list[str] | None = None,
+    site: dict | None = None,
 ) -> Report:
-    """Run every pack that applies, and collect what each rule decided."""
+    """Run every pack that applies, and collect what each rule decided.
+
+    `site` is the planning controls resolved for this lot's density code.
+    Without them a rule keyed by density -- outdoor living area is one --
+    has no figure to check against and reports unchecked, which is correct
+    but is not the answer anybody wanted.
+    """
     packs: list[RulePack] = []
     for name in jurisdiction.rule_packs:
         try:
@@ -247,7 +254,7 @@ def check(
             packs.append(pack)
 
     parameters = merged_parameters(packs)
-    fact_set = facts_module.derive(building, parameters)
+    fact_set = facts_module.derive(building, parameters, site)
 
     report = Report(
         building=building.name,

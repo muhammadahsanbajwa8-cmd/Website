@@ -143,6 +143,34 @@ function assignStoreys(rooms, storeys) {
   return out;
 }
 
+/* ---- outdoor living ---- */
+// The largest SINGLE rectangle of open ground outside the street setback.
+//
+// Not (lot - footprint), which is what this used to report: that sums the
+// front setback and both 1 m side ribbons into one figure and ticks it green
+// against a control none of them satisfies. Two 20 m² ribbons down opposite
+// boundaries are not a 40 m² outdoor living area, and adding them says they
+// are. The front is excluded because the control is about the back.
+//
+// The R-Codes set an area AND a minimum dimension. Only the area is carried
+// here, so the dimension is reported as measured-but-unchecked rather than
+// folded into a pass -- an area met by a long thin strip does not comply.
+function outdoorLiving(lot, foot) {
+  // The lot runs from (0, 0) to (lot.w, lot.d) and the street is at y = 0,
+  // which is why "front" is not one of the candidates below.
+  const strips = {
+    rear:  [lot.w, lot.d - (foot.y + foot.h)],
+    left:  [foot.x, lot.d],
+    right: [lot.w - (foot.x + foot.w), lot.d],
+  };
+  let bestWhere = "rear", best = strips.rear;
+  for (const [where, size] of Object.entries(strips))
+    if (size[0] * size[1] > best[0] * best[1]) { bestWhere = where; best = size; }
+  const [w, h] = best;
+  return { m2: Math.max(0, w) * Math.max(0, h) / 1e6,
+           minDim: Math.max(0, Math.min(w, h)), where: bestWhere };
+}
+
 /* ---- fitting rooms along a band ---- */
 function apportion(spans, floors, total, warn) {
   const wanted = floors.reduce((a, b) => a + b, 0);
@@ -704,9 +732,11 @@ function design(a) {
     else poolNote = `A ${pl/1000}×${pw/1000} m pool needs about ${needL} × ${needW} mm of clear yard once the 1200 mm barrier and its 900 mm non-climbable zone are allowed for. The rear yard is ${yard.w} × ${yard.h} mm. A plunge pool, or the house brought forward.`;
   }
 
+  const od = outdoorLiving(lot, foot);
   return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote, drive },
            stats: { gfa, cover, maxCover, areas, ceiling, walls, construction: P.construction,
                     code: P.code, state: P.name, zone: P.zoned ? a.zone : null,
-                    outdoor: (lot.area - areas[0]) / 1e6, minOutdoor: pick(P.outdoor) },
+                    outdoor: od.m2, outdoorMinDim: od.minDim, outdoorWhere: od.where,
+                    minOutdoor: pick(P.outdoor) },
            clear, notes };
 }

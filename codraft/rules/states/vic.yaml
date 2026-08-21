@@ -91,7 +91,7 @@ rules:
     description: "Minimum dimension of the private open space"
     unit: mm
     value: TODO
-    source: TODO
+    source: "as amended by VC282, 8 September 2025"
     last_checked: null
     status: missing
 

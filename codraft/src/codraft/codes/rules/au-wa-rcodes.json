@@ -47,7 +47,8 @@
     },
     "setback_right_mm": {
       "default": 1000
-    }
+    },
+    "min_outdoor_living_dimension_mm": null
   },
   "rules": [
     {
@@ -71,6 +72,17 @@
       "assert": "setback_front_mm >= 4000",
       "message": "The primary street setback is {setback_front_mm} mm. R20 requires 6 m; the denser codes reduce it, and averaging with neighbours may apply.",
       "note": "The R-Codes permit averaging against adjoining lots, which is not modelled."
+    },
+    {
+      "id": "wa.outdoor.living",
+      "title": "Outdoor living area",
+      "clause": "R-Codes Vol 1, Part C (outdoor living area)",
+      "scope": "building",
+      "severity": "violation",
+      "confidence": "medium",
+      "assert": "outdoor_living_m2 >= min_outdoor_living_m2 and outdoor_living_min_dim_mm >= min_outdoor_living_dim_mm",
+      "message": "The outdoor living area is {outdoor_living_m2} m2 at the {outdoor_living_where} of the lot, {outdoor_living_min_dim_mm} mm across at its narrowest; this density requires {min_outdoor_living_m2} m2 and {min_outdoor_living_dim_mm} mm.",
+      "note": "TWO LIMBS, TESTED TOGETHER. The R-Codes set an area AND a minimum dimension, and an area met by a long thin strip does not comply -- on a narrow lot the widest open rectangle is often the 1 m ribbon down a side boundary, which satisfies the area on paper and is not somewhere anybody sits. Only the area figure is encoded here, so until the dimension is supplied this reports UNCHECKED rather than passing on one limb of a two-limb control. Measured as ONE rectangle of open ground outside the street setback; a roofed alfresco is not counted, though the R-Codes let part of one count, because how much is not a figure this pack carries. That it must be accessible from a habitable room is not modelled."
     }
   ],
   "design": {

@@ -576,6 +576,7 @@ def cmd_plan(args) -> int:
     report = codes.check(
         building, jurisdiction,
         layout.warnings + service_warnings + schedule_warnings + drawing_notes,
+        site=site,
     )
     if args.json:
         (out / f"{stem}-report.json").write_text(

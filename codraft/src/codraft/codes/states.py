@@ -31,6 +31,11 @@ _SITE_KEYS = {
     "setback.side.right": "setback_right_mm",
     "site.max_coverage": "max_coverage_ratio",
     "site.min_private_open_space": "min_outdoor_living_m2",
+    # The second limb of the outdoor living control. It was on the checklist
+    # already and mapped to nothing, so filling it in changed nothing --
+    # a to-do that cannot be done is worse than no to-do. With this, the
+    # figure turns wa.outdoor.living from unchecked into a real check.
+    "site.min_open_space_dimension": "min_outdoor_living_dimension_mm",
     "site.max_building_height": "max_height_mm",
 }
 

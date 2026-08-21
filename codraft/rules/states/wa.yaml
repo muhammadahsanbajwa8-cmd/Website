@@ -109,7 +109,7 @@ rules:
     description: "Minimum dimension of the private open space"
     unit: mm
     value: TODO
-    source: TODO
+    source: "State Planning Policy 7.3"
     last_checked: null
     status: missing
 
