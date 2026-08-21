@@ -266,6 +266,80 @@ function outdoorLiving(lot, foot) {
            minDim: Math.max(0, Math.min(w, h)), where: bestWhere };
 }
 
+/* ---- the service core ---- */
+// How badly a layout treats the rooms that need daylight: (how many read as a
+// passage, by how much in total). Lower is better. Only lit rooms count -- a
+// robe is allowed to be a slot, and counting those would let a layout win by
+// rounding out the bathrooms.
+function awkward(cells) {
+  let count = 0, excess = 0;
+  for (const c of cells) {
+    if (!c.r || !needsLight(c.r)) continue;
+    const short = Math.max(1, Math.min(c.rect.w, c.rect.h));
+    const ratio = Math.max(c.rect.w, c.rect.h) / short;
+    if (ratio > 2.2) { count += 1; excess += Math.round((ratio - 2.2) * 1000); }
+  }
+  return [count, excess];
+}
+const better = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+
+// Three bands: band / passage / core / passage / band.
+//
+// A single spine puts every room across one of two bands, so on a wide
+// frontage each band is half the frontage deep and every room spans it -- a
+// bedroom comes out 7161 × 2127. Pairing cannot help: two rooms that both
+// need daylight can never share a slice, and a sleep wing is nothing but
+// rooms that need daylight. So the rooms that need no window go in the middle
+// with a passage down each side.
+//
+// The two passages must JOIN. Separated by a core spanning the whole run, the
+// far one is reachable only through a bathroom and every room beyond it has no
+// route out. The core band carries a LINK at one end instead, which keeps the
+// tiling exact and reuses the same stacker.
+function coreBands(L, Rr, corridor, envelope, vertical, cw, run, order, storeyIndex) {
+  const lit = L.concat(Rr).filter(needsLight);
+  const unlit = L.concat(Rr).filter(r => !needsLight(r));
+  const litL = L.filter(needsLight), litR = Rr.filter(needsLight);
+  if (unlit.length < 3 || !litL.length || !litR.length) return null;
+
+  const usable = (vertical ? envelope.w : envelope.h) - 2 * cw;
+  const coreArea = unlit.reduce((t, r) => t + (target(r) || 0), 0);
+  let coreDepth = Math.max(MIN_DIM + WALL_ALLOW, Math.ceil(coreArea / Math.max(1, run)));
+  coreDepth = Math.min(coreDepth, usable - 2 * (MIN_DIM + WALL_ALLOW));
+  if (coreDepth < MIN_DIM + WALL_ALLOW) return null;
+
+  const spare = usable - coreDepth;
+  const la = litL.reduce((t, r) => t + (target(r) || 1), 0);
+  const ra = litR.reduce((t, r) => t + (target(r) || 1), 0);
+  const ld = Math.max(MIN_DIM + WALL_ALLOW,
+    Math.min(spare - (MIN_DIM + WALL_ALLOW),
+             Math.floor(spare * la / Math.max(1, la + ra))));
+  const rd = spare - ld;
+
+  // The link is the corridor requirement again, so it is as wide as a passage
+  // has to be and is checked as one.
+  const link = { ...corridor, key: String(corridor.key) + "_link" };
+  const coreRooms = order(unlit).concat([link]);
+
+  let placed, near, far;
+  if (vertical) {
+    near = { x: envelope.x + ld, y: envelope.y, w: cw, h: envelope.h };
+    const coreBand = { x: near.x + cw, y: envelope.y, w: coreDepth, h: envelope.h };
+    far = { x: coreBand.x + coreDepth, y: envelope.y, w: cw, h: envelope.h };
+    placed = stack(order(litL), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true, true)
+      .concat(stack(coreRooms, coreBand, true))
+      .concat(stack(order(litR), { x: far.x + cw, y: envelope.y, w: rd, h: envelope.h }, true, false));
+  } else {
+    near = { x: envelope.x, y: envelope.y + ld, w: envelope.w, h: cw };
+    const coreBand = { x: envelope.x, y: near.y + cw, w: envelope.w, h: coreDepth };
+    far = { x: envelope.x, y: coreBand.y + coreDepth, w: envelope.w, h: cw };
+    placed = stack(order(litL), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false, true)
+      .concat(stack(coreRooms, coreBand, false))
+      .concat(stack(order(litR), { x: envelope.x, y: far.y + cw, w: envelope.w, h: rd }, false, false));
+  }
+  return { placed, near, far };
+}
+
 /* ---- fitting rooms along a band ---- */
 function apportion(spans, floors, total, warn) {
   const wanted = floors.reduce((a, b) => a + b, 0);
@@ -667,13 +741,32 @@ function layoutStorey(rooms, env, storeyIndex) {
     placed = stack(order(L), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false, true)
       .concat(stack(order(Rr), { x: envelope.x, y: corridorRect.y + cw, w: envelope.w, h: rd }, false, false));
   }
+
+  // A core, where it beats the single spine -- measured by building both, not
+  // by a rule of thumb about frontage. A core is right on a 20 × 32 m lot
+  // (five awkward rooms down to none) and wrong on a 26 × 28 (none up to
+  // five). The spine stays the default and has to be plainly failing first:
+  // scored on an estimate instead, a 15 × 30 m block chose the core and came
+  // out with a double garage 4897 mm wide, which is not a double garage.
+  let passages = [{ r: corridor, rect: corridorRect, at: storeyIndex }];
+  const plain = awkward(placed);
+  if (plain[0] >= 3) {
+    const core = coreBands(L, Rr, corridor, envelope, vertical, cw, run, order, storeyIndex);
+    if (core && better(awkward(core.placed), plain)) {
+      placed = core.placed;
+      corridorRect = core.near;
+      passages = [{ r: corridor, rect: core.near, at: storeyIndex },
+                  { r: { ...corridor, key: String(corridor.key) + "_far" },
+                    rect: core.far, at: storeyIndex }];
+    }
+  }
+
   // Now the passage is fixed, set the frontage out around it, with the front
   // door over the passage rather than wherever it happened to land.
   cells = strip
     ? placeFront(frontRooms, strip, vertical ? [corridorRect.x, corridorRect.x + cw] : null)
     : [];
-  return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })),
-                      [{ r: corridor, rect: corridorRect, at: storeyIndex }]);
+  return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })), passages);
 }
 
 /* ---- the whole design ---- */
