@@ -130,16 +130,16 @@ class TestItIsTheSameDrawing(unittest.TestCase):
         # Asserted by what each page SAYS rather than by counting, so that
         # adding a sheet type fails here loudly rather than by an off-by-one.
         streams = _streams(_write())
-        self.assertEqual(len(streams), 5,
-                         "site, two storeys, elevations, section")
+        self.assertEqual(len(streams), 6,
+                         "site, two storeys, two elevation sheets, section")
         joined = "\n".join(streams)
         for expected in ("SITE PLAN", "Ground floor", "Floor 1",
                          "Elevation", "Section A-A"):
             self.assertIn(expected, joined, f"the set has no {expected}")
 
         single = _streams(_write(building=_building(storeys=1)))
-        self.assertEqual(len(single), 4,
-                         "site, one plan, elevations, section")
+        self.assertEqual(len(single), 5,
+                         "site, one plan, two elevation sheets, section")
 
     def test_a_building_with_no_roof_gets_no_elevation_or_section(self):
         # Both are drawn against the roof, so without one there is nothing

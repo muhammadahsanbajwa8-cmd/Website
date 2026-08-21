@@ -125,3 +125,80 @@ class TestElevations(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheElevationSheetsAgree(unittest.TestCase):
+    """Two views to a sheet, and every sheet at the same scale as the plan.
+
+    Four abreast makes the drawing 106 m wide against 26 m tall and the sheet
+    scales to the width: 1:500. Two by two is 1:200 -- better, and still not
+    what a permit set does, because a 2 x 2 block cannot get under the 30.8 m
+    an A3 holds at 1:100. Two in a column can, so it is two in a column and a
+    second sheet, which is what a builder's set uses.
+
+    The sheets must also agree with each other. The scale comes from the
+    content box and only the first sheet carries the notes, so left alone a
+    two storey house came out with elevations 1-2 at 1:200 and 3-4 at 1:100 --
+    and a set at two scales is a set somebody measures the wrong one off.
+    """
+
+    def _scales(self, storeys):
+        from codraft.export.svg import build_sheet, elevation_sheets
+        from codraft.sheet import fit_scale
+
+        building = _building(bedrooms=4)
+        if storeys == 2:
+            building = _building(bedrooms=4, depth=30000)
+        out = []
+        for page in range(elevation_sheets(building)):
+            _, _, w, h, name = build_sheet(building, storey_index=page,
+                                           sheet="elevations")
+            out.append((name, fit_scale(w, h, "A3").scale))
+        return out
+
+    def test_the_elevations_are_split_across_sheets(self):
+        from codraft.export.svg import elevation_sheets
+
+        self.assertEqual(elevation_sheets(_building()), 2)
+
+    def test_every_elevation_sheet_is_at_the_same_scale(self):
+        for storeys in (1, 2):
+            scales = {scale for _name, scale in self._scales(storeys)}
+            with self.subTest(storeys=storeys):
+                self.assertEqual(len(scales), 1, f"sheets disagree: {scales}")
+
+    def test_they_are_at_the_scale_a_builder_reads(self):
+        for _name, scale in self._scales(1):
+            self.assertEqual(scale, 100)
+
+    def test_each_sheet_names_which_elevations_it_carries(self):
+        names = [name for name, _ in self._scales(1)]
+        self.assertEqual(names, ["Elevations 1-2", "Elevations 3-4"])
+
+    def test_no_view_is_dropped_and_none_is_repeated(self):
+        from codraft.export.svg import build_sheet, elevation_sheets
+        from codraft.export.elevation import elevations as views_of
+
+        building = _building()
+        titles = [v.title for v in views_of(building)]
+        drawn: list[str] = []
+        for page in range(elevation_sheets(building)):
+            canvas, *_ = build_sheet(building, storey_index=page,
+                                     sheet="elevations")
+            drawn += [op[6] for op in canvas.ops
+                      if op[0] == "text" and op[1] == "title"]
+        self.assertEqual(sorted(drawn), sorted(titles))
+
+    def test_the_notes_are_on_one_sheet_only(self):
+        # Two copies of a note is how a set ends up with two that disagree.
+        from codraft.export.svg import build_sheet, elevation_sheets
+
+        building = _building()
+        seen: list[str] = []
+        for page in range(elevation_sheets(building)):
+            canvas, *_ = build_sheet(building, storey_index=page,
+                                     sheet="elevations")
+            seen += [op[6] for op in canvas.ops
+                     if op[0] == "text" and op[1] == "elev-note"]
+        self.assertEqual(len(seen), len(set(seen)))
+        self.assertTrue(seen, "the elevations carry no notes at all")

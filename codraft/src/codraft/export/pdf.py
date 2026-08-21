@@ -440,7 +440,12 @@ def write_pdf(
             pages = [("site", None), ("architectural", None)]
         if building.roof is not None:
             # A permit set is plans, elevations and at least one section.
-            pages.append(("elevations", None))
+            # Two elevations to a sheet, which is what gets them to the same
+            # 1:100 as the floor plan rather than a quarter of the size.
+            from .svg import elevation_sheets
+
+            pages += [("elevations", page)
+                      for page in range(elevation_sheets(building))]
             pages.append(("sections", None))
 
     contents: list[bytes] = []

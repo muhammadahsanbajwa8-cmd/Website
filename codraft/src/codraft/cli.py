@@ -440,7 +440,17 @@ def cmd_plan(args) -> int:
     pages: list[tuple[str, int | None, str]] = []
     for sheet in sheets:
         stem_part = "" if sheet == "architectural" else f"-{sheet}"
-        if sheet == "elevations" or len(building.storeys) == 1:
+        if sheet == "elevations":
+            # Two views to a sheet. The index selects which pair, because an
+            # elevation sheet has no storey to select.
+            from .export.svg import elevation_sheets
+
+            count = elevation_sheets(building)
+            for page in range(count):
+                suffix = stem_part if count == 1 else f"{stem_part}-{page + 1}"
+                pages.append((sheet, page, suffix))
+            continue
+        if len(building.storeys) == 1:
             pages.append((sheet, None, stem_part))
             continue
         for storey in building.storeys:

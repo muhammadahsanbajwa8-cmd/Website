@@ -946,6 +946,12 @@ def build_sheet(
     if sheet not in SHEETS:
         raise ValueError(f"unknown sheet {sheet!r}; choose from {', '.join(SHEETS)}")
 
+    # An elevation sheet has no storey, so the index selects which SHEET of
+    # elevations is wanted. Two views to a sheet; `elevation_sheets` says how
+    # many that comes to for a given building.
+    if sheet == "elevations":
+        return _elevation_canvas(building, storey_index or 0)
+
     storeys = (
         [s for s in building.storeys if s.index == storey_index]
         if storey_index is not None
@@ -954,8 +960,6 @@ def build_sheet(
     if not storeys:
         raise ValueError(f"the building has no storey {storey_index}")
 
-    if sheet == "elevations":
-        return _elevation_canvas(building)
     if sheet == "sections":
         return _section_canvas(building)
 
@@ -1177,48 +1181,98 @@ def _write_sheet(
     return path
 
 
-def _elevation_canvas(building: Building):
-    """All four elevations on one canvas, numbered from the street."""
-    views = build_elevations(building)
-    canvas = _Canvas()
-    margin = 3500
+# How many elevations go on one sheet.
+#
+# Two, in a column. Four abreast makes the drawing 106 m wide against 26 m
+# tall and the sheet scales to the width: 1:500. Two by two is 50 x 29 m,
+# which is 1:200 -- better, and still not what a permit set does, because the
+# width is what binds and a 2 x 2 block cannot get under the 30.8 m an A3
+# holds at 1:100. Two in a COLUMN is 22 x 20 m, which fits, so the elevations
+# are drawn at the same scale as the floor plan they belong to. That costs a
+# second sheet, and a second sheet is what a builder's set uses.
+PER_ELEVATION_SHEET = 2
 
-    # Two by two, not four in a row. Four abreast makes the drawing 106 m
-    # wide against 26 m tall, and the sheet then scales to the width: 1:500,
-    # where a 2 x 2 block of the same views fits at 1:200. Same paper, same
-    # information, two and a half times the size.
+
+def elevation_sheets(building: Building) -> int:
+    """How many sheets the elevations take, at two to a sheet."""
+    views = len(build_elevations(building))
+    return max(1, -(-views // PER_ELEVATION_SHEET))
+
+
+def _elevation_canvas(building: Building, page: int = 0):
+    """One sheet of elevations, at the scale every elevation sheet shares.
+
+    Shares, deliberately. The scale is chosen from the content box, and the
+    first sheet carries the notes while the others do not -- so left alone,
+    a two storey house comes out with elevations 1-2 at 1:200 and 3-4 at
+    1:100. A set whose elevations are at two different scales is a set
+    somebody measures the wrong one off. So every sheet reports the LARGEST
+    box any of them needs, and they all land on the same ratio.
+    """
+    pages = elevation_sheets(building)
+    boxes = [_elevation_page(building, p) for p in range(pages)]
+    if not 0 <= page < pages:
+        raise ValueError(f"the building has no elevation sheet {page}")
+    canvas, origin, _w, _h, name = boxes[page]
+    return (canvas, origin,
+            max(b[2] for b in boxes), max(b[3] for b in boxes), name)
+
+
+def _elevation_page(building: Building, page: int = 0):
+    """One sheet of elevations, numbered from the street."""
+    every = build_elevations(building)
+    first = page * PER_ELEVATION_SHEET
+    views = every[first:first + PER_ELEVATION_SHEET]
+    if not views:
+        raise ValueError(f"the building has no elevation sheet {page}")
+    canvas = _Canvas()
+    # Every millimetre here is deducted from the paper before a scale is
+    # chosen. A 3500 margin and a 9000 gap between views is 16 m of white on
+    # a 23 m drawing, and 16 m of white is what kept the elevations at 1:200.
+    margin = 1500
+    gap = 4500
+
     spans = [
         (min((l.x0 for l in v.roof + v.outline), default=0),
          max((l.x1 for l in v.roof + v.outline), default=0))
         for v in views
     ]
-    column_w = max((right - left for left, right in spans), default=0) + 9000
+    # Measured over EVERY view, not just this sheet's, so the two sheets space
+    # their elevations identically and read as one set.
     row_h = max(
-        (max((l.y1 for l in v.roof + v.outline), default=0) for v in views),
+        (max((l.y1 for l in v.roof + v.outline), default=0) for v in every),
         default=0,
-    ) + 9000
+    ) + gap
 
     for index, (view, (left, right)) in enumerate(zip(views, spans)):
-        column, row = index % 2, index // 2
-        dx = column * column_w - left
-        dy = -row * row_h
+        dx = -left
+        dy = -index * row_h
         _draw_elevation(canvas, view, dx, dy)
         canvas.text((left + right) // 2 + dx, dy - 2400, view.title, "title")
 
-    notes_top = -((len(views) + 1) // 2 - 1) * row_h - 4200
-    for index, note in enumerate(views[0].notes):
-        canvas.text(0, notes_top - index * 700, note, "elev-note")
-        # Register where the note actually IS. Sawing the positive y
-        # instead pushed the sheet bounds 13 m the wrong way and left
-        # the notes themselves outside them.
-        canvas.saw(0, notes_top - index * 700, 3000)
+    # The notes go on the first sheet only. Repeating them on the second is
+    # how a set ends up with two versions of the same note that disagree.
+    if page == 0:
+        notes_top = -(len(views) - 1) * row_h - 2000
+        for index, note in enumerate(every[0].notes):
+            canvas.text(0, notes_top - index * 550, note, "elev-note")
+            # Register where the note actually IS. Sawing the positive y
+            # instead pushed the sheet bounds 13 m the wrong way and left
+            # the notes themselves outside them.
+            canvas.saw(0, notes_top - index * 550, 3000, pad_y=300)
+
+    name = "Elevations"
+    if len(every) > PER_ELEVATION_SHEET:
+        name = (f"Elevations {first + 1}"
+                f"-{first + len(views)}" if len(views) > 1
+                else f"Elevation {first + 1}")
 
     content_w = int(canvas.maxx - canvas.minx) + margin * 2
     content_h = int(canvas.maxy - canvas.miny) + margin * 2
     return (
         canvas,
         (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
-        content_w, content_h, "Elevations",
+        content_w, content_h, name,
     )
 
 
