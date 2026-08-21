@@ -173,3 +173,52 @@ class TestNoRoomGoesQuietlyUnlabelled(unittest.TestCase):
                         f"{space.name} is neither on the drawing nor in the "
                         "notes",
                     )
+
+
+class TestTheNameStepsDownBeforeItIsDropped(unittest.TestCase):
+    """The failure this catches called an ordinary bathroom too small.
+
+    A 1892 x 2442 mm bathroom is a bathroom. It takes "Bathroom" at 300 when
+    measured against the room's width, and then cannot be placed, because a
+    bath, a basin and a pan leave 1142 mm of clear floor and the word is 1392
+    wide. Choosing the size once, up front, left dropping the name as the only
+    move -- so the drawing left a bathroom unlabelled and the report called it
+    a room too small for its own name, when 210 goes in with room to spare.
+    """
+
+    def test_an_ordinary_bathroom_keeps_its_name(self):
+        from codraft.export.svg import _room_label, _floor_obstacles
+
+        for beds, cap in ((4, 0.5), (4, None), (5, 0.5)):
+            program = template("au-house", bedrooms=beds, bathrooms=2,
+                               storeys=1)
+            plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                        setback_front=6000, setback_rear=6000,
+                        setback_left=1000, setback_right=1000)
+            layout = solve(program, plot,
+                           max_footprint=int(15000 * 30000 * cap) if cap
+                           else None)
+            building = build_building(program, plot, layout)
+            storey = building.storeys[0]
+            obstacles = _floor_obstacles(storey)
+            for space in storey.spaces:
+                if not space.name.startswith("Bathroom"):
+                    continue
+                with self.subTest(beds=beds, cap=cap, size=(space.rect.w,
+                                                            space.rect.h)):
+                    self.assertIsNone(
+                        _room_label(_Recorder(), space, 0, "metric",
+                                    obstacles.get(id(space), ())),
+                        "an ordinary bathroom was reported as too small for "
+                        "its own name",
+                    )
+
+
+class _Recorder:
+    """Just enough canvas to run the label placer against."""
+
+    def __init__(self):
+        self.calls = []
+
+    def text(self, x, y, value, cls, dy=0, rotate=0):
+        self.calls.append((x, y, value, cls, dy, rotate))

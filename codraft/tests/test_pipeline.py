@@ -175,3 +175,67 @@ class TestExports(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWhatTheDrawingFoundReachesTheReport(unittest.TestCase):
+    """The drawing knows things the solver does not, and must not keep them.
+
+    A fitting with nowhere to go; a room that cannot carry its own name.
+    Both are decided when the sheet is built, and both are findings about
+    the PLAN rather than about the drafting -- the reason a room cannot be
+    labelled is always that it is not a room.
+
+    The CLI used to ask `fixtures.for_storey` for these directly, which got
+    the fittings and quietly missed the labels: a bathroom lost the word
+    "Bathroom" off the drawing and nothing anywhere said so.
+    """
+
+    def _building(self, beds=4):
+        from codraft.layout import build_building, solve
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=beds, bathrooms=2, storeys=1)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        return build_building(program, plot, layout), layout
+
+    def test_both_kinds_of_note_come_from_one_place(self):
+        from codraft.export.svg import build_sheet, drawing_notes
+
+        building, layout = self._building()
+        collected = drawing_notes(building, footprint=layout.envelope)
+        for storey in building.storeys:
+            canvas, *_ = build_sheet(building, storey_index=storey.index,
+                                     footprint=layout.envelope)
+            for note in canvas.notes:
+                self.assertIn(note, collected)
+
+    def test_the_notes_reach_the_report(self):
+        from codraft.export.svg import drawing_notes
+
+        building, layout = self._building()
+        notes = drawing_notes(building, footprint=layout.envelope)
+        self.assertTrue(notes, "this plan found nothing to report")
+        report = codes.check(building, codes.resolve("Perth"),
+                             layout.warnings + notes)
+        for note in notes:
+            self.assertIn(note, report.design_warnings)
+
+    def test_a_room_that_lost_its_name_is_one_of_them(self):
+        # The specific case: whatever the drawing could not label has to be
+        # named somewhere a person will read.
+        from codraft.export.svg import build_sheet, drawing_notes
+
+        building, layout = self._building()
+        notes = "\n".join(drawing_notes(building, footprint=layout.envelope))
+        for storey in building.storeys:
+            canvas, *_ = build_sheet(building, storey_index=storey.index,
+                                     footprint=layout.envelope)
+            drawn = {op[6] for op in canvas.ops
+                     if op[0] == "text" and op[1].startswith("name")}
+            for space in storey.spaces:
+                if space.name not in drawn:
+                    with self.subTest(room=space.name):
+                        self.assertIn(space.name, notes)

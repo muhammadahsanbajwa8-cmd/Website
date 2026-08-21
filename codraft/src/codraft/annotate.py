@@ -23,6 +23,22 @@ TICK = 160          # length of the 45-degree architectural slash
 WITNESS_GAP = 120   # the witness line stops short of the thing it measures
 WITNESS_OVERRUN = 180
 
+# The smallest division a dimension chain will carry.
+#
+# `_ordinates` takes every wall centreline on the axis, and internal walls
+# that do not line up with each other put pairs of them a couple of hundred
+# millimetres apart. The chain then reads 1156, 2703, 217, 1539, 250, 1172,
+# 250, 822, 500, 350, 4041 -- eleven figures where a permit set carries five,
+# and the small ones measure a jog in a wall rather than anything a builder
+# sets out to. Ordinates closer together than this are collapsed onto the
+# first of them, which loses the jog and keeps the chain closing, because
+# every division is still the gap between two kept ordinates.
+#
+# It is a DRAWING decision, not a construction one. The rooms are unchanged
+# and the room sizes under each name are unchanged; what changes is how many
+# figures go on the chain.
+MIN_CHAIN_STEP = 600
+
 
 @dataclass(slots=True)
 class Segment:
@@ -146,7 +162,26 @@ def _ordinates(storey: Storey, footprint: Rect, vertical_walls: bool) -> list[in
         position = wall.start.x if vertical_walls else wall.start.y
         if lo < position < hi:
             positions.add(position)
-    return sorted(positions)
+    return _collapse(sorted(positions), lo, hi)
+
+
+def _collapse(positions: list[int], lo: int, hi: int) -> list[int]:
+    """Drop ordinates too close together to carry a legible figure.
+
+    Both ends are always kept -- they are the building -- so a short last
+    division is resolved by dropping the ordinate BEFORE it rather than the
+    end of the building, which would leave the chain measuring to nothing.
+    """
+    kept = [lo]
+    for position in positions:
+        if position <= lo or position >= hi:
+            continue
+        if position - kept[-1] >= MIN_CHAIN_STEP:
+            kept.append(position)
+    while len(kept) > 1 and hi - kept[-1] < MIN_CHAIN_STEP:
+        kept.pop()
+    kept.append(hi)
+    return kept
 
 
 def dimension_storey(

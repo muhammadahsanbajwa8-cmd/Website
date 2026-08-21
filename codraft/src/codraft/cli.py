@@ -551,10 +551,10 @@ def cmd_plan(args) -> int:
     # -- 6. check it ------------------------------------------------------
     # Anything the drawing itself discovered -- a fitting with nowhere to go
     # in a room that is otherwise fine.
-    drawing_notes: list[str] = []
-    for storey in building.storeys:
-        from .export.fixtures import for_storey as _fittings
-        drawing_notes.extend(_fittings(storey)[2])
+    from .export.svg import drawing_notes as _drawing_notes
+
+    drawing_notes = _drawing_notes(building, footprint=layout.envelope,
+                                   system=args.units)
 
     report = codes.check(
         building, jurisdiction,

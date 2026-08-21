@@ -844,12 +844,11 @@ def _room_label(canvas, space, dx: int, system: str, obstacles) -> str | None:
     run, across = (rect.h, rect.w) if turned else (rect.w, rect.h)
     usable = run - LABEL_MARGIN * 2
 
-    for cls, size in NAME_SIZES:
-        if _text_width(space.name, size) <= usable:
-            lines = [(space.name, cls, size)]
-            break
-    else:
+    sizes = [(cls, size) for cls, size in NAME_SIZES
+             if _text_width(space.name, size) <= usable]
+    if not sizes:
         return _too_small(space)
+    lines = [(space.name, *sizes[0])]
 
     if _text_width(fmt_area(space.area), AREA_SIZE) <= usable:
         lines.append((fmt_area(space.area), "area", AREA_SIZE))
@@ -858,7 +857,18 @@ def _room_label(canvas, space, dx: int, system: str, obstacles) -> str | None:
         if _text_width(text, DIM_SIZE) <= usable:
             lines.append((text, "roomdim", DIM_SIZE))
 
-    while lines:
+    # Drop lines, then step the name down a size, until the block finds
+    # somewhere clear to stand.
+    #
+    # BOTH, in that order, and the second half is not optional. A 1892 x 2442
+    # bathroom takes "Bathroom" at 300 against the room's width and then
+    # cannot place it, because a bath, a basin and a pan leave 1142 mm of
+    # clear floor and the word is 1392 wide. Choosing the size once, up
+    # front, meant the only remaining move was to drop the name -- so the
+    # drawing left a bathroom unlabelled and called it a room too small for
+    # its name, when 210 would have gone in with room to spare.
+    step = 0
+    while True:
         pitch = [int(size * LEADING) for _v, _c, size in lines]
         # The block is a line pitch each PLUS the height of the glyphs on the
         # top line, which sit above their baseline. Without that the scan is
@@ -872,9 +882,13 @@ def _room_label(canvas, space, dx: int, system: str, obstacles) -> str | None:
                 width, cx, cy = _label_spot(rect, obstacles, height)
             if width >= max(_text_width(v, size) for v, _c, size in lines):
                 break
-        lines.pop()
-    else:
-        return _too_small(space)
+        if len(lines) > 1:
+            lines.pop()
+            continue
+        step += 1
+        if step >= len(sizes):
+            return _too_small(space)
+        lines = [(space.name, *sizes[step])]
 
     # The canvas is y-up and text is placed by a dy that grows DOWNWARD, so
     # the first line takes the most negative offset. Backwards, this prints a
@@ -1024,6 +1038,29 @@ def build_sheet(
         (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
         content_w, content_h, f"{sheet.title()} plan",
     )
+
+
+def drawing_notes(building, footprint=None, system: str = "metric") -> list[str]:
+    """Everything the DRAWING discovered, as opposed to the layout.
+
+    A fitting with nowhere to go in a room that is otherwise fine; a room
+    that cannot carry its own name. Neither is visible to the solver, and
+    both are findings about the plan rather than about the drafting -- the
+    reason a room cannot be labelled is always that it is not a room.
+
+    They are collected by building the sheet, because the sheet is what
+    decides them. The CLI used to ask `fixtures.for_storey` directly, which
+    got the fittings and quietly missed the labels: the drawing dropped the
+    word "Bathroom" off a bathroom and the report never mentioned it.
+    """
+    seen: list[str] = []
+    for storey in building.storeys:
+        canvas, *_ = build_sheet(building, storey_index=storey.index,
+                                 footprint=footprint, system=system)
+        for note in canvas.notes:
+            if note not in seen:
+                seen.append(note)
+    return seen
 
 
 def write_svg(
