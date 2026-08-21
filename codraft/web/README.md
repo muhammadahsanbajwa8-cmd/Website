@@ -9,17 +9,24 @@ page, so the drawing appears without a round trip to a server. It is a port, not
 a second implementation — when the solver changes, both change. Integer
 millimetres throughout, as in the Python.
 
-**One known divergence, measured rather than assumed.** The service core —
-three bands with a passage down each side of the rooms that need no window —
-is ported and present here, and across 66 lot-and-program combinations it
-never fires: this packer's single spine never leaves three lit rooms reading
-as passages, where the Python's does on 8 of 68. So the same brief can come
-back with a different plan form depending on which engine drew it. That is
-the failure mode this file exists to prevent, and it is not resolved. The
-likely cause is that the two disagree about pairing — this one interleaves
-each bedroom with the robe or ensuite that opens off it — but that has not
-been confirmed, and until it is, neither engine's result should be taken as
-what the other would produce.
+**The divergence that was here is fixed, and the guess about it was wrong.**
+This file previously recorded that the service core never fired in this
+engine and guessed the cause was a disagreement about pairing. It was not.
+The two engines were sizing different houses: `target` here returned the
+room's MINIMUM area, where the Python aims at the PREFERRED one where a
+template gives it. So the page drew a 24 m2 living room and a 11 m2 bedroom
+where the CLI drew 32 and 12, and a house 18 m2 smaller from the same brief.
+The minimum is the floor a room may not go under, not the size anybody
+wants. With `prefer` ported, the two programs now agree to 0.1 m2 and the
+core fires on 13 of 66 combinations here instead of none.
+
+Two things followed from the fix and are worth knowing before reading the
+numbers below. Fewer plans draw (292 to 279) and more are refused (68 to
+81), because the houses are now their proper size and a proper-sized house
+does not fit as often -- that is the refusal working, not a regression. And
+`feasible.mjs` went from 0 packing losses to 2: both are a 2-bedroom brief
+on a 15 x 30 m lot, both were always there, and minimum-sized rooms were
+hiding them. The Python loses the same case and declares it.
 
 `audit.mjs` sweeps 360 combinations of state, lot, storeys and bedrooms and
 reports habitable rooms that came out under their declared minimum.

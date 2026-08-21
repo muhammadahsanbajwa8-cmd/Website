@@ -160,25 +160,30 @@ const tileW = w => w ? w + WALL_ALLOW : 0;
 
 /* ---- the brief becomes rooms ---- */
 function buildProgram(a) {
+  // `prefer` is the size the room wants; `area` is the floor it may not go
+  // under. Both come from src/codraft/program/templates.py -- this list is a
+  // port of that template, not a second opinion about how big a bedroom is.
   const R = (key, name, fn, area, width, opt = {}) => ({
-    key, name, fn, minArea: area * 1e6, minWidth: width, ...opt });
+    key, name, fn, minArea: area * 1e6, minWidth: width,
+    ...opt, preferArea: (opt.prefer || 0) * 1e6 });
   const rooms = [];
   const upper = a.storeys > 1;
 
   rooms.push(R("portico", "Portico", "entry", 4, 1500, { zone: "front", storey: 0 }));
   rooms.push(R("entry", "Entry", "entry", 6, 1500, { zone: "front", storey: 0, solo: true }));
   rooms.push(R("passage", "Passage", "corridor", 12, a.livable ? 1000 : 1000));
-  rooms.push(R("living", "Living", "living", 24, 3600, { storey: 0 }));
-  rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0 }));
+  rooms.push(R("living", "Living", "living", 24, 3600, { storey: 0, prefer: 32 }));
+  rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0, prefer: 18 }));
   rooms.push(R("kitchen", "Kitchen", "kitchen", 12, 3000, { storey: 0 }));
   rooms.push(R("wip", "WIP", "storage", 4, 1400, { storey: 0 }));
   rooms.push(R("master", "Master Suite", "bedroom", 16, 3400,
-               upper ? { storey: 1 } : {}));
+               upper ? { storey: 1, prefer: 18 } : { prefer: 18 }));
   rooms.push(R("wir", "WIR", "storage", 5, 1600, upper ? { storey: 1 } : {}));
   rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, upper ? { storey: 1 } : {}));
 
   for (let i = 2; i <= a.bedrooms; i++)
-    rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000, upper ? { storey: 1 } : {}));
+    rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000,
+                 upper ? { storey: 1, prefer: 12 } : { prefer: 12 }));
   for (let i = 2; i <= a.bathrooms; i++)
     rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800,
                  upper ? { storey: 1 } : {}));
@@ -216,7 +221,14 @@ const wing = r => SLEEP_WING.has(r.fn) ? "sleep" : LIVE_WING.has(r.fn) ? "live" 
 const BEDSIDE = new Set(["ensuite","wir","bathroom","bath","linen"]);
 const WET = new Set(["bathroom","wc","kitchen","utility"]);
 const CIRC = new Set(["corridor","entry","stair","lobby"]);
-const target = r => tileArea(r.minArea);
+// The tile area to aim for: what was PREFERRED, else what was required.
+//
+// Without the first half, every room is built to its bare minimum. That is
+// what this engine did, and it is why the page drew a house 18 m² smaller
+// than the CLI drew from the same brief -- a 24 m² living room where the
+// Python gives 32, and a bedroom at 11 where it gives 12. The minimum is the
+// floor a room may not go under, not the size anybody wants it.
+const target = r => tileArea(Math.max(r.minArea, r.preferArea || 0));
 
 /* ---- rooms onto storeys ---- */
 function assignStoreys(rooms, storeys) {
