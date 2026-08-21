@@ -32,7 +32,7 @@ from ..symbols import NAMES, footprint, symbol
 from ..units import fmt_area
 from ._plan import storey_walls
 
-SHEETS = ("architectural", "electrical", "plumbing", "elevations")
+SHEETS = ("architectural", "electrical", "plumbing", "elevations", "sections")
 
 STYLE = """
   .sheet { fill: #fbfaf7; }
@@ -46,6 +46,19 @@ STYLE = """
   .drive { fill: #ecebe6; stroke: #8a8577; stroke-width: 18; }
   .drive-cross { fill: none; stroke: #8a8577; stroke-width: 18; stroke-dasharray: 200 140; }
   .drive-text { font: 600 240px system-ui, sans-serif; fill: #6b6357; text-anchor: middle; }
+
+  /* A section shows two things at once and they must not read alike: what
+     the plane CUTS is structure and is heavy, what is seen BEYOND it is air
+     and is light. Same weight for both and the drawing stops meaning
+     anything. */
+  .sect-cut { stroke: #14110d; stroke-width: 56; fill: none; stroke-linecap: square; }
+  .sect-beyond { stroke: #9aa0a6; stroke-width: 18; fill: none; }
+  .sect-roof { stroke: #14110d; stroke-width: 40; fill: none; }
+  .sect-ground { stroke: #6b6357; stroke-width: 34; }
+  .sect-name { font: 500 230px system-ui, sans-serif; fill: #6b6357; text-anchor: middle; }
+  /* The cut line on the plan, without which a section is a picture. */
+  .mark-line { stroke: #b03030; stroke-width: 34; stroke-dasharray: 900 260 160 260; }
+  .mark-text { font: 700 420px system-ui, sans-serif; fill: #b03030; text-anchor: middle; }
   .setback { fill: none; stroke: #b4508c; stroke-width: 12; stroke-dasharray: 150 150; }
   .room { fill: #ffffff; }
   .room-wet { fill: #eef4fa; }
@@ -127,6 +140,68 @@ STYLE = """
 """
 
 
+def _draw_section(canvas: _Canvas, view, dx: int = 0, dy: int = 0) -> None:
+    """One section: what the plane cuts, what is seen past it, and the roof."""
+    for line in view.beyond:
+        canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy,
+                    "sect-beyond")
+    for line in view.roof:
+        canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy,
+                    "sect-roof")
+    # Cut lines last, so the heavy structure sits over the light stuff rather
+    # than being crossed by it.
+    for line in view.cut:
+        canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy,
+                    "sect-cut")
+    if view.ground:
+        g = view.ground
+        canvas.line(g.x0 + dx, g.y0 + dy, g.x1 + dx, g.y1 + dy, "sect-ground")
+
+    # Name each room the cut passes through, so a reader can place themselves.
+    for piece in view.slices:
+        if piece.x1 - piece.x0 < 1400:
+            continue
+        canvas.text((piece.x0 + piece.x1) // 2 + dx,
+                    piece.floor + (piece.ceiling - piece.floor) // 2 + dy,
+                    piece.name, "sect-name", dy=-60)
+
+    left = min((l.x0 for l in view.cut), default=0) + dx
+    right = max((l.x1 for l in view.cut), default=0) + dx
+    for true_y, label_y, label in _level_labels(view.levels):
+        canvas.line(left - 2600, true_y + dy, right + 400, true_y + dy,
+                    "elev-level")
+        canvas.text(left - 2500, label_y + dy, label, "elev-level-text", dy=-120)
+        canvas.saw(left - 2600, true_y + dy, 400)
+
+
+def _section_canvas(building: Building):
+    """The section on its own sheet, with the notes under it."""
+    from .section import section
+
+    view = section(building)
+    canvas = _Canvas()
+    _draw_section(canvas, view)
+    canvas.text(view.width_mm // 2, -2400, view.title, "title")
+
+    # Wrap the notes to the width of the drawing itself. Left at a fixed
+    # character count they ran far wider than the section, and since the sheet
+    # scales to whatever the canvas covers, the notes were deciding the scale
+    # -- the drawing came out at 1:200 to make room for its own footnotes.
+    columns = max(40, min(110, view.width_mm // 150))
+    top = -4200
+    for note in view.notes:
+        for piece in _wrap(note, columns):
+            canvas.text(view.width_mm // 2, top, piece, "elev-note")
+            top -= 700
+    content_w = int(canvas.maxx - canvas.minx) + 7000
+    content_h = int(canvas.maxy - canvas.miny) + 7000
+    return (
+        canvas,
+        (int(-canvas.minx) + 3500, int(canvas.maxy) + 3500),
+        content_w, content_h, "Section",
+    )
+
+
 def _crossover(plot, drive):
     """The strip over the verge, drawn outside the front boundary.
 
@@ -169,17 +244,26 @@ class _Canvas:
     def add(self, markup: str) -> None:
         self.parts.append(markup)
 
-    def saw(self, x: float, y: float, pad: float = 0) -> None:
+    def saw(self, x: float, y: float, pad: float = 0,
+            pad_y: float | None = None) -> None:
         """Record a point so the sheet can be sized to fit its contents.
 
         Sizing the page from the plot rectangle leaves a services sheet
         mostly empty, because the building covers a third of the plot and
         the plot is not drawn on that sheet at all.
+
+        `pad_y` exists because text is wide and short. Padding y by the same
+        amount as x -- which is what a single `pad` did -- made a long note
+        claim as much vertical room as it did horizontal, so a line of small
+        print at the foot of a sheet stretched the page fourteen metres and
+        the drawing above it was scaled down to make room for it.
         """
+        if pad_y is None:
+            pad_y = pad
         self.minx = min(self.minx, x - pad)
         self.maxx = max(self.maxx, x + pad)
-        self.miny = min(self.miny, y - pad)
-        self.maxy = max(self.maxy, y + pad)
+        self.miny = min(self.miny, y - pad_y)
+        self.maxy = max(self.maxy, y + pad_y)
 
     @property
     def has_content(self) -> bool:
@@ -239,8 +323,9 @@ class _Canvas:
         )
         self.ops.append(("text", cls, float(x), float(y), float(dy),
                          float(rotate), value))
-        # Text is centred, so allow for roughly half its run either side.
-        self.saw(x, y - dy, max(600, len(value) * 90))
+        # Text is centred, so allow for roughly half its run either side --
+        # but only a line's height above and below it.
+        self.saw(x, y - dy, max(600, len(value) * 90), pad_y=400)
 
 
 def _draw_symbol(canvas: _Canvas, kind: str, x: int, y: int, rotation: int,
@@ -276,6 +361,26 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
                 f"{drive.width_mm} wide x {drive.length_mm} long",
                 "drive-text", dy=180,
             )
+
+        # Where the section was cut. A section without this on the plan is a
+        # picture of a building, not a drawing of this one.
+        if not ghost and building.roof is not None:
+            from .section import section_marker
+
+            axis, position, run_from, run_to = section_marker(building)
+            if run_to > run_from:
+                if axis == "x":
+                    canvas.line(run_from + dx, position, run_to + dx, position,
+                                "mark-line")
+                    for end, label in ((run_from, "A"), (run_to, "A")):
+                        canvas.text(end + dx, position, label, "mark-text",
+                                    dy=-620)
+                else:
+                    canvas.line(position + dx, run_from, position + dx, run_to,
+                                "mark-line")
+                    for end, label in ((run_from, "A"), (run_to, "A")):
+                        canvas.text(position + dx, end, label, "mark-text",
+                                    dy=-150)
 
         pool = building.pool
         if pool is not None and storey.index == 0:
@@ -325,6 +430,28 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
             canvas.line(s.x0 + dx, s.y0, s.x1 + dx, s.y1, "glaz")
 
 
+def _level_labels(levels, min_gap: int = 520):
+    """Level lines at their true heights, with labels nudged apart.
+
+    A storey's ceiling and the floor above it are 200 mm apart -- the floor
+    structure -- and at 1:100 that is 2 mm on paper, so the two labels print
+    on top of each other and neither can be read. The LINE stays where the
+    level actually is, because that is what a surveyor measures to; only the
+    text moves, which is what a draughtsman does by hand.
+    """
+    out = []
+    previous = None
+    for level in sorted(levels, key=lambda l: l.y):
+        if out and level.y == out[-1][0]:
+            continue
+        label_y = level.y
+        if previous is not None and label_y - previous < min_gap:
+            label_y = previous + min_gap
+        out.append((level.y, label_y, level.label))
+        previous = label_y
+    return out
+
+
 def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
     """One elevation: walls, roof, openings and the levels up the side.
 
@@ -349,15 +476,10 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
     # Levels run off to the left of the drawing, as a sheet sets them out.
     left = min((l.x0 for l in view.outline), default=0) + dx
     right = max((l.x1 for l in view.outline), default=0) + dx
-    seen: set[int] = set()
-    for level in sorted(view.levels, key=lambda l: l.y):
-        if level.y in seen:
-            continue
-        seen.add(level.y)
-        canvas.line(left - 2600, level.y + dy, right + 400, level.y + dy, "elev-level")
-        canvas.text(left - 2500, level.y + dy, level.label,
-                    "elev-level-text", dy=-120)
-        canvas.saw(left - 2600, level.y + dy, 400)
+    for true_y, label_y, label in _level_labels(view.levels):
+        canvas.line(left - 2600, true_y + dy, right + 400, true_y + dy, "elev-level")
+        canvas.text(left - 2500, label_y + dy, label, "elev-level-text", dy=-120)
+        canvas.saw(left - 2600, true_y + dy, 400)
 
 
 def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int, system: str) -> None:
@@ -558,6 +680,8 @@ def build_sheet(
 
     if sheet == "elevations":
         return _elevation_canvas(building)
+    if sheet == "sections":
+        return _section_canvas(building)
 
     margin = 3000
     ghost = sheet != "architectural"

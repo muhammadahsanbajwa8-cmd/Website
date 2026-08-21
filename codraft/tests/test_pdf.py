@@ -125,13 +125,22 @@ class TestItIsTheSameDrawing(unittest.TestCase):
                 f"{size} pages are not {width} x {height} mm",
             )
 
-    def test_the_set_has_a_page_per_sheet(self):
-        # Two storeys plus elevations.
-        self.assertEqual(len(read_pdf(str(_write())).pages), 3)
-        single = _building(storeys=1)
-        self.assertEqual(len(read_pdf(str(_write(building=single))).pages), 2)
+    def test_the_default_set_is_what_a_permit_set_is(self):
+        # Plans, elevations and at least one section. Asserted by what each
+        # page SAYS rather than by counting, so that adding a sheet type
+        # fails here loudly rather than by an off-by-one.
+        streams = _streams(_write())
+        self.assertEqual(len(streams), 4, "two storeys, elevations, section")
+        joined = "\n".join(streams)
+        for expected in ("Ground floor", "Floor 1", "Elevation", "Section A-A"):
+            self.assertIn(expected, joined, f"the set has no {expected}")
 
-    def test_a_building_with_no_roof_gets_no_elevation_page(self):
+        single = _streams(_write(building=_building(storeys=1)))
+        self.assertEqual(len(single), 3, "one plan, elevations, section")
+
+    def test_a_building_with_no_roof_gets_no_elevation_or_section(self):
+        # Both are drawn against the roof, so without one there is nothing
+        # honest to draw rather than a flat-topped guess.
         bare = _building(roof=False)
         self.assertEqual(len(read_pdf(str(_write(building=bare))).pages), 2)
 

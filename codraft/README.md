@@ -688,6 +688,40 @@ Where the front setback leaves no room inside the lot, the driveway is
 **reported rather than drawn** — a zero-length driveway is not information.
 
 
+**Sections, because a permit set needs one.** An elevation says what the
+outside looks like; a section says how the thing is put together vertically,
+and it is the drawing a surveyor reads ceiling heights off. It is cut **through
+the stair** where there is one — the stair is what a section explains best and
+a plan explains worst — and otherwise through the middle, the long way.
+
+Two properties make it a section rather than a picture, and both are tested:
+
+- **Cut and seen are different weights.** What the plane passes through is
+  structure and is drawn heavy; what sits behind it is air and is drawn light.
+  Draw both the same and a reader can no longer tell solid from space, at which
+  point the drawing has stopped meaning anything.
+- **The plan carries the marker.** A section with no line on the plan saying
+  where it was cut is a picture of *a* building, not a drawing of *this* one.
+  The marker runs past the building at both ends with a tag on each, and a test
+  asserts the marker and the section agree about where the cut is.
+
+Levels are called up in courses — `RIDGE 8051`, `CL 5068 (28c + PLATE)`,
+`FL 2634 (31c)`, `FL 0`. A storey's ceiling and the floor above it are 200 mm
+apart, which is 2 mm at 1:100, so the two labels print on top of each other:
+the **line** stays at the true level, because that is what gets measured to,
+and only the **text** is nudged clear, which is what a draughtsman does by hand.
+
+What the section deliberately does not show is structure it cannot know. No
+footings, slab thickness, lintels or reinforcement — those depend on soil
+classification, wind category and the loads over each opening, none of which
+this model carries. Nothing is drawn below the ground line at all, so there is
+nothing there to be mistaken for a footing, and the sheet says why.
+
+`--formats pdf` gives the whole deliverable set by default — plans, elevations,
+section — rather than whatever the other formats were asked for. A set of plans
+with no elevation and no section is not a set.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 

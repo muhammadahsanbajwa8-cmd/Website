@@ -436,7 +436,9 @@ def write_pdf(
         if len(building.storeys) == 1:
             pages = [("architectural", None)]
         if building.roof is not None:
+            # A permit set is plans, elevations and at least one section.
             pages.append(("elevations", None))
+            pages.append(("sections", None))
 
     contents: list[bytes] = []
     sizes: list[tuple[float, float]] = []

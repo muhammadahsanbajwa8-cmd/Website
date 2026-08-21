@@ -62,7 +62,7 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
-SHEETS = ("architectural", "electrical", "plumbing", "elevations")
+SHEETS = ("architectural", "electrical", "plumbing", "elevations", "sections")
 
 SERVICES_WORDS = (
     "electrical", "electric", "wiring", "plumbing", "sanitary", "services",
@@ -428,10 +428,20 @@ def cmd_plan(args) -> int:
         writer = FORMATS[name]
         if name == "pdf":
             # One file, every sheet, in the order the set reads.
+            #
+            # Unless sheets were named explicitly, the PDF gets the whole
+            # deliverable set -- plans, elevations, section -- rather than
+            # whatever the other formats were asked for. The PDF is the file
+            # that goes to the customer and to the certifier, and a set of
+            # plans with no elevation and no section is not a set.
+            pdf_pages = (
+                [(sheet, index) for sheet, index, _ in pages]
+                if args.sheets else None
+            )
             written.append(
                 writer(
                     building, out / f"{stem}.pdf",
-                    pages=[(sheet, index) for sheet, index, _ in pages],
+                    pages=pdf_pages,
                     title=title_block,
                     services=services,
                     footprint=layout.envelope,
