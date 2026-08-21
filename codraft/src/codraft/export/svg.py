@@ -76,6 +76,8 @@ STYLE = """
   .glaz { stroke: #1565c0; stroke-width: 26; }
   .tread { stroke: #8a8577; stroke-width: 14; }
   .name { font: 600 300px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
+  .name-sm { font: 600 210px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
+  .name-xs { font: 600 150px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
   .area { font: 260px system-ui, sans-serif; fill: #6b6357; text-anchor: middle; }
   .roomdim { font: 240px system-ui, sans-serif; fill: #8a8577; text-anchor: middle; }
   .title { font: 700 460px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
@@ -713,6 +715,191 @@ def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
     return "".join(out)
 
 
+def _floor_obstacles(storey) -> dict[int, list[Rect]]:
+    """What is already standing on each room's floor, by room.
+
+    The same call `_draw_architecture` makes, so the label sees exactly what
+    is drawn -- it is pure, and asking twice is cheaper than threading the
+    answer through three sheet types that do not want it.
+    """
+    from .fixtures import for_storey
+
+    fittings, benches, _ = for_storey(storey)
+    out: dict[int, list[Rect]] = {}
+    for item, space in fittings:
+        geometry = symbol(item.kind, item.x, item.y, item.rotation)
+        xs = [c for line in geometry.lines for c in (line.x0, line.x1)]
+        ys = [c for line in geometry.lines for c in (line.y0, line.y1)]
+        for circle in geometry.circles + geometry.arcs:
+            xs += [circle.cx - circle.r, circle.cx + circle.r]
+            ys += [circle.cy - circle.r, circle.cy + circle.r]
+        if not xs:
+            continue
+        box = Rect(int(min(xs)), int(min(ys)),
+                   int(max(xs) - min(xs)), int(max(ys) - min(ys)))
+        out.setdefault(id(space), []).append(box)
+    for bench in benches:
+        owner = None
+        for space in storey.spaces:
+            r = space.rect
+            if (r.x0 <= bench.x0 and bench.x1 <= r.x1
+                    and r.y0 <= bench.y0 and bench.y1 <= r.y1):
+                owner = space
+                break
+        if owner is not None:
+            out.setdefault(id(owner), []).append(bench)
+    return out
+
+
+# Roughly how wide a string prints, as a multiple of its size. This is a
+# drawing estimate, not a font metric: it is used only to decide what a room
+# is too small to CARRY, and erring wide means a line is left off rather than
+# printed through a wall.
+CHAR_WIDTH = 0.58
+
+# Clear of the walls, at either end of a label and above and below the block.
+LABEL_MARGIN = 120
+
+# The name, in the sizes a draughtsman would try in order. A small room takes
+# a smaller name; it does not go unlabelled while there is a size that fits.
+NAME_SIZES = (("name", 300), ("name-sm", 210), ("name-xs", 150))
+
+# What the second and third lines are drawn at. These do not step down --
+# a room too tight for its area at 260 simply does not carry its area.
+AREA_SIZE = 260
+DIM_SIZE = 240
+
+# Line pitch as a multiple of the text size.
+LEADING = 1.2
+
+
+def _text_width(value: str, size: int) -> int:
+    return int(len(value) * size * CHAR_WIDTH)
+
+
+def _clear_run(rect, obstacles, y0: int, y1: int) -> tuple[int, int]:
+    """The widest run inside `rect` between y0 and y1 that nothing crosses.
+
+    Returns (width, centre). Obstacles are the fittings and joinery already
+    on the floor: a label printed over a bath is not a label, it is a smudge.
+    """
+    blocked = sorted(
+        (max(rect.x0, o.x0), min(rect.x1, o.x1))
+        for o in obstacles if o.y0 < y1 and y0 < o.y1 and o.x0 < rect.x1
+        and o.x1 > rect.x0
+    )
+    best_w, best_c, cursor = 0, rect.centre.x, rect.x0
+    for x0, x1 in blocked + [(rect.x1, rect.x1)]:
+        if x0 - cursor > best_w:
+            best_w, best_c = x0 - cursor, (cursor + x0) // 2
+        cursor = max(cursor, x1)
+    return best_w, best_c
+
+
+def _label_spot(rect, obstacles, height: int) -> tuple[int, int, int]:
+    """Where a label block `height` tall fits best: (width, cx, cy).
+
+    Scanned rather than solved. A dozen candidate bands is plenty for a room
+    and keeps this something you can read.
+    """
+    if height >= rect.h:
+        # Too tall for the room at all. Reported as no clear width rather
+        # than squeezed in, so the caller drops a line and asks again.
+        return 0, rect.centre.x, rect.centre.y
+    best = None
+    steps = 12
+    for i in range(steps + 1):
+        y0 = rect.y0 + (rect.h - height) * i // steps
+        width, cx = _clear_run(rect, obstacles, y0, y0 + height)
+        cy = y0 + height // 2
+        # Ties go to the band nearest the middle of the room, which is where
+        # a draughtsman puts a label when nothing is in the way.
+        key = (width, -abs(cy - rect.centre.y))
+        if best is None or key > best[0]:
+            best = (key, width, cx, cy)
+    return best[1], best[2], best[3]
+
+
+def _flip(r):
+    return Rect(r.y0, r.x0, r.h, r.w)
+
+
+def _room_label(canvas, space, dx: int, system: str, obstacles) -> str | None:
+    """The name, the area and the size, put somewhere they can be read.
+
+    Four things decide this. A label goes where the floor is CLEAR, because
+    printing it over the bath hides both. A line wider than the room is left
+    off rather than run out through the walls into the neighbours. A room
+    much taller than it is wide -- a passage, a robe -- takes its name turned
+    on its side, which is what makes a 1 m corridor legible at all. And a
+    small room takes a smaller name before it takes no name.
+
+    Returns a note when a room could not be labelled at all. That is not a
+    drafting problem to be swallowed: it means the layout has produced
+    something too small to be a room -- a linen cupboard 91 mm deep -- and
+    an unlabelled rectangle on the drawing is how that reaches a customer.
+    """
+    rect = space.rect
+    turned = rect.h > rect.w * 1.6 and rect.w < 2000
+    run, across = (rect.h, rect.w) if turned else (rect.w, rect.h)
+    usable = run - LABEL_MARGIN * 2
+
+    for cls, size in NAME_SIZES:
+        if _text_width(space.name, size) <= usable:
+            lines = [(space.name, cls, size)]
+            break
+    else:
+        return _too_small(space)
+
+    if _text_width(fmt_area(space.area), AREA_SIZE) <= usable:
+        lines.append((fmt_area(space.area), "area", AREA_SIZE))
+    if space.area >= 5_000_000 and not turned:
+        text = room_dimension_text(space, system)
+        if _text_width(text, DIM_SIZE) <= usable:
+            lines.append((text, "roomdim", DIM_SIZE))
+
+    while lines:
+        pitch = [int(size * LEADING) for _v, _c, size in lines]
+        # The block is a line pitch each PLUS the height of the glyphs on the
+        # top line, which sit above their baseline. Without that the scan is
+        # happy to park a label with its ascenders in the wall above.
+        height = sum(pitch) + lines[0][2]
+        if height + LABEL_MARGIN * 2 <= across:
+            if turned:
+                width, cy, cx = _label_spot(
+                    _flip(rect), [_flip(o) for o in obstacles], height)
+            else:
+                width, cx, cy = _label_spot(rect, obstacles, height)
+            if width >= max(_text_width(v, size) for v, _c, size in lines):
+                break
+        lines.pop()
+    else:
+        return _too_small(space)
+
+    # The canvas is y-up and text is placed by a dy that grows DOWNWARD, so
+    # the first line takes the most negative offset. Backwards, this prints a
+    # room as "3719 x 2526 / 9.4 m2 / Bed": legible, and upside down.
+    offset = -sum(pitch) // 2 + pitch[0] // 2
+    for (value, cls, _size), step in zip(lines, pitch):
+        if turned:
+            canvas.text(cx + dx, cy, value, cls, dy=offset, rotate=-90)
+        else:
+            canvas.text(cx + dx, cy, value, cls, dy=offset)
+        offset += step
+    return None
+
+
+def _too_small(space) -> str:
+    rect = space.rect
+    return (
+        f"{space.name} is {rect.w} x {rect.h} mm, which is too small to carry "
+        f"its own name on the drawing. It is drawn and dimensioned but not "
+        f"labelled, because a caption printed across its neighbours would "
+        f"read as theirs. A room this shape is a layout problem, not a "
+        f"drafting one."
+    )
+
+
 def build_sheet(
     building: Building,
     storey_index: int | None = None,
@@ -779,15 +966,12 @@ def build_sheet(
 
         if sheet == "architectural":
             _draw_dimensions(canvas, storey, bounds, dx, system)
+            obstacles = _floor_obstacles(storey)
             for space in storey.spaces:
-                c = space.rect.centre
-                canvas.text(c.x + dx, c.y, space.name, "name", dy=-160)
-                canvas.text(c.x + dx, c.y, fmt_area(space.area), "area", dy=180)
-                # A third line of text will not fit in a small room without
-                # colliding with the first two.
-                if space.area >= 5_000_000:
-                    canvas.text(c.x + dx, c.y, room_dimension_text(space, system),
-                                "roomdim", dy=470)
+                note = _room_label(canvas, space, dx, system,
+                                   obstacles.get(id(space), ()))
+                if note:
+                    canvas.notes.append(note)
         else:
             for space in storey.spaces:
                 c = space.rect.centre
