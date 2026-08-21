@@ -577,6 +577,19 @@ function design(a) {
       + `${tight.join("; ")}. The block will take the house, but not this room list at `
       + `full size on ${a.storeys} floor${a.storeys>1?"s":""}. Drop a room, add a floor, or accept them tight.`);
 
+  // The driveway, from the street boundary to the garage door. A garage with
+  // no driveway is an oversight rather than a design decision, so it is placed
+  // wherever there is a garage. Its width comes from the garage opening: any
+  // narrower and you clip your mirrors, any wider and it is paving nobody
+  // drives on.
+  let drive = null;
+  const garageCell = storeys[0] && storeys[0].find(c => c.r.fn === "garage");
+  if (garageCell) {
+    const g = clear(garageCell);
+    const length = Math.max(0, foot.y - 0);
+    if (length > 0) drive = { x: g.x, y: 0, w: g.w, h: length };
+  }
+
   // pool in the rear yard
   let pool = null, poolNote = null;
   if (a.pool) {
@@ -589,7 +602,7 @@ function design(a) {
     else poolNote = `A ${pl/1000}×${pw/1000} m pool needs about ${needL} × ${needW} mm of clear yard once the 1200 mm barrier and its 900 mm non-climbable zone are allowed for. The rear yard is ${yard.w} × ${yard.h} mm. A plunge pool, or the house brought forward.`;
   }
 
-  return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote },
+  return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote, drive },
            stats: { gfa, cover, maxCover, areas, ceiling, walls, construction: P.construction,
                     code: P.code, state: P.name, zone: P.zoned ? a.zone : null,
                     outdoor: (lot.area - areas[0]) / 1e6, minOutdoor: pick(P.outdoor) },

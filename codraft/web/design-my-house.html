@@ -670,6 +670,19 @@ function design(a) {
       + `${tight.join("; ")}. The block will take the house, but not this room list at `
       + `full size on ${a.storeys} floor${a.storeys>1?"s":""}. Drop a room, add a floor, or accept them tight.`);
 
+  // The driveway, from the street boundary to the garage door. A garage with
+  // no driveway is an oversight rather than a design decision, so it is placed
+  // wherever there is a garage. Its width comes from the garage opening: any
+  // narrower and you clip your mirrors, any wider and it is paving nobody
+  // drives on.
+  let drive = null;
+  const garageCell = storeys[0] && storeys[0].find(c => c.r.fn === "garage");
+  if (garageCell) {
+    const g = clear(garageCell);
+    const length = Math.max(0, foot.y - 0);
+    if (length > 0) drive = { x: g.x, y: 0, w: g.w, h: length };
+  }
+
   // pool in the rear yard
   let pool = null, poolNote = null;
   if (a.pool) {
@@ -682,7 +695,7 @@ function design(a) {
     else poolNote = `A ${pl/1000}×${pw/1000} m pool needs about ${needL} × ${needW} mm of clear yard once the 1200 mm barrier and its 900 mm non-climbable zone are allowed for. The rear yard is ${yard.w} × ${yard.h} mm. A plunge pool, or the house brought forward.`;
   }
 
-  return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote },
+  return { plan: { storeys, foot, env, lot, setbacks, pool, poolNote, drive },
            stats: { gfa, cover, maxCover, areas, ceiling, walls, construction: P.construction,
                     code: P.code, state: P.name, zone: P.zoned ? a.zone : null,
                     outdoor: (lot.area - areas[0]) / 1e6, minOutdoor: pick(P.outdoor) },
@@ -708,6 +721,15 @@ function renderPlan(out, storeyIndex) {
   p.push(rect({ x:plan.setbacks.side, y:plan.setbacks.front,
                 w:lot.w - plan.setbacks.side*2,
                 h:lot.d - plan.setbacks.front - plan.setbacks.rear }, "cd-setback"));
+
+  // Paving goes down before the house, so the building sits on it.
+  if (plan.drive && storeyIndex === 0) {
+    p.push(rect(plan.drive, "cd-drive"));
+    const d = plan.drive;
+    p.push(`<g transform="translate(${d.x + d.w / 2},${d.y + d.h / 2}) scale(1,-1)">
+      <text class="cd-drivet" y="-40">DRIVEWAY</text>
+      <text class="cd-drivea" y="200">${d.w} wide x ${d.h} long</text></g>`);
+  }
 
   if (plan.pool && storeyIndex === 0) {
     const b = { x:plan.pool.x-1000, y:plan.pool.y-1000, w:plan.pool.w+2000, h:plan.pool.h+2000 };
@@ -753,6 +775,9 @@ function renderPlan(out, storeyIndex) {
       .cd-rn{font:600 300px system-ui,sans-serif;fill:#14110d;text-anchor:middle}
       .cd-ra{font:250px system-ui,sans-serif;fill:#6b6357;text-anchor:middle}
       .cd-poolt{font:700 320px system-ui,sans-serif;fill:#1565c0;text-anchor:middle}
+      .cd-drive{fill:#ecebe6;stroke:#8a8577;stroke-width:18}
+      .cd-drivet{font:600 260px system-ui,sans-serif;fill:#6b6357;text-anchor:middle}
+      .cd-drivea{font:230px system-ui,sans-serif;fill:#8a8577;text-anchor:middle}
       .cd-dim{stroke:#b03030;stroke-width:16}
       .cd-dt{font:600 280px "IBM Plex Mono",monospace;fill:#b03030;text-anchor:middle}
       .cd-title{font:700 420px Chivo,system-ui,sans-serif;fill:#14110d;text-anchor:middle}
