@@ -655,6 +655,39 @@ failure the rest of this project exists to avoid, and a test sabotages the
 canvas to prove the alarm sounds.
 
 
+**The driveway, and where a drawing stops being able to speak.** A garage with
+no driveway is an oversight rather than a design decision, so one is drawn
+wherever there is a garage — no flag needed. `--no-driveway` suppresses it for
+a lot served off a rear laneway.
+
+What it is drawn as comes from geometry the plan already has: it runs from the
+street boundary to the garage door, and it is **as wide as the door it serves**.
+Narrower and you clip your mirrors; wider and it is paving nobody drives on.
+Either way the number should come from the garage rather than from a table.
+
+```
+Driveway     : 5532 x 6000 mm from the south boundary to the garage, 33 m² of paving
+```
+
+The **crossover** — the paving between the kerb and the front boundary — is a
+different thing, and the drawing is careful to say so. It sits on the council's
+land, not the applicant's. Every council sets its own width, its own offsets
+from side boundaries, street trees, power poles and service pits, and most
+require a separate application. None of that is encoded here. So the crossover
+is drawn only when you give it a width, drawn **dashed and outside the lot
+line** to show whose land it is on, and every plan with a driveway carries:
+
+> The crossover is the local council's, not the planning scheme's and not the
+> NCC's… None of that is encoded here, and nothing on this drawing has been
+> approved by anybody.
+
+That note appears whether or not a crossover is drawn, because not drawing one
+does not mean one is not needed.
+
+Where the front setback leaves no room inside the lot, the driveway is
+**reported rather than drawn** — a zero-length driveway is not information.
+
+
 **Irregular lots.** A Perth subdivision is full of splayed corners, battle-axe
 legs and frontages surveyed as chords:
 

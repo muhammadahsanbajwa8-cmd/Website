@@ -204,6 +204,43 @@ class Stair:
 
 
 @dataclass(slots=True)
+class Driveway:
+    """The run of paving from the street to the garage door.
+
+    A garage with no driveway is not a design, it is an oversight -- and the
+    driveway is where two separate authorities meet. The part inside the lot
+    is the builder's, and it is geometry: it has to reach the garage opening
+    and be wide enough to drive on.
+
+    The CROSSOVER -- the piece between the kerb and the front boundary, over
+    the verge -- belongs to the local council, not to the planning scheme and
+    not to the NCC. Every council sets its own width, its own permitted
+    offsets from side boundaries, street trees, power poles and pits, and most
+    require a separate application. Nothing here encodes any of that, and the
+    crossover width carried on this object is what the drawing SHOWS, not what
+    anybody has approved.
+    """
+
+    rect: Rect                     # the paving inside the lot
+    crossover_width_mm: int = 0    # at the street boundary; 0 means not drawn
+    road_side: str = "south"
+
+    @property
+    def area(self) -> int:
+        return self.rect.area
+
+    @property
+    def length_mm(self) -> int:
+        """Street to garage, along the direction of travel."""
+        return self.rect.h if self.road_side in ("south", "north") else self.rect.w
+
+    @property
+    def width_mm(self) -> int:
+        """Across the direction of travel -- what you drive between."""
+        return self.rect.w if self.road_side in ("south", "north") else self.rect.h
+
+
+@dataclass(slots=True)
 class Pool:
     """A swimming pool and the barrier that has to go round it.
 
@@ -429,6 +466,7 @@ class Building:
     use: str = "residential"      # the brief's word for it; codes map it themselves
     roof: Roof | None = None
     pool: Pool | None = None
+    driveway: Driveway | None = None
     parking_spaces: int = 0
     metadata: dict[str, str] = field(default_factory=dict)
 

@@ -35,7 +35,8 @@ from .library.catalogue import read_catalogue
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, place_pool, solve
-from .model import OpeningKind, Plot, Roof
+from .layout.site import place_driveway
+from .model import Function, OpeningKind, Plot, Roof
 from .program import (
     PROGRAM_JSON_SCHEMA,
     template,
@@ -288,6 +289,28 @@ def cmd_plan(args) -> int:
         program, plot, layout, name=program.name,
         jurisdiction=jurisdiction.key, design=design,
     )
+    # A garage with no driveway is an oversight, not a design decision, so the
+    # driveway is drawn wherever there is a garage rather than waiting to be
+    # asked for. --no-driveway suppresses it for a lot served off a rear
+    # laneway, where the frontage genuinely has no crossing.
+    if not args.no_driveway:
+        garage = next(
+            (sp for sp in building.storeys[0].spaces
+             if sp.function is Function.GARAGE),
+            None,
+        )
+        drive, drive_notes = place_driveway(
+            plot, layout.envelope,
+            garage.rect if garage is not None else None,
+            crossover_width_mm=args.crossover or 0,
+        )
+        building.driveway = drive
+        layout.warnings.extend(drive_notes)
+        if drive is not None:
+            print(f"Driveway     : {drive.width_mm} x {drive.length_mm} mm from "
+                  f"the {plot.road_side} boundary to the garage, "
+                  f"{drive.area / 1e6:.0f} m2 of paving")
+
     if args.pool or (brief is not None and brief.pool):
         size = (args.pool_size or "8mx4m").lower().replace("×", "x")
         pl, _, pw = size.partition("x")
@@ -1029,6 +1052,17 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--pool", action="store_true",
                       help="put a pool in the rear yard, with its barrier")
     plan.add_argument("--pool-size", help="pool size, e.g. 8mx4m (default 8mx4m)")
+    plan.add_argument(
+        "--no-driveway", action="store_true", dest="no_driveway",
+        help="do not draw a driveway. For a lot served off a rear laneway, "
+             "where the frontage has no crossing.",
+    )
+    plan.add_argument(
+        "--crossover", type=int, default=0,
+        help="width in mm of the crossover over the verge, if you want it "
+             "shown. The council sets this and has to approve it; codraft "
+             "draws what you give it and encodes none of the rules.",
+    )
     plan.add_argument("--elevations", action="store_true",
                       help="also draw the four elevations")
     plan.add_argument("--json", action="store_true", help="also write the report as JSON")

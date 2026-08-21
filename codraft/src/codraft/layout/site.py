@@ -10,7 +10,7 @@ the back yard often does not.
 from __future__ import annotations
 
 from ..geom import Rect
-from ..model import Plot, Pool
+from ..model import Driveway, Plot, Pool
 
 
 def rear_yard(plot: Plot, footprint: Rect) -> Rect:
@@ -94,3 +94,70 @@ def place_pool(
         f"{yard.w} x {yard.h} mm, about {short_by} mm short. A smaller pool, "
         "a plunge pool, or the house brought forward."
     ]
+
+
+def place_driveway(
+    plot: Plot,
+    footprint: Rect,
+    garage: Rect | None,
+    crossover_width_mm: int = 0,
+) -> tuple[Driveway | None, list[str]]:
+    """Run paving from the street boundary to the garage door.
+
+    The width comes from the garage opening rather than from a table: a
+    driveway narrower than the door it serves is a driveway you clip your
+    mirrors on, and a driveway wider than the door is paving nobody drives on.
+    So it is the garage's own width, which is geometry the plan already knows,
+    not a figure invented to look reasonable.
+
+    Returns the driveway and anything the drawing cannot answer for.
+    """
+    notes: list[str] = []
+    if garage is None:
+        return None, notes
+
+    lot = plot.rect
+    side = plot.road_side
+
+    if side in ("south", "north"):
+        width = garage.w
+        x = garage.x0
+        if side == "south":
+            start, end = lot.y0, footprint.y0
+        else:
+            start, end = footprint.y1, lot.y1
+        length = max(0, end - start)
+        rect = Rect(x, min(start, end), width, length)
+    else:
+        width = garage.h
+        y = garage.y0
+        if side == "west":
+            start, end = lot.x0, footprint.x0
+        else:
+            start, end = footprint.x1, lot.x1
+        length = max(0, end - start)
+        rect = Rect(min(start, end), y, length, width)
+
+    if rect.w <= 0 or rect.h <= 0:
+        notes.append(
+            "The garage opens straight onto the front boundary, so there is no "
+            "driveway to draw inside the lot -- only a crossover. Check that "
+            "against the council's requirements before relying on it."
+        )
+        return None, notes
+
+    drive = Driveway(rect=rect, crossover_width_mm=crossover_width_mm,
+                     road_side=side)
+
+    # The crossover is the council's, and this is the one place a drawing is
+    # most likely to be believed when it should not be.
+    notes.append(
+        "The crossover -- the paving between the kerb and the front boundary "
+        "-- is the local council's, not the planning scheme's and not the "
+        f"NCC's. Its width{' (shown at ' + str(crossover_width_mm) + ' mm)' if crossover_width_mm else ''}"
+        ", its offset from side boundaries, and its clearance to street trees, "
+        "power poles and service pits are all set by the council and usually "
+        "need a separate application. None of that is encoded here, and "
+        "nothing on this drawing has been approved by anybody."
+    )
+    return drive, notes

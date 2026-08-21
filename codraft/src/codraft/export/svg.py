@@ -26,6 +26,7 @@ from ..sheet import (
     TitleBlock,
     fit_scale,
 )
+from ..geom import Rect
 from ..model import Building, Function
 from ..symbols import NAMES, footprint, symbol
 from ..units import fmt_area
@@ -40,6 +41,11 @@ STYLE = """
   .pool-barrier { fill: none; stroke: #b8860b; stroke-width: 30; stroke-dasharray: 240 120; }
   .pool-ncz { fill: none; stroke: #b03030; stroke-width: 12; stroke-dasharray: 90 110; }
   .pool-text { font: 600 260px system-ui, sans-serif; fill: #1565c0; text-anchor: middle; }
+  /* The driveway is paving, so it reads as ground rather than as building:
+     a light fill and a thin edge, under the house rather than over it. */
+  .drive { fill: #ecebe6; stroke: #8a8577; stroke-width: 18; }
+  .drive-cross { fill: none; stroke: #8a8577; stroke-width: 18; stroke-dasharray: 200 140; }
+  .drive-text { font: 600 240px system-ui, sans-serif; fill: #6b6357; text-anchor: middle; }
   .setback { fill: none; stroke: #b4508c; stroke-width: 12; stroke-dasharray: 150 150; }
   .room { fill: #ffffff; }
   .room-wet { fill: #eef4fa; }
@@ -119,6 +125,24 @@ STYLE = """
   .tb-warn { font: 600 2.4px system-ui, sans-serif; fill: #8c1c1c; }
   .tb-blank { stroke: #c9c4bb; stroke-width: 0.3; }
 """
+
+
+def _crossover(plot, drive):
+    """The strip over the verge, drawn outside the front boundary.
+
+    Shown dashed and outside the lot line because it is not the builder's:
+    it is the council's, on the council's land.
+    """
+    lot = plot.rect
+    depth = 4000
+    width = drive.crossover_width_mm
+    if drive.road_side == "south":
+        return Rect(drive.rect.centre.x - width // 2, lot.y0 - depth, width, depth)
+    if drive.road_side == "north":
+        return Rect(drive.rect.centre.x - width // 2, lot.y1, width, depth)
+    if drive.road_side == "west":
+        return Rect(lot.x0 - depth, drive.rect.centre.y - width // 2, depth, width)
+    return Rect(lot.x1, drive.rect.centre.y - width // 2, depth, width)
 
 
 def _fill(function: Function) -> str:
@@ -238,6 +262,21 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool) 
     if not ghost:
         canvas.rect(plot.rect, "plot", dx)
         canvas.rect(plot.buildable, "setback", dx)
+        # Paving goes down before anything else, so the house sits on it
+        # rather than under it.
+        drive = getattr(building, "driveway", None)
+        if drive is not None and storey.index == 0:
+            canvas.rect(drive.rect, "drive", dx)
+            if drive.crossover_width_mm:
+                canvas.rect(_crossover(building.plot, drive), "drive-cross", dx)
+            centre = drive.rect.centre
+            canvas.text(centre.x + dx, centre.y, "DRIVEWAY", "drive-text", dy=-80)
+            canvas.text(
+                centre.x + dx, centre.y,
+                f"{drive.width_mm} wide x {drive.length_mm} long",
+                "drive-text", dy=180,
+            )
+
         pool = building.pool
         if pool is not None and storey.index == 0:
             canvas.rect(pool.barrier.inset(-pool.non_climbable_zone_mm),
@@ -538,6 +577,7 @@ def build_sheet(
         (footprint or _bounds(storey)).y0 for storey in storeys
     )
     title_y = plan_bottom - (5200 if sheet == "architectural" else 2600)
+    titles: list[tuple[int, str]] = []
 
     for column, storey in enumerate(storeys):
         dx = column * step
@@ -564,8 +604,16 @@ def build_sheet(
             if plan is not None:
                 _draw_services(canvas, plan, dx)
 
-        canvas.text(reference.centre.x + dx, title_y,
-                    f"{storey.name} — {sheet.title()}", "title")
+        titles.append((reference.centre.x + dx,
+                       f"{storey.name} — {sheet.title()}"))
+
+    # The titles go on last, below everything actually drawn. Positioning them
+    # from the PLAN's bottom edge put them through the driveway the moment
+    # there was one -- paving runs from the garage to the street boundary,
+    # which is well below the house.
+    title_y = min(title_y, canvas.miny - 1400)
+    for tx, label in titles:
+        canvas.text(tx, title_y, label, "title")
 
     if ghost and services:
         entries: list[tuple[str, str]] = []
