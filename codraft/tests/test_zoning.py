@@ -249,13 +249,27 @@ class TestTheFrontageCapAndWhatOutranksIt(unittest.TestCase):
         return solve(program, plot).envelope, plot
 
     def test_a_wide_lot_does_not_produce_a_wide_house(self):
-        from codraft.layout.solver import MAX_FRONTAGE
+        from codraft.layout.solver import MAX_FRONTAGE, MIN_REAR_YARD
 
         footprint, plot = self._footprint(24000, 40000)
-        self.assertLessEqual(
-            footprint.w, MAX_FRONTAGE,
-            f"a {plot.rect.w} mm lot produced a {footprint.w} mm frontage; the "
-            "rooms off a passage that wide stop being rooms",
+        if footprint.w <= MAX_FRONTAGE:
+            return
+        # The cap may yield, but only to the yard, and only by as much as the
+        # yard needs. Anything else is the house sprawling across the lot
+        # because the lot was there.
+        rear = plot.rect.h - plot.setback_rear - (footprint.y + footprint.h)
+        self.assertGreaterEqual(
+            rear, MIN_REAR_YARD,
+            f"a {plot.rect.w} mm lot produced a {footprint.w} mm frontage and "
+            f"still only left {rear} mm of yard; the frontage cap was given "
+            "up for nothing",
+        )
+        narrower = -(-footprint.area // MAX_FRONTAGE)
+        self.assertGreater(
+            narrower, plot.rect.h - plot.setback_front - plot.setback_rear
+            - MIN_REAR_YARD,
+            f"the house is {footprint.w} mm wide but would have fitted at "
+            f"{MAX_FRONTAGE} without eating the yard",
         )
 
     def test_the_yard_outranks_the_cap_on_a_shallow_lot(self):

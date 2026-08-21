@@ -66,12 +66,44 @@ class Layout:
 # emit one rather than draw a corridor and call it a bedroom.
 _ABSOLUTE_MIN_DIM = 900
 
-# Tiles meet on wall centrelines, so a room loses half a wall on each side --
-# about this much across each dimension. A program asks for clear space, so
-# every minimum is inflated by this before it is used to size a tile.
-# Without it, a corridor asked to be 1000 mm wide is built 885 mm wide and
-# fails a rule the design never intended to break.
-_WALL_ALLOWANCE = 115
+# Tiles meet on wall centrelines, so a room loses half a wall on each side.
+# A program asks for CLEAR space, so every minimum is inflated by this before
+# it is used to size a tile. Without it, a corridor asked to be 1000 mm wide
+# is built 885 mm wide and fails a rule the design never intended to break.
+#
+# It is the WORST case, not the average: an exterior wall (230) against an
+# interior one (115) takes 172 mm off the tile. At 115 -- half an interior
+# wall each side -- a linen press asking for 600 mm was given a 715 mm tile
+# and drawn at 543, which is under what it asked for, and nothing reported it
+# because the tile looked right.
+_WALL_ALLOWANCE = 172
+
+# Below this CLEAR dimension there is no room at all: a 720 mm door leaf will
+# not fit in the opening, so nothing can get in. This is the line at which the
+# solver refuses outright rather than drawing what it has got.
+#
+# It is deliberately well under _ABSOLUTE_MIN_DIM. Between the two -- 600 to
+# 900 mm -- the plan is drawn and every room in that range is named, both in
+# `unsatisfied` and by the label placer, which cannot fit a caption in one.
+# That band is a bad plan somebody can look at and argue with. Under 600 there
+# is nothing to argue with: a 139 mm linen cupboard and a WC with a dimension
+# of zero are not a smaller version of a good plan.
+_UNBUILDABLE = 600
+
+# The tile that leaves it. A tile gives up half a wall on each side, and the
+# fattest case is an exterior wall (230) against an interior one (115): 172 mm
+# off the tile. Using the average allowance instead let a 715 mm tile through
+# and drew it at 543 -- so the WORST case is the one that belongs here, or the
+# check is not the check it claims to be.
+_MIN_TILE = _UNBUILDABLE + 172
+
+# Rooms that must touch BOTH the outside and the circulation, and so cannot
+# be one half of a pair. Circulation is here for the same reason -- a passage
+# tucked behind another room is not a passage.
+_NEVER_PAIRED = frozenset({
+    Function.ENTRY, Function.LOBBY, Function.CORRIDOR, Function.STAIR,
+    Function.GARAGE,
+})
 
 # A room longer than this many times its width reads as a passage, not a
 # room. Rooms that would come out this thin are paired across the band
@@ -334,43 +366,112 @@ class _Row:
 
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
-    """Decide which rooms share a slice of the band with a neighbour."""
+    """Decide which rooms share a slice of the band with a neighbour.
+
+    A room's slice is proportional to its AREA, so a small room in a deep
+    band gets a short slice: a 4.8 m2 WC on a 5.5 m band is 880 mm long and
+    5.5 m deep, which is a corridor. Pairing two such rooms across the depth
+    is what fixes that, and it is what a real plan does -- the WC and the
+    linen press sit back to back.
+
+    The partner is searched FORWARD along the band, not taken from the next
+    position. Ordering has already been decided by zoning and by which rooms
+    need daylight, so the room next in line is very often solo or lit and
+    cannot pair; refusing to look past it left the small rooms unpaired and
+    strung out down the band, which is where most of the slivers came from.
+    Order is otherwise preserved: a partner is lifted forward to its
+    neighbour rather than the band being re-sorted.
+    """
+    def _thin(req: SpaceRequirement) -> bool:
+        span = (_target(req) or 1) // max(1, depth)
+        return span > 0 and depth / span > _MAX_ASPECT
+
+    def _can_pair(a: SpaceRequirement, b: SpaceRequirement) -> bool:
+        if a.solo or b.solo:
+            return False
+        # A pair puts one room behind the other, so the inner one reaches
+        # the corridor and the outer one reaches the outside -- never both.
+        # A room that has to do both cannot be in a pair at all. The entry
+        # is exactly that room: it is the front door AND the way onto the
+        # passage. Pairing it with a store put the store on the passage and
+        # left the entry opening only into the store, which cut the route
+        # out of the house and left four bedrooms with no way out.
+        if a.function in _NEVER_PAIRED or b.function in _NEVER_PAIRED:
+            return False
+        if _tile_width(a) + _tile_width(b) > depth:
+            return False
+        if depth < 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE):
+            return False
+        # Only one room in a pair touches the outside wall; the other is
+        # against the corridor. So two rooms that both need daylight can
+        # never share a slice -- one of them would come out windowless,
+        # which is how a bedroom ended up in the middle of the plan.
+        return not (a.needs_exterior_wall and b.needs_exterior_wall)
+
+    remaining = list(rooms)
     rows: list[_Row] = []
-    index = 0
-    while index < len(rooms):
-        key, req = rooms[index]
+    while remaining:
+        key, req = remaining.pop(0)
         target = _target(req) or 1
-        span = target // max(1, depth)
-        thin = span > 0 and depth / span > _MAX_ASPECT
+        if not _thin(req) or req.solo:
+            rows.append(_Row([(key, req)], target, depth))
+            continue
 
-        if thin and not req.solo and index + 1 < len(rooms):
-            next_key, next_req = rooms[index + 1]
-            if next_req.solo:
-                rows.append(_Row([(key, req)], target, depth))
-                index += 1
-                continue
-            next_target = _target(next_req) or 1
-            next_span = next_target // max(1, depth)
-            next_thin = next_span > 0 and depth / next_span > _MAX_ASPECT
-            pair_depth_ok = (
-                _tile_width(req) + _tile_width(next_req) <= depth
-                and depth >= 2 * (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
+        partner = next(
+            (i for i, (_k, other) in enumerate(remaining)
+             if _thin(other) and _can_pair(req, other)),
+            None,
+        )
+        if partner is None:
+            # No thin partner left. An odd number of small rooms strands the
+            # last one, and stranded is the worst place to be: a WC alone on
+            # a 5.9 m band is 5879 x 623. Pair it with a room that is NOT
+            # thin instead -- the big room gives up the depth the small one
+            # needs and keeps the rest, which is what a plan does when it
+            # tucks a WC in behind a bedroom.
+            partner = next(
+                (i for i, (_k, other) in enumerate(remaining)
+                 if _can_pair(req, other)
+                 and depth - (_tile_width(req) or _ABSOLUTE_MIN_DIM)
+                 >= max(_tile_width(other),
+                        _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)),
+                None,
             )
-            # Only one room in a pair touches the outside wall; the other is
-            # against the corridor. So two rooms that both need daylight can
-            # never share a slice -- one of them would come out windowless,
-            # which is how a bedroom ended up in the middle of the plan.
-            both_need_light = req.needs_exterior_wall and next_req.needs_exterior_wall
-            if next_thin and pair_depth_ok and not both_need_light:
-                rows.append(
-                    _Row([(key, req), (next_key, next_req)],
-                         target + next_target, depth)
-                )
-                index += 2
-                continue
+        if partner is None:
+            rows.append(_Row([(key, req)], target, depth))
+            continue
 
-        rows.append(_Row([(key, req)], target, depth))
-        index += 1
+        next_key, next_req = remaining.pop(partner)
+        rows.append(
+            _Row([(key, req), (next_key, next_req)],
+                 target + (_target(next_req) or 1), depth)
+        )
+
+    # A forward search cannot help the LAST room: an odd number of small
+    # rooms strands whichever one sorts last, and the WC sorts last on every
+    # sleep wing this solver builds. So sweep back over the rows and merge
+    # any single thin room into an earlier single row that can carry it.
+    for i in range(len(rows) - 1, -1, -1):
+        row = rows[i]
+        if len(row.rooms) != 1:
+            continue
+        key, req = row.rooms[0]
+        if req.solo or not _thin(req):
+            continue
+        host = next(
+            (j for j in range(len(rows))
+             if j != i and len(rows[j].rooms) == 1
+             and _can_pair(req, rows[j].rooms[0][1])
+             and depth - (_tile_width(req) or _ABSOLUTE_MIN_DIM)
+             >= max(_tile_width(rows[j].rooms[0][1]),
+                    _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)),
+            None,
+        )
+        if host is None:
+            continue
+        rows[host].rooms.append((key, req))
+        rows[host].target += _target(req) or 1
+        rows.pop(i)
     return rows
 
 
@@ -383,6 +484,29 @@ def _apportion(spans: list[int], floors: list[int], total: int, warnings: list[s
     that quietly ignores a minimum is worse than one that admits it cannot
     meet it.
     """
+    if sum(floors) > total > 0:
+        # No allocation gives every row its floor, so the question is only
+        # who pays. Sharing it in proportion to what each row NEEDED is the
+        # answer; the code below cannot reach that conclusion, because with
+        # every row already under its floor there are no donors to take from
+        # and it breaks out having changed nothing -- leaving the
+        # area-proportional split standing. That split is brutal to a small
+        # room: three bedrooms on a 15 x 28 m lot put the WC at 285 mm and
+        # the master bedroom at 2554, when the honest answer is that both are
+        # about 61 per cent of what they need.
+        wanted = sum(floors)
+        sizes = [max(1, f * total // wanted) for f in floors]
+        sizes[max(range(len(sizes)), key=lambda i: sizes[i])] += total - sum(sizes)
+        warnings.append(
+            f"A band is about {(wanted - total) / 1000:.1f} m short of what "
+            f"the rooms on it need -- {total / 1000:.1f} m of length for "
+            f"{wanted / 1000:.1f} m of rooms. Every room on it was reduced to "
+            f"about {total * 100 // wanted} per cent of the length it asked "
+            "for, so the shortfall is shared rather than taken out of the "
+            "smallest room."
+        )
+        return sizes
+
     sizes = list(spans)
     for _ in range(len(sizes) * 2 + 2):
         deficit = sum(max(0, f - s) for f, s in zip(floors, sizes))
@@ -852,8 +976,6 @@ def _layout_storey(
         )
 
     left_rooms, right_rooms = _band_split(others)
-    left_target = sum(_target(r) or 1 for _, r in left_rooms)
-    right_target = sum(_target(r) or 1 for _, r in right_rooms)
     usable = cross - corridor_width
     run = envelope.h if corridor_vertical else envelope.w
 
@@ -873,67 +995,36 @@ def _layout_storey(
             depth = max(depth, _tile_width(r) or 0)
         return max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE, depth)
 
-    left_target = sum(_target(r) or 1 for _, r in left_rooms)
-    right_target = sum(_target(r) or 1 for _, r in right_rooms)
-    usable = cross - corridor_width
-    run = envelope.h if corridor_vertical else envelope.w
+    def _depths(left, right) -> tuple[int, int]:
+        """Where the spine sits, given what is on each side of it."""
+        left_target = sum(_target(r) or 1 for _, r in left)
+        right_target = sum(_target(r) or 1 for _, r in right)
+        min_left, min_right = _band_depth(left), _band_depth(right)
+        if min_left + min_right <= usable:
+            # Both sides can be served. Start from the area-balanced split,
+            # then slide the spine towards the entry if that still leaves both
+            # bands workable -- the entry alignment is a preference, not a
+            # licence to starve a side.
+            depth = usable * left_target // max(1, left_target + right_target)
+            if spine_x is not None and corridor_vertical:
+                depth = spine_x - envelope.x - corridor_width // 2
+            depth = max(min_left, min(usable - min_right, depth))
+        else:
+            # No split gives both sides what they need. Divide in proportion
+            # to what each needs, so the shortfall is shared instead of the
+            # entry position handing one band everything.
+            depth = round(usable * min_left / max(1, min_left + min_right))
+        depth = max(_ABSOLUTE_MIN_DIM, min(usable - _ABSOLUTE_MIN_DIM, depth))
+        return depth, usable - depth
 
-    def _band_depth(band: list[tuple[str, SpaceRequirement]]) -> int:
-        """How deep this side has to be before its rooms are usable.
-
-        Deep enough to hold their area along the run, and never narrower than
-        the widest room's own minimum. Without this the spine can be pulled
-        hard against one side and leave a handful of rooms fighting over a
-        couple of metres.
-        """
-        if not band:
-            return 0
-        area = sum(_target(r) or 0 for _, r in band)
-        depth = -(-area // max(1, run))
-        for _, r in band:
-            depth = max(depth, _tile_width(r) or 0)
-        return max(_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE, depth)
-
-    # Zoning decides which side a room belongs on; the run decides how many
-    # a side can actually hold. Every room takes a slice of the band's LENGTH,
-    # and rooms that need daylight cannot double up across its depth -- the
-    # inner one would have no window. So a wing with more rooms than its run
-    # can give a usable slice to has to shed some to the other side, or every
-    # room on it comes out a metre and a half long. Minor bedrooms one side
-    # and the master the other is how a real plan resolves exactly this.
-    def _run_needed(band: list[tuple[str, SpaceRequirement]], depth: int) -> int:
-        total = 0
-        for _, r in band:
-            area_run = -(-(_target(r) or 0) // max(1, depth))
-            total += max(_tile_width(r) or _ABSOLUTE_MIN_DIM, area_run)
-        return total
-
-    left_target = sum(_target(r) or 1 for _, r in left_rooms)
-    right_target = sum(_target(r) or 1 for _, r in right_rooms)
-    min_left, min_right = _band_depth(left_rooms), _band_depth(right_rooms)
-    balanced = usable * left_target // max(1, left_target + right_target)
-
-    if min_left + min_right <= usable:
-        # Both sides can be served. Start from the area-balanced split, then
-        # slide the spine towards the entry if that still leaves both bands
-        # workable — the entry alignment is a preference, not a licence to
-        # starve a side.
-        left_depth = balanced
-        if spine_x is not None and corridor_vertical:
-            left_depth = spine_x - envelope.x - corridor_width // 2
-        left_depth = max(min_left, min(usable - min_right, left_depth))
-    else:
-        # Over-subscribed: no split gives both sides what they need. Divide in
-        # proportion to what each needs, so the shortfall is shared instead of
-        # the entry position handing one band everything.
-        left_depth = round(usable * min_left / max(1, min_left + min_right))
+    left_depth, right_depth = _depths(left_rooms, right_rooms)
+    if _band_depth(left_rooms) + _band_depth(right_rooms) > usable:
         warnings.append(
-            f"This floor needs about {(min_left + min_right) / 1000:.1f} m across "
-            f"the corridor and the footprint gives {usable / 1000:.1f} m. Rooms "
-            "either side were narrowed to fit."
+            f"This floor needs about "
+            f"{(_band_depth(left_rooms) + _band_depth(right_rooms)) / 1000:.1f} m "
+            f"across the corridor and the footprint gives {usable / 1000:.1f} m. "
+            "Rooms either side were narrowed to fit."
         )
-    left_depth = max(_ABSOLUTE_MIN_DIM, min(usable - _ABSOLUTE_MIN_DIM, left_depth))
-    right_depth = usable - left_depth
 
     # A room that spans the full depth of a band is as deep as the band. Where
     # a band is much deeper than its rooms want to be, they come out the shape
@@ -1068,6 +1159,58 @@ def _footprint(
     return Rect(envelope.x1 - width, envelope.y, width, depth)
 
 
+def _refuse_slivers(layout: Layout, program: SpaceProgram, footprint: Rect) -> None:
+    """Refuse a plan whose rooms have been squeezed out of existence.
+
+    The solver already said, at the top of this file, that a room under 900 mm
+    across is unusable whatever a code says and that it refuses to emit one.
+    It did not refuse. Asked for five bedrooms on a 9 x 22 m lot -- a program
+    needing 266 m2 where the footprint gives 70 -- it warned that rooms had
+    been "scaled down proportionally" and then drew a linen cupboard 139 mm
+    deep and a WC with a dimension of zero.
+
+    A warning is the wrong instrument for that. Somebody reads the drawing,
+    not the log, and a plan of slivers is not a small version of a good plan;
+    it is a picture of something that cannot be built. So it is refused, and
+    the refusal says what would fit instead, because the answer the customer
+    needs is a number of storeys or a number of bedrooms, not a rectangle.
+    """
+    slivers = sorted(
+        (c for c in layout.cells if c.rect.short_side < _MIN_TILE),
+        key=lambda c: c.rect.short_side,
+    )
+    if not slivers:
+        return
+
+    worst = ", ".join(
+        f"{c.name} at {c.rect.w} x {c.rect.h} mm" for c in slivers[:3]
+    )
+    more = f" and {len(slivers) - 3} more" if len(slivers) > 3 else ""
+    asked = max(
+        (sum(_target(c.requirement) or 0
+             for c in layout.cells
+             if c.storey == storey and c.requirement is not None)
+         for storey in range(program.storeys)),
+        default=0,
+    )
+    available = footprint.area
+    advice = ""
+    if available > 0 and asked > available:
+        floors = -(-asked // available)
+        advice = (
+            f" The brief needs about {asked / 1e6:.0f} m2 per floor and this "
+            f"footprint gives {available / 1e6:.0f} m2, so it wants about "
+            f"{floors} storeys, a bigger lot, or fewer rooms."
+        )
+    raise LayoutError(
+        f"This brief does not fit on this lot. Laying it out forces "
+        f"{len(slivers)} room{'s' if len(slivers) != 1 else ''} under "
+        f"{_UNBUILDABLE} mm across, which will not take a door: "
+        f"{worst}{more}.{advice} Nothing was drawn, because a plan of slivers "
+        "is not a smaller version of a good plan."
+    )
+
+
 def solve(
     program: SpaceProgram, plot: Plot, max_footprint: int | None = None
 ) -> Layout:
@@ -1137,6 +1280,8 @@ def solve(
             _layout_storey(storey, rooms, footprint, plot, layout.warnings)
         )
 
+    _refuse_slivers(layout, program, footprint)
+
     for cell in layout.cells:
         req = cell.requirement
         if req is None:
@@ -1152,6 +1297,17 @@ def solve(
             layout.unsatisfied.append(
                 f"{cell.name} is about {clear_width} mm across; "
                 f"{req.min_width} mm was asked for."
+            )
+        elif clear_width < _ABSOLUTE_MIN_DIM:
+            # No minimum was asked for, so nothing above catches it -- and a
+            # room 700 mm across is unusable whether or not the brief
+            # bothered to say so. A linen press with no stated width is still
+            # a linen press nobody can open.
+            layout.unsatisfied.append(
+                f"{cell.name} is about {clear_width} mm across, which is "
+                f"under the {_ABSOLUTE_MIN_DIM} mm below which a room is not "
+                "usable whatever a code says. No minimum was asked for it, "
+                "so nothing above reports it."
             )
 
     return layout

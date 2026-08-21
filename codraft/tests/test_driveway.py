@@ -77,8 +77,14 @@ class TestItReachesBothEnds(unittest.TestCase):
         )
 
     def test_every_road_side_works(self):
+        # A squarer lot than the rest of this file uses, because the frontage
+        # swaps with the depth when the road moves: 15 x 30 m fronting east
+        # leaves a 3 m strip between the front and rear setbacks, and the
+        # solver now refuses that outright rather than drawing rooms 300 mm
+        # wide. The driveway is what is under test here, not the refusal.
         for road in ("south", "north", "east", "west"):
-            plot, layout, _, garage = _built(road=road)
+            plot, layout, _, garage = _built(road=road, width=24000,
+                                             depth=26000)
             if garage is None:
                 continue
             drive, _ = place_driveway(plot, layout.envelope, garage.rect)

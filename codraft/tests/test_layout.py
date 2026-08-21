@@ -111,3 +111,75 @@ class TestBuilding(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestABriefThatDoesNotFitIsRefused(unittest.TestCase):
+    """A plan of slivers is not a smaller version of a good plan.
+
+    The solver has said since its first line that a room under 900 mm across
+    is unusable whatever a code says and that it refuses to emit one. It did
+    not refuse. Asked for five bedrooms on a 9 x 22 m lot it warned that
+    rooms had been "scaled down proportionally" and drew a linen cupboard
+    139 mm deep and a WC with a dimension of zero -- and a warning is the
+    wrong instrument, because the customer reads the drawing, not the log.
+
+    The line for refusing is well under 900: at 600 mm a 720 mm door leaf
+    will not fit, so nothing can get in. Between 600 and 900 the plan is
+    drawn and every room in that band is named. Under 600 there is nothing
+    to name it for.
+    """
+
+    def _plot(self, width, depth):
+        return Plot(rect=Rect(0, 0, width, depth), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+
+    def test_five_bedrooms_on_a_nine_metre_block_is_refused(self):
+        program = template("au-house", bedrooms=5, bathrooms=3, storeys=1)
+        with self.assertRaises(LayoutError) as caught:
+            solve(program, self._plot(9000, 22000))
+        self.assertIn("does not fit on this lot", str(caught.exception))
+
+    def test_the_refusal_says_what_would_fit_instead(self):
+        # The answer somebody needs is a number of storeys or a number of
+        # bedrooms, not a rectangle.
+        program = template("au-house", bedrooms=5, bathrooms=3, storeys=1)
+        with self.assertRaises(LayoutError) as caught:
+            solve(program, self._plot(9000, 22000))
+        message = str(caught.exception)
+        self.assertRegex(message, r"needs about \d+ m2 per floor")
+        self.assertRegex(message, r"wants about \d+ storeys")
+
+    def test_the_refusal_names_the_rooms_and_their_sizes(self):
+        program = template("au-house", bedrooms=5, bathrooms=3, storeys=1)
+        with self.assertRaises(LayoutError) as caught:
+            solve(program, self._plot(9000, 22000))
+        self.assertRegex(str(caught.exception), r"\w+ at \d+ x \d+ mm")
+
+    def test_what_a_builder_actually_sells_still_draws(self):
+        # The refusal is worth nothing if it also refuses the ordinary work.
+        # Bedroom counts matched to the block, the way a project builder
+        # matches a design to a lot.
+        for width, depth, beds, storeys in (
+            (10000, 28000, 4, 2), (12500, 28000, 3, 1), (12500, 28000, 4, 1),
+            (15000, 28000, 4, 1), (15000, 30000, 4, 1), (17000, 32000, 4, 1),
+            (18000, 30000, 5, 1), (20000, 35000, 5, 1),
+        ):
+            with self.subTest(lot=f"{width}x{depth}", beds=beds):
+                program = template("au-house", bedrooms=beds, bathrooms=2,
+                                   storeys=storeys)
+                layout = solve(program, self._plot(width, depth))
+                self.assertTrue(layout.cells)
+
+    def test_a_room_under_nine_hundred_is_still_named_even_when_drawn(self):
+        # The band between refusing and being happy: drawn, and declared.
+        from codraft.layout.solver import _ABSOLUTE_MIN_DIM, _WALL_ALLOWANCE
+
+        program = template("au-house", bedrooms=3, bathrooms=2, storeys=1)
+        layout = solve(program, self._plot(12500, 28000))
+        declared = "\n".join(layout.unsatisfied)
+        for cell in layout.cells:
+            clear = cell.rect.short_side - _WALL_ALLOWANCE
+            if clear < _ABSOLUTE_MIN_DIM:
+                with self.subTest(room=cell.name):
+                    self.assertIn(cell.name, declared)

@@ -15,7 +15,7 @@ from codraft.export.svg import (
     LEADING, _floor_obstacles, _text_width, build_sheet,
 )
 from codraft.geom import Rect
-from codraft.layout import build_building, solve
+from codraft.layout import LayoutError, build_building, solve
 from codraft.model import Plot
 from codraft.program import template
 
@@ -152,7 +152,14 @@ class TestNoRoomGoesQuietlyUnlabelled(unittest.TestCase):
             plot = Plot(rect=Rect(0, 0, width, depth), road_side="south",
                         setback_front=6000, setback_rear=6000,
                         setback_left=1000, setback_right=1000)
-            building = build_building(program, plot, solve(program, plot))
+            try:
+                layout = solve(program, plot)
+            except LayoutError:
+                # The solver refuses a brief that does not fit the lot, which
+                # is a different guarantee tested elsewhere. Nothing is drawn,
+                # so there is nothing here to leave unlabelled.
+                continue
+            building = build_building(program, plot, layout)
             canvas, *_ = build_sheet(building, storey_index=0)
             drawn = {op[6] for op in canvas.ops
                      if op[0] == "text" and op[1] in LABEL_CLASSES}
