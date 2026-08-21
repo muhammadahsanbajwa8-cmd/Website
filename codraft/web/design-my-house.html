@@ -97,7 +97,26 @@ input{font:500 1rem/1.3 "IBM Plex Mono",monospace;color:var(--ink);background:va
    millimetres throughout, as in the Python, so a wall that is 3500 long is
    3500 everywhere. */
 
-const COURSE = 86, PLATE = 26, WALL_ALLOW = 115, MIN_DIM = 900;
+// WALL_ALLOW is the WORST case, not the average: a tile gives up half a wall
+// on each side and an exterior wall (230) against an interior one (115) takes
+// 172 mm. At 115 a linen press asking for 600 got a 715 tile and was drawn at
+// 543, under what it asked for, with nothing reporting it.
+// UNBUILDABLE is the line below which there is no room at all: a 720 mm door
+// leaf will not fit, so nothing can get in.
+const COURSE = 86, PLATE = 26, WALL_ALLOW = 172, MIN_DIM = 900;
+const UNBUILDABLE = 600, MIN_TILE = UNBUILDABLE + 172;
+
+// Rooms that must touch BOTH the outside and the circulation, and so cannot be
+// one half of a pair. Pairing the entry with a store put the store on the
+// passage and left the entry opening only into the store, which cut the route
+// out of the house.
+const NEVER_PAIRED = new Set(["entry", "lobby", "corridor", "stair", "garage"]);
+
+// Where the packer reports a band it could not serve. Reset per layout, read
+// back with the plan's other notes -- the same warnings list the Python
+// solver carries, minus the plumbing of passing it down four call levels.
+let PACK_WARNINGS = [];
+const packWarn = note => { if (!PACK_WARNINGS.includes(note)) PACK_WARNINGS.push(note); };
 
 // The widest frontage a two-band corridor plan can use. Band depth is
 // (frontage - passage) / 2, and that depth becomes the width of every room
@@ -218,7 +237,25 @@ function assignStoreys(rooms, storeys) {
 }
 
 /* ---- fitting rooms along a band ---- */
-function apportion(spans, floors, total) {
+function apportion(spans, floors, total, warn) {
+  const wanted = floors.reduce((a, b) => a + b, 0);
+  if (wanted > total && total > 0) {
+    // No allocation gives every row its floor, so the question is only who
+    // pays. The loop below cannot reach that conclusion: with every row
+    // already under its floor there are no donors to take from, so it breaks
+    // out having changed nothing and leaves the area-proportional split
+    // standing -- which is brutal to a small room. Three bedrooms on a
+    // 15 x 28 m lot put the WC at 285 mm and the master at 2554, when the
+    // honest answer is that both get about 61 per cent of what they need.
+    const sizes = floors.map(f => Math.max(1, Math.floor(f * total / wanted)));
+    let big = 0; sizes.forEach((v, i) => { if (v > sizes[big]) big = i; });
+    sizes[big] += total - sizes.reduce((a, b) => a + b, 0);
+    if (warn) warn(`A band is about ${((wanted - total) / 1000).toFixed(1)} m short of `
+      + `what the rooms on it need. Every room on it was reduced to about `
+      + `${Math.floor(total * 100 / wanted)} per cent of the length it asked for, so the `
+      + `shortfall is shared rather than taken out of the smallest room.`);
+    return sizes;
+  }
   const sizes = spans.slice();
   for (let pass = 0; pass < sizes.length * 2 + 2; pass++) {
     const deficit = sizes.reduce((s, v, i) => s + Math.max(0, floors[i] - v), 0);
@@ -260,22 +297,61 @@ function apportion(spans, floors, total) {
 function stack(rooms, band, alongY, outerLow = true) {
   if (!rooms.length) return [];
   const span = alongY ? band.h : band.w, depth = alongY ? band.w : band.h;
+  // A room's slice is proportional to its AREA, so a small room in a deep band
+  // gets a short slice: a 4.8 m² WC on a 5.5 m band is 880 mm long and 5.5 m
+  // deep, which is a corridor. Pairing two such rooms across the depth is what
+  // fixes that, and it is what a real plan does.
+  const isThin = r => {
+    const s = Math.floor((target(r) || 1) / Math.max(1, depth));
+    return s > 0 && depth / s > 2.2;
+  };
+  // Two rooms that both need daylight can never share a slice: one of them
+  // would be against the passage with no external wall, which is how a bedroom
+  // ends up in the middle of the plan. And a room that must touch BOTH the
+  // outside and the circulation cannot be half a pair at all.
+  const canPair = (a, b) =>
+    !a.solo && !b.solo &&
+    !NEVER_PAIRED.has(a.fn) && !NEVER_PAIRED.has(b.fn) &&
+    tileW(a.minWidth) + tileW(b.minWidth) <= depth &&
+    depth >= 2 * (MIN_DIM + WALL_ALLOW) &&
+    !(needsLight(a) && needsLight(b));
+  const hasRoomBehind = (thinR, host) =>
+    depth - (tileW(thinR.minWidth) || MIN_DIM)
+      >= Math.max(tileW(host.minWidth), MIN_DIM + WALL_ALLOW);
+
   const rows = [];
-  for (let i = 0; i < rooms.length;) {
-    const r = rooms[i], t = target(r) || 1, s = Math.floor(t / Math.max(1, depth));
-    const thin = s > 0 && depth / s > 2.2;
-    if (thin && !r.solo && i + 1 < rooms.length) {
-      const n = rooms[i + 1], nt = target(n) || 1, ns = Math.floor(nt / Math.max(1, depth));
-      // Two rooms that both need daylight can never share a slice: one of
-      // them would be against the passage with no external wall, which is
-      // how a bedroom ends up in the middle of the plan.
-      const bothNeedLight = needsLight(r) && needsLight(n);
-      if (!n.solo && ns > 0 && depth / ns > 2.2 && !bothNeedLight &&
-          tileW(r.minWidth) + tileW(n.minWidth) <= depth && depth >= 2 * (MIN_DIM + WALL_ALLOW)) {
-        rows.push({ rooms: [r, n], t: t + nt }); i += 2; continue;
-      }
-    }
-    rows.push({ rooms: [r], t }); i += 1;
+  const remaining = rooms.slice();
+  while (remaining.length) {
+    const r = remaining.shift(), t = target(r) || 1;
+    if (!isThin(r) || r.solo) { rows.push({ rooms: [r], t }); continue; }
+    // Search FORWARD for a partner rather than taking the next room. Ordering
+    // is decided by zoning and by which rooms need daylight, so the room next
+    // in line is very often solo or lit and cannot pair; refusing to look past
+    // it left the small rooms strung out down the band.
+    let j = remaining.findIndex(n => isThin(n) && canPair(r, n));
+    // No thin partner left. Tuck the small room behind a large one instead,
+    // which is what a plan does when it puts a WC in behind a bedroom.
+    if (j < 0) j = remaining.findIndex(n => canPair(r, n) && hasRoomBehind(r, n));
+    if (j < 0) { rows.push({ rooms: [r], t }); continue; }
+    const n = remaining.splice(j, 1)[0];
+    rows.push({ rooms: [r, n], t: t + (target(n) || 1) });
+  }
+  // A forward search cannot help the LAST room: an odd number of small rooms
+  // strands whichever sorts last, and the WC sorts last on every sleep wing
+  // this packer builds. Sweep back and merge it into a single row that can
+  // carry it.
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    if (row.rooms.length !== 1) continue;
+    const r = row.rooms[0];
+    if (r.solo || !isThin(r)) continue;
+    const host = rows.findIndex((other, j) =>
+      j !== i && other.rooms.length === 1 &&
+      canPair(r, other.rooms[0]) && hasRoomBehind(r, other.rooms[0]));
+    if (host < 0) continue;
+    rows[host].rooms.push(r);
+    rows[host].t += target(r) || 1;
+    rows.splice(i, 1);
   }
   const totals = rows.reduce((s, r) => s + r.t, 0) || 1;
   const spans = rows.map(r => Math.max(1, Math.floor(span * r.t / totals)));
@@ -287,7 +363,7 @@ function stack(rooms, band, alongY, outerLow = true) {
       need = Math.max(need, Math.ceil(tileArea(r.minArea) / Math.max(1, share)));
     return need;
   });
-  const sizes = apportion(spans, floors, span);
+  const sizes = apportion(spans, floors, span, packWarn);
   const placed = []; let cursor = alongY ? band.y : band.x;
   rows.forEach((row, i) => {
     const s = sizes[i];
@@ -644,9 +720,34 @@ function design(a) {
   fd = Math.max(MIN_DIM * 2, Math.min(env.h, fd));
   const foot = { x: env.x + Math.floor((env.w - fw) / 2), y: env.y, w: fw, h: fd };
 
+  PACK_WARNINGS = [];
   const storeys = [];
   for (let s = 0; s < a.storeys; s++)
     storeys.push(layoutStorey(placedRooms.filter(r => r.at === s), foot, s));
+
+  // The area test above catches a brief that is far too big for the block.
+  // It does not catch a brief that fits by area and cannot be PACKED: the
+  // rooms come out as slivers instead, and a plan of slivers is not a smaller
+  // version of a good plan. Under 600 mm clear a 720 mm door leaf will not
+  // fit, so nothing can get in.
+  const slivers = [];
+  for (const cells of storeys) for (const c of cells) {
+    const short = Math.min(c.rect.w, c.rect.h);
+    if (short < MIN_TILE) slivers.push({ name: c.r.name, rect: c.rect, short });
+  }
+  if (slivers.length) {
+    slivers.sort((x, y) => x.short - y.short);
+    const worst = slivers.slice(0, 3)
+      .map(v => `${v.name} at ${v.rect.w} × ${v.rect.h} mm`).join(", ");
+    const more = slivers.length > 3 ? ` and ${slivers.length - 3} more` : "";
+    const floorsNeeded = Math.ceil(briefTotal / Math.max(1, Math.min(cap, envArea)));
+    return { error: `That brief doesn't fit this block. Packing it forces `
+      + `${slivers.length} room${slivers.length === 1 ? "" : "s"} under `
+      + `${UNBUILDABLE} mm across, which won't take a door: ${worst}${more}. `
+      + `It would take about ${floorsNeeded} floor${floorsNeeded > 1 ? "s" : ""}, `
+      + `a shorter list of rooms, or a wider block. `
+      + `I'd rather tell you than draw rooms you can't use.` };
+  }
 
   const ceiling = ceilingAt(28);
   const walls = CONSTRUCTION[P.construction];
@@ -665,6 +766,7 @@ function design(a) {
     if (narrow + WALL_ALLOW < (c.r.minWidth || 0) - 50 || r.w * r.h < c.r.minArea - 5e5)
       tight.push(`${c.r.name} ${(r.w*r.h/1e6).toFixed(1)} m² at ${narrow} mm wide`);
   }
+  notes.push(...PACK_WARNINGS);
   if (tight.length)
     notes.push(`These rooms came out under the size they should be — `
       + `${tight.join("; ")}. The block will take the house, but not this room list at `
