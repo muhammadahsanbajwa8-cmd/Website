@@ -392,6 +392,24 @@ def derive(building: Building, parameters: dict | None = None,
         "exit_count": sum(s["exit_count"] for s in facts.storeys),
         "dwelling_units": 1 if building.use == "residential" else 0,
     }
+    # The planning controls this lot actually carries, resolved for its
+    # density code. A rule that hardcodes a figure instead is a rule that is
+    # right for one density and wrong for the rest: the WA street setback and
+    # site cover rules carried R20's numbers, so an R60 plan built exactly to
+    # the R-Codes came back reported as breaching them.
+    #
+    # Left OUT where nothing was supplied, so the rule reports unchecked with
+    # a reason naming the missing control rather than passing on a default.
+    for fact, key in (
+        ("min_setback_front_mm", "setback_front_mm"),
+        ("min_setback_rear_mm", "setback_rear_mm"),
+        ("max_coverage_ratio", "max_coverage_ratio"),
+        ("max_height_mm", "max_height_mm"),
+    ):
+        value = (site or {}).get(key)
+        if value is not None:
+            facts.building[fact] = value
+
     facts.building.update(outdoor_living(building, site))
     if facts.building.get("outdoor_living_m2") is not None:
         # The measurement goes in the assumptions whether or not the rule

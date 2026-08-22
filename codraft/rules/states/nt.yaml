@@ -14,7 +14,7 @@
 state: nt
 name: "Northern Territory"
 planning_instrument: "NT Planning Scheme"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

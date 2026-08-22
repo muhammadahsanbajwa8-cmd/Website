@@ -14,7 +14,7 @@
 state: wa
 name: "Western Australia"
 planning_instrument: "R-Codes (SPP 7.3); density code drives setbacks"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

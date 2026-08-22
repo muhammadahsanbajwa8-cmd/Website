@@ -365,6 +365,37 @@ class _Row:
         return needed
 
 
+# Pairing: what has been tried against it, and what the measurements said.
+#
+# Three attempts to improve the packer have been made and reverted. They are
+# recorded here because each cost a session to re-derive and each failed for
+# a reason that is not obvious from the code.
+#
+# 1. Protecting habitable rows in `_apportion` -- giving bedrooms and living
+#    rooms their floor before anything else got a share. Undersized rooms
+#    went UP, 346 to 363: the protection took the shortfall out of the
+#    circulation and the wet rooms, which then breached their own minimums
+#    and dragged the whole band into the shared-shortfall branch.
+#
+# 2. Pairing more aggressively -- pairing wherever `_can_pair` allowed it.
+#    No effect. Pairing halves each room's depth, so two rooms in a slice
+#    need twice the length to hold their areas; for two UNEQUAL rooms that is
+#    more span than two separate rows, not less.
+#
+# 3. Pairing only where it PAYS -- the converse of 2, and the one that looks
+#    most obviously right. The test is sound and discriminates correctly: on
+#    a 5374 mm band a master with a WC needs 6478 mm of length against 4644
+#    for the two apart, while a bathroom with a linen needs 2557 against
+#    2744, so the first is refused and the second kept. Applied to the two
+#    fallback paths below it still made the sweep worse -- 63 plans drawn
+#    fell to 52 and refusals rose from 17 to 28.
+#
+#    The reason is the thing the length comparison does not count. An unpaired
+#    small room takes a whole ROW, and rows are what a band runs out of; the
+#    room also spans the full depth, so a WC keeping its own row comes out
+#    5374 x 1015. Pairing wastes length and saves rows, and on a tight band
+#    saving rows is worth more. Any fourth attempt has to count both.
+
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
 

@@ -14,7 +14,7 @@
 state: vic
 name: "Victoria"
 planning_instrument: "ResCode, Clauses 54 and 55"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

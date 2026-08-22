@@ -58,9 +58,9 @@
       "scope": "building",
       "severity": "violation",
       "confidence": "medium",
-      "assert": "coverage_ratio <= 0.50",
-      "message": "Site cover is {coverage_ratio} of the lot; R20 allows 0.50. Denser R-codes allow more.",
-      "note": "The default checked here is the R20 figure. Pass the lot's actual R-code so the right limit is applied."
+      "assert": "coverage_ratio <= max_coverage_ratio",
+      "message": "Site cover is {coverage_ratio} of the lot; this density allows {max_coverage_ratio}.",
+      "note": "Checked against the cover this lot's density code actually allows, not against a fixed figure. It used to assert 0.50 -- R20's number -- so a plan built to R60's 0.70 was reported as breaching a control it met. Where no density has been supplied the control is missing and this reports unchecked, which is the honest answer: the limit depends on a code nobody has given."
     },
     {
       "id": "wa.setback.front",
@@ -69,9 +69,9 @@
       "scope": "building",
       "severity": "violation",
       "confidence": "medium",
-      "assert": "setback_front_mm >= 4000",
-      "message": "The primary street setback is {setback_front_mm} mm. R20 requires 6 m; the denser codes reduce it, and averaging with neighbours may apply.",
-      "note": "The R-Codes permit averaging against adjoining lots, which is not modelled."
+      "assert": "setback_front_mm >= min_setback_front_mm",
+      "message": "The primary street setback is {setback_front_mm} mm; this density requires {min_setback_front_mm} mm.",
+      "note": "Checked against this lot's density code. It used to assert 4000 mm regardless, so every R60 and R80 plan -- which the R-Codes set at 2000 -- was reported as breaching the setback it was built to. The R-Codes permit averaging against adjoining lots, which is still not modelled."
     },
     {
       "id": "wa.outdoor.living",

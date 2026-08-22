@@ -14,7 +14,7 @@
 state: act
 name: "Australian Capital Territory"
 planning_instrument: "Territory Plan, single dwelling code"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

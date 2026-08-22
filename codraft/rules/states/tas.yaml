@@ -14,7 +14,7 @@
 state: tas
 name: "Tasmania"
 planning_instrument: "Tasmanian Planning Scheme, State Planning Provisions"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

@@ -14,7 +14,7 @@
 state: nsw
 name: "New South Wales"
 planning_instrument: "Codes SEPP / Exempt and Complying Development"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front

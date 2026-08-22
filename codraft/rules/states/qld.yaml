@@ -14,7 +14,7 @@
 state: qld
 name: "Queensland"
 planning_instrument: "Queensland Development Code MP 1.1 / MP 1.2"
-generated: 2026-08-21
+generated: 2026-08-22
 
 rules:
   - id: setback.front
