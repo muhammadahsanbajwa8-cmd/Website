@@ -48,7 +48,7 @@
       "confidence": "seed",
       "applies_when": "is_habitable and function != 'kitchen'",
       "assert": "area_m2 >= 9.29",
-      "message": "{name} is {area_m2} m²; by-laws commonly set 9.29 m² (100 sq ft) for a habitable room.",
+      "message": "{name} is {area_m2} m\u00b2; by-laws commonly set 9.29 m\u00b2 (100 sq ft) for a habitable room.",
       "note": "Confirm against the authority for the scheme; this figure varies."
     },
     {
@@ -71,7 +71,7 @@
       "confidence": "seed",
       "applies_when": "function == 'kitchen'",
       "assert": "area_m2 >= 4.65",
-      "message": "{name} is {area_m2} m²; 4.65 m² (50 sq ft) is a common minimum for a kitchen."
+      "message": "{name} is {area_m2} m\u00b2; 4.65 m\u00b2 (50 sq ft) is a common minimum for a kitchen."
     },
     {
       "id": "pk.bathroom.area",
@@ -82,7 +82,7 @@
       "confidence": "seed",
       "applies_when": "function == 'bathroom'",
       "assert": "area_m2 >= 2.79",
-      "message": "{name} is {area_m2} m²; 2.79 m² (30 sq ft) is a common minimum."
+      "message": "{name} is {area_m2} m\u00b2; 2.79 m\u00b2 (30 sq ft) is a common minimum."
     },
     {
       "id": "pk.ceiling.height",
@@ -132,9 +132,9 @@
       "scope": "building",
       "severity": "violation",
       "confidence": "seed",
-      "assert": "coverage_ratio <= 0.65",
-      "message": "Ground coverage is {coverage_ratio} of the plot; 0.65 is a common residential cap, and Islamabad is often lower.",
-      "note": "Coverage, FAR and setbacks are the provisions that vary most between authorities and schemes. Treat this as a prompt to check, not an answer."
+      "assert": "coverage_ratio <= max_coverage_ratio",
+      "message": "Site coverage is {coverage_ratio} of the plot; this locality allows {max_coverage_ratio}.",
+      "note": "Checked against the locality's own cap. The rule asserted 0.65 regardless -- Lahore's and Karachi's figure -- so an Islamabad plot, where the cap is 0.55, was passed on coverage that breaches it. A false pass is the worse direction of this bug: it tells a builder a non-compliant plan is fine."
     },
     {
       "id": "pk.site.far",
@@ -143,8 +143,9 @@
       "scope": "building",
       "severity": "warning",
       "confidence": "seed",
-      "assert": "floor_area_ratio <= 1.6",
-      "message": "The floor area ratio is {floor_area_ratio}; 1.6 is an indicative residential cap."
+      "assert": "floor_area_ratio <= max_floor_area_ratio",
+      "message": "The floor area ratio is {floor_area_ratio}; this locality's limit is {max_floor_area_ratio}.",
+      "note": "Checked against the locality's own limit, which this pack has carried all along -- 1.6 in Lahore, 1.8 in Karachi, 1.4 elsewhere. The rule asserted 1.6 regardless, so a Karachi plan was reported as breaching a ratio it met and a plan where the limit is 1.4 was passed on a ratio it breached. FAR is also measured differently between authorities -- whether a basement, a mumty or a covered car porch counts varies -- and this counts every roofed space. Confirm what the authority excludes."
     }
   ],
   "design": {

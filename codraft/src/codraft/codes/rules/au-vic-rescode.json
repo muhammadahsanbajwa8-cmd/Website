@@ -65,6 +65,17 @@
       "assert": "outdoor_living_m2 >= min_outdoor_living_m2 and outdoor_living_min_dim_mm >= min_outdoor_living_dim_mm",
       "message": "The private open space is {outdoor_living_m2} m2 at the {outdoor_living_where} of the lot, {outdoor_living_min_dim_mm} mm across at its narrowest; this standard requires {min_outdoor_living_m2} m2 and {min_outdoor_living_dim_mm} mm.",
       "note": "TWO LIMBS, TESTED TOGETHER. ResCode sets an area and a minimum dimension for the part with convenient access from a living room, and an area met by a long thin strip does not comply. Only the area figure is encoded here, so until the dimension is supplied this reports UNCHECKED rather than passing on one limb. Measured as ONE rectangle of open ground outside the street setback."
+    },
+    {
+      "id": "vic.height.overall",
+      "title": "Building height",
+      "clause": "ResCode Clause 54/55 (building height)",
+      "scope": "building",
+      "severity": "violation",
+      "confidence": "medium",
+      "assert": "overall_height_mm <= max_height_mm",
+      "message": "The building is {overall_height_mm} mm from floor level to the ridge; the limit here is {max_height_mm} mm.",
+      "note": "MEASURED TO THE RIDGE, and the figure supplied has to be the same measurement. Instruments differ: some set a limit to the top of the external wall, some to the top of the roof, and some set both. The wall height is carried as well, so a second rule can be written against it once it is known which this figure is. Height is also measured from natural ground level, which this model does not carry -- it measures from the floor, so a house on fill or a sloping lot will read low here. Nothing here has supplied the limit: until one is, this reports unchecked."
     }
   ],
   "design": {

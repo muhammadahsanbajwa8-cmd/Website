@@ -377,7 +377,13 @@ def derive(building: Building, parameters: dict | None = None,
         "name": building.name,
         "use": building.use,
         "storeys": building.storey_count,
+        # Two heights, named for what they measure, because a planning
+        # scheme's limit is to one of them and a rule written against the
+        # wrong one is wrong by the pitch of the roof. `height_mm` is kept
+        # for anything already reading it and is the wall height.
         "height_mm": building.height,
+        "wall_height_mm": building.height,
+        "overall_height_mm": building.overall_height,
         "gross_floor_area_m2": round(building.gross_floor_area / 1_000_000, 3),
         "footprint_m2": round(building.footprint / 1_000_000, 3),
         "plot_area_m2": round(plot.area / 1_000_000, 3),
@@ -404,6 +410,7 @@ def derive(building: Building, parameters: dict | None = None,
         ("min_setback_front_mm", "setback_front_mm"),
         ("min_setback_rear_mm", "setback_rear_mm"),
         ("max_coverage_ratio", "max_coverage_ratio"),
+        ("max_floor_area_ratio", "max_floor_area_ratio"),
         ("max_height_mm", "max_height_mm"),
     ):
         value = (site or {}).get(key)
