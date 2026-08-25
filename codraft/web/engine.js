@@ -104,7 +104,12 @@ function buildProgram(a) {
                  a.garage === 1 ? 20 : 36, 3200, { zone: "front", storey: 0, solo: true }));
     rooms.push(R("store", "Store", "storage", 4, 1500, { zone: "front", storey: 0 }));
   }
-  if (a.storeys > 1) rooms.push(R("stair", "Stair", "stair", 10, 2200, { storey: 0 }));
+  // No storey pin: `assignStoreys` replicates circulation onto every floor,
+  // and it can only do that for rooms that have not already been pinned to
+  // one. Pinned to storey 0, the stair was drawn on the ground floor alone --
+  // the floors above had no flight on them at all, and got the stair's 10 m2
+  // of floor area to fill with rooms, which is floor that is not there.
+  if (a.storeys > 1) rooms.push(R("stair", "Stair", "stair", 10, 2200, {}));
   return rooms;
 }
 
@@ -806,6 +811,33 @@ function design(a) {
     if (narrow + WALL_ALLOW < (c.r.minWidth || 0) - 50 || r.w * r.h < c.r.minArea - 5e5)
       tight.push(`${c.r.name} ${(r.w*r.h/1e6).toFixed(1)} m² at ${narrow} mm wide`);
   }
+  // A flight has to arrive in the same place it leaves from. Each storey is
+  // packed on its own and the stair is packed with it, so nothing holds the
+  // flight on one floor over the flight on the next: the ground floor gives
+  // up a strip across the frontage to the garage and the floor above packs
+  // the whole footprint, so the two floors are not packing the same shape
+  // and the stair lands wherever each one had room. Every multi-storey plan
+  // here has it.
+  //
+  // Holding the stair still between floors is a structural change and is not
+  // done yet. Saying so is: the page must not hand somebody a two-storey
+  // plan whose stair arrives under a bedroom floor without mentioning it.
+  // The Python solver reports the same thing in the same terms.
+  const flights = storeys.map(cells => cells.filter(c => c.r.fn === "stair"));
+  for (let s = 0; s + 1 < flights.length; s++)
+    for (const below of flights[s]) {
+      const b = below.rect;
+      if (flights[s + 1].some(a => a.rect.x === b.x && a.rect.y === b.y
+                                && a.rect.w === b.w && a.rect.h === b.h)) continue;
+      const above = flights[s + 1]
+        .map(c => `${c.rect.w}×${c.rect.h} at ${c.rect.x},${c.rect.y}`).join(", ");
+      notes.push(`The stair doesn't line up between floor ${s} and floor ${s + 1}: `
+        + `${b.w}×${b.h} at ${b.x},${b.y} below and ${above || "nothing"} above. `
+        + `A flight has to arrive in the same place it leaves from, so this `
+        + `can't be built as drawn — each floor is packed on its own and `
+        + `nothing yet holds the stair still between them.`);
+    }
+
   notes.push(...PACK_WARNINGS);
   if (tight.length)
     notes.push(`These rooms came out under the size they should be — `
