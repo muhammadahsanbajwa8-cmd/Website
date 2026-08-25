@@ -298,6 +298,42 @@ def _openings_for_storey(
 
     circulation = {c.key for c in cells if c.function.is_circulation}
 
+    # Where a room with no wall onto circulation should open instead.
+    #
+    # The obvious answer, and the one this used, is the widest neighbour: it
+    # gives the door somewhere to swing. But the widest neighbour is chosen
+    # for being big, not for leading anywhere, and a room is not reachable
+    # because it adjoins a large one. Five bedrooms down one side of a
+    # passage, each touching the next along its long wall and the passage
+    # along none of it, each opened into the bedroom beside it -- and the
+    # whole sleeping wing had no route to an exit, which is the one finding
+    # that makes every other finding in the report irrelevant.
+    #
+    # So work OUTWARDS from circulation instead. A room may only open into a
+    # room that already has a route, and among those it takes the widest
+    # wall. Each pass reaches one room further from the passage, so the door
+    # is always hung towards the way out. What is left when a pass adds
+    # nothing is genuinely unreachable, and still says so below.
+    routed: dict[str, tuple[str, str]] = {}
+    reached = set(circulation)
+    growing = True
+    while growing:
+        growing = False
+        for cell in cells:
+            if cell.key in reached:
+                continue
+            towards = [
+                (other.key, between[(cell.key, other.key)])
+                for other in cells
+                if other.key in reached and (cell.key, other.key) in between
+            ]
+            if not towards:
+                continue
+            towards.sort(key=lambda kw: -wall_by_id[kw[1]].length)
+            routed[cell.key] = towards[0]
+            reached.add(cell.key)
+            growing = True
+
     # -- internal doors --------------------------------------------------
     for cell in cells:
         if cell.function.is_circulation:
@@ -322,8 +358,15 @@ def _openings_for_storey(
                     f"{cell.name} does not touch any other room; it has no door."
                 )
                 continue
-            neighbours.sort(key=lambda kw: -wall_by_id[kw[1]].length)
-            targets = neighbours[:1]
+            if cell.key in routed:
+                targets = [routed[cell.key]]
+            else:
+                # No circulation on this storey to work outwards from -- an
+                # upper floor of two rooms off a stair below, say. The widest
+                # neighbour is as good an answer as there is, and the warning
+                # below still says the room is entered through another one.
+                neighbours.sort(key=lambda kw: -wall_by_id[kw[1]].length)
+                targets = neighbours[:1]
             warnings.append(
                 f"{cell.name} has no wall onto circulation, so its door opens "
                 f"into {by_key[targets[0][0]].name}. Check this against the "

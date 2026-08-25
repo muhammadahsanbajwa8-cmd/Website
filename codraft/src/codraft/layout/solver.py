@@ -365,9 +365,9 @@ class _Row:
         return needed
 
 
-# Pairing: what has been tried against it, and what the measurements said.
+# Packing: what has been tried against it, and what the measurements said.
 #
-# Three attempts to improve the packer have been made and reverted. They are
+# Four attempts to improve the packer have been made and reverted. They are
 # recorded here because each cost a session to re-derive and each failed for
 # a reason that is not obvious from the code.
 #
@@ -394,7 +394,33 @@ class _Row:
 #    small room takes a whole ROW, and rows are what a band runs out of; the
 #    room also spans the full depth, so a WC keeping its own row comes out
 #    5374 x 1015. Pairing wastes length and saves rows, and on a tight band
-#    saving rows is worth more. Any fourth attempt has to count both.
+#    saving rows is worth more. Any fifth attempt has to count both.
+#
+# 4. Bringing a room forward onto the street frontage. The garage sets the
+#    front strip's depth -- a car needs about 6 m -- and the whole frontage
+#    is held to it, so on a small brief the strip carries a large surplus
+#    while the bands behind are over-subscribed. On a 15 x 30 m lot that was
+#    20.6 m2 of spare floor around a 4.7 m2 store, with Bed 2 drawn 1975 mm
+#    wide. Moving the bedroom onto the frontage fixed exactly that: 4420 x
+#    4007 against 5284 x 1975, and the browser sweep's packing losses went
+#    from 2 to 0 with nothing else moving.
+#
+#    It was still reverted, because the room-shape sweeps were measuring the
+#    wrong thing. Re-packing the bands behind the promoted room left the
+#    bathroom and the laundry doored into each other and into nothing else:
+#    two rooms with no route to an exit, which `baseline.route.exists` calls
+#    the finding that makes every other finding on the page irrelevant. A
+#    wider bedroom is not worth a room nobody can walk into.
+#
+#    A guard was written -- lay the floor out both ways, follow the rule
+#    `walls` hangs doors by, and keep the promotion only if it stranded
+#    nothing. It works, and with it in place the promotion never fires on any
+#    brief that reaches it, so the code was dead. Any attempt to reuse this
+#    idea has to move the CIRCULATION with the room, not just the room.
+#
+#    What the attempt did leave behind is worth more than it was: the sweep
+#    it prompted found nine cases already being drawn with a room that has no
+#    route out. See web/route.mjs.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
