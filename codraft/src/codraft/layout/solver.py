@@ -237,11 +237,9 @@ def _replicate_circulation(
 
     for key, req in circulation:
         for storey in range(program.storeys):
-            # A stair is only needed on floors it leaves from.
-            if req.function is Function.STAIR and storey == program.storeys - 1:
-                if program.storeys > 1:
-                    # The top floor still needs the stair's footprint arriving.
-                    pass
+            # The top floor gets one too: a stair is needed on the floors it
+            # leaves from, and the floor it arrives at still has the flight
+            # coming up through it taking that floor area.
             suffix = "" if program.storeys == 1 else f"_l{storey}"
             placed.append((f"{key}{suffix}", req, storey))
 
@@ -1455,6 +1453,51 @@ def _footprint(
     return Rect(envelope.x1 - width, envelope.y, width, depth)
 
 
+def _check_stairs_line_up(layout: Layout) -> None:
+    """A stair occupies the same rectangle on every floor it passes through.
+
+    Each storey is packed independently, and the stair is packed with it --
+    so nothing has been holding the flight on one floor over the flight on
+    the next. They came out in different places and at different sizes: on a
+    10.5 x 32 m lot the ground floor put 3390 x 3007 in the middle of the
+    plan and the floor above put 3433 x 6817 against the street. A person
+    climbing that stair arrives under a bedroom floor.
+
+    This does not refuse the plan, because a two-storey house with the rest
+    of it right is still worth drawing and the fault is one the packer can
+    be taught. It does say so, in the terms a builder would use, so that
+    nothing goes out claiming to be buildable when the stair does not
+    connect. A drawing that cannot be built should say so rather than be
+    quietly issued.
+
+    It goes on `warnings` rather than `unsatisfied` because that is the list
+    that reaches the sheet and the code report. `unsatisfied` is printed by
+    the CLI and nowhere else, and a defect that only appears in somebody's
+    terminal is not declared on the drawing a customer is handed.
+    """
+    flights: dict[int, list[Cell]] = {}
+    for cell in layout.cells:
+        if cell.function is Function.STAIR:
+            flights.setdefault(cell.storey, []).append(cell)
+    floors = sorted(flights)
+    for lower, upper in zip(floors, floors[1:]):
+        for below in flights[lower]:
+            if any(above.rect == below.rect for above in flights[upper]):
+                continue
+            where = ", ".join(
+                f"{c.rect.w}x{c.rect.h} at {c.rect.x},{c.rect.y}"
+                for c in flights[upper]
+            )
+            layout.warnings.append(
+                f"The stair does not line up between floor {lower} and floor "
+                f"{upper}: it is {below.rect.w}x{below.rect.h} at "
+                f"{below.rect.x},{below.rect.y} below and {where} above. A "
+                "flight has to arrive in the same place it leaves from, so "
+                "this cannot be built as drawn -- each floor is packed on "
+                "its own and nothing yet holds the stair still between them."
+            )
+
+
 def _refuse_slivers(layout: Layout, program: SpaceProgram, footprint: Rect) -> None:
     """Refuse a plan whose rooms have been squeezed out of existence.
 
@@ -1576,6 +1619,7 @@ def solve(
             _layout_storey(storey, rooms, footprint, plot, layout.warnings)
         )
 
+    _check_stairs_line_up(layout)
     _refuse_slivers(layout, program, footprint)
 
     for cell in layout.cells:
