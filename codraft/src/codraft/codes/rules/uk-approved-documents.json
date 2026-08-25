@@ -8,7 +8,8 @@
     "residential"
   ],
   "parameters": {
-    "occupant_load_factors": {}
+    "occupant_load_factors": {},
+    "openable_fraction": 0.5
   },
   "rules": [
     {
@@ -81,9 +82,9 @@
       "severity": "warning",
       "confidence": "medium",
       "applies_when": "is_habitable and has_window",
-      "assert": "glazing_ratio >= 0.05",
-      "message": "{name} has window area of {glazing_ratio} of its floor area; purge ventilation by an openable window wants at least 1/20th.",
-      "note": "The requirement is on OPENABLE area, not glazed area. A window whose opening light is half its area needs twice this."
+      "assert": "openable_ratio >= 0.05",
+      "message": "{name} has an estimated openable area of {openable_ratio} of its floor area; purge ventilation by an openable window wants at least 1/20th.",
+      "note": "The requirement is on OPENABLE area, not glazed area, and this rule now reads the openable estimate rather than the glazed one. That estimate is a fraction of the window size -- see the assumptions -- because the model carries window sizes, not opening lights. A window whose opening light is half its area needs twice the glazing this asks for, which is why checking the glazed area passed rooms that do not purge."
     }
   ],
   "design": {

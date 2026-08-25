@@ -11,9 +11,14 @@ figures from JSON into YAML is where an invented number would slip in -- one
 transposed digit and the file says something nobody checked. Here the number
 in the YAML is the number in the pack, or it is TODO.
 
-    python3 tools/build_state_rules.py
+    python3 tools/build_state_rules.py [output-directory]
 
 Run it again after editing a pack; the YAML is a view, not a second source.
+
+The output directory is an argument so that a test can run the real
+generator without rewriting the repository's own files. It used to write
+only to rules/states/, which meant every test run restamped eight committed
+files with that day's date and left the working tree dirty.
 """
 
 from __future__ import annotations
@@ -172,9 +177,10 @@ def _existing(path: Path) -> dict[str, dict]:
     return {r["id"]: r for r in data.get("rules", []) if "id" in r}
 
 
-def build() -> list[tuple[str, str, str, str]]:
+def build(out: Path | None = None) -> list[tuple[str, str, str, str]]:
     """Write the YAML files, keeping anything a person has supplied."""
-    OUT.mkdir(parents=True, exist_ok=True)
+    out = out or OUT
+    out.mkdir(parents=True, exist_ok=True)
     heights = _ncc_heights()
     rows: list[tuple[str, str, str, str]] = []
 
@@ -208,7 +214,7 @@ def build() -> list[tuple[str, str, str, str]]:
             "rules:",
         ]
 
-        held = _existing(OUT / f"{code}.yaml")
+        held = _existing(out / f"{code}.yaml")
         for key, description, unit, site_key in FIELDS:
             value = None
             source = ""
@@ -232,12 +238,16 @@ def build() -> list[tuple[str, str, str, str]]:
             if value is None:
                 rows.append((name, key, description, unit))
 
-        (OUT / f"{code}.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        (out / f"{code}.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return rows
 
 
 if __name__ == "__main__":
-    rows = build()
-    files = sorted(p.name for p in OUT.glob("*.yaml"))
-    print(f"Wrote {len(files)} files into rules/states/: {', '.join(files)}")
+    import sys
+
+    destination = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else OUT
+    rows = build(destination)
+    files = sorted(p.name for p in destination.glob("*.yaml"))
+    where = destination.relative_to(ROOT) if destination.is_relative_to(ROOT) else destination
+    print(f"Wrote {len(files)} files into {where}/: {', '.join(files)}")
     print(f"{len(rows)} values still need a real figure -- see rules/CHECKLIST.md")

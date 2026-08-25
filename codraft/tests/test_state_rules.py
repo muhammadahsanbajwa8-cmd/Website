@@ -120,43 +120,49 @@ class TestTheGeneratorsAreTheSourceOfTruth(unittest.TestCase):
         # The states with no pack behind them are exactly the ones somebody
         # has to fill in by hand, so a generator that rewrote the file
         # wholesale would throw away the only figures that matter. It merges.
+        #
+        # Run against a copy. Pointing the real generator at the real
+        # directory restamped every state file with the day's date and left
+        # the working tree dirty after each test run.
         import shutil
         import tempfile
 
-        target = STATES / "sa.yaml"
         with tempfile.TemporaryDirectory() as tmp:
-            backup = Path(tmp) / "sa.yaml"
-            shutil.copy(target, backup)
-            try:
-                text = target.read_text(encoding="utf-8").replace(
-                    "  - id: site.max_coverage\n"
-                    '    description: "Maximum site coverage"\n'
-                    "    unit: ratio\n"
-                    "    value: TODO\n"
-                    "    source: TODO\n"
-                    "    last_checked: null\n"
-                    "    status: missing",
-                    "  - id: site.max_coverage\n"
-                    '    description: "Maximum site coverage"\n'
-                    "    unit: ratio\n"
-                    "    value: 0.6\n"
-                    '    source: "Planning and Design Code, checked by hand"\n'
-                    "    last_checked: 2026-08-21\n"
-                    "    status: confirmed",
-                )
-                target.write_text(text, encoding="utf-8")
-                subprocess.run(
-                    [sys.executable, "tools/build_state_rules.py"],
-                    cwd=ROOT, check=True, capture_output=True,
-                )
-                after = yaml.safe_load(target.read_text(encoding="utf-8"))
-                rule = next(r for r in after["rules"]
-                            if r["id"] == "site.max_coverage")
-                self.assertEqual(rule["value"], 0.6)
-                self.assertEqual(rule["status"], "confirmed")
-                self.assertIsNotNone(rule["last_checked"])
-            finally:
-                shutil.copy(backup, target)
+            work = Path(tmp) / "states"
+            shutil.copytree(STATES, work)
+            target = work / "sa.yaml"
+            text = target.read_text(encoding="utf-8").replace(
+                "  - id: site.max_coverage\n"
+                '    description: "Maximum site coverage"\n'
+                "    unit: ratio\n"
+                "    value: TODO\n"
+                "    source: TODO\n"
+                "    last_checked: null\n"
+                "    status: missing",
+                "  - id: site.max_coverage\n"
+                '    description: "Maximum site coverage"\n'
+                "    unit: ratio\n"
+                "    value: 0.6\n"
+                '    source: "Planning and Design Code, checked by hand"\n'
+                "    last_checked: 2026-08-21\n"
+                "    status: confirmed",
+            )
+            self.assertNotEqual(
+                text, target.read_text(encoding="utf-8"),
+                "sa.yaml no longer holds the block this test edits, so it was "
+                "regenerating an unmodified file and proving nothing.",
+            )
+            target.write_text(text, encoding="utf-8")
+            subprocess.run(
+                [sys.executable, "tools/build_state_rules.py", str(work)],
+                cwd=ROOT, check=True, capture_output=True,
+            )
+            after = yaml.safe_load(target.read_text(encoding="utf-8"))
+            rule = next(r for r in after["rules"]
+                        if r["id"] == "site.max_coverage")
+            self.assertEqual(rule["value"], 0.6)
+            self.assertEqual(rule["status"], "confirmed")
+            self.assertIsNotNone(rule["last_checked"])
 
     def test_the_checklist_lists_everything_outstanding(self):
         text = CHECKLIST.read_text(encoding="utf-8")

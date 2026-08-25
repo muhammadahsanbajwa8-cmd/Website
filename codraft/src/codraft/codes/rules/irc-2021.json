@@ -8,7 +8,8 @@
     "residential"
   ],
   "parameters": {
-    "occupant_load_factors": {}
+    "occupant_load_factors": {},
+    "openable_fraction": 0.5
   },
   "rules": [
     {
@@ -55,7 +56,21 @@
       "applies_when": "is_habitable",
       "assert": "glazing_ratio >= 0.08",
       "message": "{name} is glazed to {glazing_ratio} of its floor area; §R303.1 requires 8%.",
-      "note": "Openable area for natural ventilation must be at least 4% of floor area, which is a property of the window type rather than its size and is not checked here."
+      "note": "Natural ventilation is a separate requirement of the same section and is checked by irc.ventilation.natural."
+    },
+    {
+      "id": "irc.ventilation.natural",
+      "title": "Natural ventilation",
+      "clause": "IRC 2021 \u00a7R303.1",
+      "scope": "space",
+      "severity": "violation",
+      "confidence": "high",
+      "applies_when": "is_habitable or is_wet",
+      "assert": "openable_ratio >= 0.04",
+      "message": "{name} has an estimated openable area of {openable_ratio} of its floor area; \u00a7R303.1 requires 4%.",
+      "note": "Openable area is estimated as a fraction of the glazed area -- see the assumptions -- because the model carries window sizes, not opening lights. \u00a7R303.1 Exception 1 accepts an approved mechanical ventilation system instead of openable glazing, and no mechanical system is modelled, so a failure here is a finding against the drawing as it stands rather than proof the dwelling cannot comply.",
+      "inconclusive_when": "is_wet and not is_habitable",
+      "inconclusive_reason": "{name} does not reach 4% openable area naturally. For a wet room that is not a finding: \u00a7R303.3 is satisfied by glazing OR by a mechanical exhaust to the outdoors, and the model carries windows, not fans, ducts or flow rates -- so the other route was never looked at. This is NOT a pass. An unventilated bathroom is a defect and a wet one is a mould problem. Confirm the exhaust against the mechanical specification."
     },
     {
       "id": "irc.egress.door",

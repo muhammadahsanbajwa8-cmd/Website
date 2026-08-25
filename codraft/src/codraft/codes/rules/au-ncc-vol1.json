@@ -79,6 +79,7 @@
     }
   ],
   "design": {
+    "openable_fraction": 0.5,
     "door_clear_width_mm": 1000,
     "glazing_ratio": 0.1,
     "ceiling_height_mm": 2400
