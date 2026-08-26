@@ -1067,8 +1067,22 @@ def _awkward(cells: list[Cell]) -> tuple[int, int]:
         req = cell.requirement
         if req is None or not req.needs_exterior_wall:
             continue
-        short = max(1, min(cell.rect.w, cell.rect.h))
-        ratio = max(cell.rect.w, cell.rect.h) / short
+        # Measured on the room, not on the tile. A tile carries half a wall on
+        # every side, and the person standing in the room gets what is left --
+        # which is thinner, and disproportionately so, because the same
+        # allowance comes off a 2.4 m width and a 6 m length alike. Six cases
+        # in a sweep of thirty-three are shaped differently depending on which
+        # you measure, and on a 20 x 32 m lot it decides whether the layout is
+        # judged awkward enough to try a service core at all: one room by the
+        # tile, three by the rooms the customer walks into.
+        #
+        # The exact loss depends on which of a room's walls are exterior and
+        # is not known until `walls` runs. `_WALL_ALLOWANCE` is the figure the
+        # solver already sizes every tile by, so it is the one to use here.
+        inner_w = max(1, cell.rect.w - _WALL_ALLOWANCE)
+        inner_h = max(1, cell.rect.h - _WALL_ALLOWANCE)
+        short = max(1, min(inner_w, inner_h))
+        ratio = max(inner_w, inner_h) / short
         if ratio > _MAX_ASPECT:
             count += 1
             excess += int((ratio - _MAX_ASPECT) * 1000)

@@ -197,8 +197,15 @@ function awkward(cells) {
   let count = 0, excess = 0;
   for (const c of cells) {
     if (!c.r || !needsLight(c.r)) continue;
-    const short = Math.max(1, Math.min(c.rect.w, c.rect.h));
-    const ratio = Math.max(c.rect.w, c.rect.h) / short;
+    // Measured on the room, not on the tile. A tile carries half a wall on
+    // every side and the person standing in the room gets what is left --
+    // thinner, and disproportionately so, because the same allowance comes
+    // off a 2.4 m width and a 6 m length alike. It decides whether a floor
+    // is judged awkward enough to try a core at all.
+    const innerW = Math.max(1, c.rect.w - WALL_ALLOW);
+    const innerH = Math.max(1, c.rect.h - WALL_ALLOW);
+    const short = Math.max(1, Math.min(innerW, innerH));
+    const ratio = Math.max(innerW, innerH) / short;
     if (ratio > 2.2) { count += 1; excess += Math.round((ratio - 2.2) * 1000); }
   }
   return [count, excess];
