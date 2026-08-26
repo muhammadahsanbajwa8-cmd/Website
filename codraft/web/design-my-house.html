@@ -624,6 +624,24 @@ function placeFront(front, strip, over) {
     else { right.push(r); rightArea += target(r) || 1; }
   }
 
+  // An empty side is a hole in the house. The frontage is a reserved
+  // rectangle and what goes in it has to tile it, but the rooms are placed
+  // either side of a door positioned for the passage behind it -- so a side
+  // with nothing to put in it was left as floor no room covers: up to 17 m²
+  // inside the outline with no room, no label and no floor, on every lot 12 m
+  // wide or under. The width goes to whatever is already against it.
+  if (!right.length && rightW > 0) {
+    if (porticoRect && porticoRect.x >= slotX + slotW)
+      porticoRect = { ...porticoRect, w: porticoRect.w + rightW };
+    else slotW += rightW;
+    rightW = 0;
+  } else if (!left.length && leftW > 0) {
+    if (porticoRect && porticoRect.x + porticoRect.w <= slotX)
+      porticoRect = { ...porticoRect, x: strip.x, w: porticoRect.w + leftW };
+    else { slotX -= leftW; slotW += leftW; }
+    leftW = 0;
+  }
+
   const placed = [{ r: entry, rect: { x: slotX, y: strip.y, w: slotW, h: strip.h } }];
   if (left.length && leftW > 0)
     placed.push(...stack(left, { x: strip.x, y: strip.y, w: leftW, h: strip.h }, false));
