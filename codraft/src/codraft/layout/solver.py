@@ -1593,19 +1593,18 @@ def _ground_floor(cells: list[Cell], footprint: Rect) -> _Below | None:
 def _check_stairs_line_up(layout: Layout) -> None:
     """A stair occupies the same rectangle on every floor it passes through.
 
-    Each storey is packed independently, and the stair is packed with it --
-    so nothing has been holding the flight on one floor over the flight on
-    the next. They came out in different places and at different sizes: on a
-    10.5 x 32 m lot the ground floor put 3390 x 3007 in the middle of the
-    plan and the floor above put 3433 x 6817 against the street. A person
-    climbing that stair arrives under a bedroom floor.
+    Upper floors are stacked on the ground floor so that most of them do --
+    same envelope, same spine, same side of it, same run of the band. Some
+    still cannot: a band too short to give the flight its run, a floor laid
+    out by the service core, which is stacked through a different path and
+    is not pinned, or a floor that would have had a room squeezed under the
+    size that takes a door and was laid out loose instead.
 
-    This does not refuse the plan, because a two-storey house with the rest
-    of it right is still worth drawing and the fault is one the packer can
-    be taught. It does say so, in the terms a builder would use, so that
-    nothing goes out claiming to be buildable when the stair does not
-    connect. A drawing that cannot be built should say so rather than be
-    quietly issued.
+    Those are still drawn, because a two-storey house with the rest of it
+    right is worth more than a refusal. This says so, in the terms a builder
+    would use, so nothing goes out claiming to be buildable when the stair
+    does not connect. A drawing that cannot be built should say so rather
+    than be quietly issued.
 
     One approach has been tested against this and does NOT work, which is
     worth knowing before anyone builds it. Making the upper storeys pack the

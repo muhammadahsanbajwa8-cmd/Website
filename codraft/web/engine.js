@@ -894,18 +894,16 @@ function design(a) {
     if (narrow + WALL_ALLOW < (c.r.minWidth || 0) - 50 || r.w * r.h < c.r.minArea - 5e5)
       tight.push(`${c.r.name} ${(r.w*r.h/1e6).toFixed(1)} m² at ${narrow} mm wide`);
   }
-  // A flight has to arrive in the same place it leaves from. Each storey is
-  // packed on its own and the stair is packed with it, so nothing holds the
-  // flight on one floor over the flight on the next: the ground floor gives
-  // up a strip across the frontage to the garage and the floor above packs
-  // the whole footprint, so the two floors are not packing the same shape
-  // and the stair lands wherever each one had room. Every multi-storey plan
-  // here has it.
+  // A flight has to arrive in the same place it leaves from. Upper floors are
+  // now stacked on the ground floor to make that happen -- same envelope,
+  // same spine, same side, same run -- and most of them line up. Some cannot:
+  // a band too short to give the flight its run, a floor laid out by the
+  // service core, or a floor that would have had a room squeezed under the
+  // size that takes a door and was let go loose instead.
   //
-  // Holding the stair still between floors is a structural change and is not
-  // done yet. Saying so is: the page must not hand somebody a two-storey
-  // plan whose stair arrives under a bedroom floor without mentioning it.
-  // The Python solver reports the same thing in the same terms.
+  // Those are still drawn, because a two-storey house nobody can have is
+  // worse than one whose stair is wrong and says so. This is where it says
+  // so. The Python solver reports the same thing in the same terms.
   const flights = storeys.map(cells => cells.filter(c => c.r.fn === "stair"));
   for (let s = 0; s + 1 < flights.length; s++)
     for (const below of flights[s]) {
