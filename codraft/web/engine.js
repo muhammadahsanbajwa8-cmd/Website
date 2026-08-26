@@ -320,7 +320,7 @@ function apportion(spans, floors, total, warn) {
 // `outerLow` says which edge of the band is the outside wall: true when it is
 // the low edge (band.x for a vertical band, band.y for a horizontal one),
 // false when the passage is on that side instead.
-function stack(rooms, band, alongY, outerLow = true) {
+function stack(rooms, band, alongY, outerLow = true, pinned = null) {
   if (!rooms.length) return [];
   const span = alongY ? band.h : band.w, depth = alongY ? band.w : band.h;
   // A room's slice is proportional to its AREA, so a small room in a deep band
@@ -390,6 +390,31 @@ function stack(rooms, band, alongY, outerLow = true) {
     return need;
   });
   const sizes = apportion(spans, floors, span, packWarn);
+
+  // A row whose run was settled on another floor. The stair is the only one:
+  // a flight has to take the same length of the same band on every floor it
+  // passes through, or it arrives under the floor above. What is left is
+  // apportioned again over the other rows, so the pin costs them length
+  // rather than pushing the row off the end of the band.
+  if (pinned) {
+    for (let i = 0; i < rows.length; i++) {
+      const key = rows[i].rooms.find(r => pinned[r.key] != null);
+      if (!key) continue;
+      const want = pinned[key.key];
+      if (want === sizes[i]) break;
+      const rest = rows.map((_, j) => j).filter(j => j !== i);
+      const free = span - want;
+      if (free < rest.reduce((t, j) => t + floors[j], 0)) break;
+      sizes[i] = want;
+      if (rest.length) {
+        const share = apportion(rest.map(j => sizes[j]), rest.map(j => floors[j]),
+                                free, packWarn);
+        rest.forEach((j, k) => { sizes[j] = share[k]; });
+      }
+      break;
+    }
+  }
+
   const placed = []; let cursor = alongY ? band.y : band.x;
   rows.forEach((row, i) => {
     const s = sizes[i];
@@ -503,7 +528,13 @@ function placeFront(front, strip, over) {
 }
 
 /* ---- one storey ---- */
-function layoutStorey(rooms, env, storeyIndex) {
+// `below` is what the ground floor settled, for the floors stacked on it: the
+// shape it packed, where the spine sits in it, which side of the spine the
+// flight is on, and how much of that band's run it takes. All four have to
+// agree before a stair can arrive where it left from. Matching only the shape
+// was tried and moved nothing -- the band split is decided by each floor's own
+// room areas, so it lands somewhere else regardless.
+function layoutStorey(rooms, env, storeyIndex, below = null) {
   if (!rooms.length) return [];
   let cells = [], spineX = null, envelope = env, strip = null, frontRooms = [];
 
@@ -549,6 +580,8 @@ function layoutStorey(rooms, env, storeyIndex) {
       }
     }
   }
+  if (below) { envelope = below.envelope; spineX = below.spineX; }
+
   if (!rooms.length) return strip ? placeFront(frontRooms, strip, null) : [];
 
   const corridor = rooms.find(r => r.fn === "corridor");
@@ -589,6 +622,14 @@ function layoutStorey(rooms, env, storeyIndex) {
     for (const r of byArea(spare)) {
       if (la <= ra) { L.push(r); la += target(r) || 1; }
       else { Rr.push(r); ra += target(r) || 1; }
+    }
+  }
+  // The flight goes on the side the ground floor put it.
+  if (below) {
+    const want = below.stairLeft ? L : Rr, other = below.stairLeft ? Rr : L;
+    for (const r of other.filter(r => r.fn === "stair")) {
+      other.splice(other.indexOf(r), 1);
+      want.unshift(r);
     }
   }
   const usable = cross - cw;
@@ -651,13 +692,18 @@ function layoutStorey(rooms, env, storeyIndex) {
     return sorted.filter(r => rank(r) < 5)
       .concat(interleave(sorted.filter(r => rank(r) >= 5)));
   };
+  let pin = null;
+  if (below) {
+    pin = {};
+    for (const r of others) if (r.fn === "stair") pin[r.key] = below.stairSpan;
+  }
   let placed = [], corridorRect;
   if (vertical) {
     corridorRect = { x: envelope.x + ld, y: envelope.y, w: cw, h: envelope.h };
     // The left band's outside wall is its low edge; the right band's is its
     // high edge, because the passage is on its low side.
-    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true, true)
-      .concat(stack(order(Rr), { x: corridorRect.x + cw, y: envelope.y, w: rd, h: envelope.h }, true, false));
+    placed = stack(order(L), { x: envelope.x, y: envelope.y, w: ld, h: envelope.h }, true, true, pin)
+      .concat(stack(order(Rr), { x: corridorRect.x + cw, y: envelope.y, w: rd, h: envelope.h }, true, false, pin));
   } else {
     corridorRect = { x: envelope.x, y: envelope.y + ld, w: envelope.w, h: cw };
     placed = stack(order(L), { x: envelope.x, y: envelope.y, w: envelope.w, h: ld }, false, true)
@@ -689,6 +735,26 @@ function layoutStorey(rooms, env, storeyIndex) {
     ? placeFront(frontRooms, strip, vertical ? [corridorRect.x, corridorRect.x + cw] : null)
     : [];
   return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })), passages);
+}
+
+// What the ground floor settled, read back off its cells. Taken from the
+// cells rather than returned out of the packer because the packer decides
+// each part somewhere different -- the envelope once the front zone is
+// carved, the spine once the bands are balanced, the side and the run of the
+// flight once the rows are apportioned. The passage carries the first two: it
+// spans the envelope, so its extent IS the envelope along the run, and its
+// centre is the spine.
+function groundFloor(cells, foot) {
+  const passage = cells.find(c => c.r.fn === "corridor");
+  const stair = cells.find(c => c.r.fn === "stair");
+  if (!passage || !stair) return null;
+  if (passage.rect.h < passage.rect.w) return null;   // spine runs across
+  return {
+    envelope: { x: foot.x, y: passage.rect.y, w: foot.w, h: passage.rect.h },
+    spineX: passage.rect.x + Math.floor(passage.rect.w / 2),
+    stairLeft: stair.rect.x < passage.rect.x,
+    stairSpan: stair.rect.h,
+  };
 }
 
 /* ---- the whole design ---- */
@@ -767,8 +833,25 @@ function design(a) {
 
   PACK_WARNINGS = [];
   const storeys = [];
-  for (let s = 0; s < a.storeys; s++)
-    storeys.push(layoutStorey(placedRooms.filter(r => r.at === s), foot, s));
+  let below = null;
+  for (let s = 0; s < a.storeys; s++) {
+    const mine = placedRooms.filter(r => r.at === s);
+    let cells = layoutStorey(mine, foot, s, below);
+    // Holding a floor to the one below costs it the area over the garage and
+    // a spine placed for the rooms downstairs. Usually it can carry that.
+    // Where it cannot the rooms come out too small to take a door and the
+    // whole plan is refused below -- a two-storey house nobody can have, in
+    // exchange for a stair that lines up on the drawing they no longer get.
+    // So lay it out both ways and keep the stacked one only where it forces
+    // nothing under that limit.
+    const worst = cs => Math.min(...cs.map(c => Math.min(c.rect.w, c.rect.h)));
+    if (below && cells.length && worst(cells) < MIN_TILE) {
+      const loose = layoutStorey(mine, foot, s, null);
+      if (loose.length && worst(loose) > worst(cells)) cells = loose;
+    }
+    storeys.push(cells);
+    if (s === 0) below = groundFloor(cells, foot);
+  }
 
   // The area test above catches a brief that is far too big for the block.
   // It does not catch a brief that fits by area and cannot be PACKED: the
