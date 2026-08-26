@@ -1595,10 +1595,20 @@ def _check_stairs_line_up(layout: Layout) -> None:
 
     Upper floors are stacked on the ground floor so that most of them do --
     same envelope, same spine, same side of it, same run of the band. Some
-    still cannot: a band too short to give the flight its run, a floor laid
-    out by the service core, which is stacked through a different path and
-    is not pinned, or a floor that would have had a room squeezed under the
-    size that takes a door and was laid out loose instead.
+    still cannot: a band too short to give the flight its run, a floor with
+    too few rooms to be worth a corridor at all, which is sliced across the
+    whole envelope with no bands to pin into, or a floor that would have had
+    a room squeezed under the size that takes a door and was laid out loose
+    instead.
+
+    One more thing was tried against the ones that remain and did not work,
+    which is worth recording because it looks obviously right. The spine is
+    pinned as a preference and then clamped to each floor's own band
+    minimums, so it can still shift by tens of millimetres -- enough to miss.
+    Holding it hard instead aligned NOTHING extra, in either engine: the two
+    cases it changed went from differing in width to differing in run, still
+    misaligned, and it cost nine more privacy findings because the bands move
+    and bedrooms end up nearer a boundary. Reverted.
 
     Those are still drawn, because a two-storey house with the rest of it
     right is worth more than a refusal. This says so, in the terms a builder

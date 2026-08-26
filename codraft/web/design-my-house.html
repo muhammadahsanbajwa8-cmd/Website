@@ -990,11 +990,15 @@ function design(a) {
       tight.push(`${c.r.name} ${(r.w*r.h/1e6).toFixed(1)} m² at ${narrow} mm wide`);
   }
   // A flight has to arrive in the same place it leaves from. Upper floors are
-  // now stacked on the ground floor to make that happen -- same envelope,
-  // same spine, same side, same run -- and most of them line up. Some cannot:
-  // a band too short to give the flight its run, a floor laid out by the
-  // service core, or a floor that would have had a room squeezed under the
-  // size that takes a door and was let go loose instead.
+  // stacked on the ground floor to make that happen -- same envelope, same
+  // spine, same side of it, same run of the band.
+  //
+  // Not all of them can be, and the reasons were counted rather than
+  // guessed. Of 45 upper floors in the sweep, 30 reach the corridor-spine
+  // layout: 16 take the pin and 14 have a band too short to give the flight
+  // its run. The other 15 have too few rooms to be worth a corridor at all,
+  // so they are sliced across the whole envelope with no bands to pin into.
+  // The service core is not involved in any of them.
   //
   // Those are still drawn, because a two-storey house nobody can have is
   // worse than one whose stair is wrong and says so. This is where it says
