@@ -988,6 +988,27 @@ def _place_front(
             right.append((key, req))
             right_area += _target(req) or 1
 
+
+    # An empty side is a hole in the house. The frontage is a reserved
+    # rectangle and what goes in it has to tile it, but the rooms are placed
+    # either side of a door positioned for the passage behind it -- so a side
+    # with nothing to put in it was simply left as floor that no room covers.
+    # The width goes to whatever is already against it.
+    if not right and right_w > 0:
+        if portico_rect is not None and portico_rect.x >= slot_x + slot_w:
+            portico_rect = Rect(portico_rect.x, portico_rect.y,
+                                portico_rect.w + right_w, portico_rect.h)
+        else:
+            slot_w += right_w
+        right_w = 0
+    elif not left and left_w > 0:
+        if portico_rect is not None and portico_rect.x1 <= slot_x:
+            portico_rect = Rect(strip.x, portico_rect.y,
+                                portico_rect.w + left_w, portico_rect.h)
+        else:
+            slot_x -= left_w
+            slot_w += left_w
+        left_w = 0
     placed: list[tuple[str, SpaceRequirement, Rect]] = [
         (entry[0], entry[1], Rect(slot_x, strip.y, slot_w, strip.h))
     ]

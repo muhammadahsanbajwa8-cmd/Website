@@ -134,34 +134,27 @@ class ADrawingHasToBeGeometricallyTrue(unittest.TestCase):
                 over.append(f"{label}: the building crosses a setback")
         self.assertEqual([], over, "\n".join(over[:10]))
 
-    def test_no_plan_gets_worse_at_leaving_the_footprint_uncovered(self):
-        """Rooms are meant to tile the footprint, and on narrow lots they do not.
+    def test_the_rooms_cover_the_footprint(self):
+        """No part of the inside of the house may be covered by no room.
 
-        This one is PINNED, not passing. Twelve floors in a sweep of sixty are
-        drawn with part of the footprint covered by no room at all -- up to
-        17 m2 of it, inside the outline, with no room, no label and no floor.
-        Every one is on a lot 12 m wide or less, and the gap is always the
-        same shape: across the street frontage, past the far end of the
-        portico, where the garage and the front door and the portico do not
-        reach the end of the strip and nothing is put in what is left.
+        This was pinned rather than passing, and is now an invariant. Twelve
+        floors in a sweep of sixty were drawn with part of the footprint
+        covered by nothing at all -- up to 17 m2 of it, inside the outline,
+        with no room, no label and no floor. Every one was on a lot 12 m wide
+        or less, and the gap was always the same: across the street frontage
+        past the far end of the portico.
 
-        Two fixes were tried and neither worked. Sliding the front door over
-        to close the gap cannot: the door has to keep meeting the passage
-        behind it or the house loses its route out, and that pins it within a
-        few hundred millimetres -- it closed a fifth of the gap and made a
-        different one elsewhere, taking the worst case from 17 to 24 m2.
-        Handing the width to whatever sits against the gap did not fire at
-        all, which means the side-allocation in `_place_front` does not do
-        what reading it suggests, and that is where the next attempt should
-        start.
+        The frontage is a reserved rectangle and what goes in it has to tile
+        it, but the rooms are placed either side of a front door positioned
+        for the passage behind it. When one side ended up with nothing to put
+        in it -- the store having been moved off the frontage for want of
+        width -- that side was simply left. It is now given to whatever sits
+        against it.
 
-        Until then this holds the line. The count and the worst case may go
-        down and must not go up. A test that asserted zero would fail today
-        and get skipped tomorrow; one that pins the number is a defect
-        somebody has to walk past deliberately.
+        Overlap is checked above and outline closure below; neither of them
+        notices that the inside is not filled, which is how this survived.
         """
-        holed = 0
-        worst = 0
+        holed = []
         for label, _, layout, _ in self.plans:
             for storey in sorted({c.storey for c in layout.cells}):
                 cells = [c for c in layout.cells if c.storey == storey]
@@ -171,17 +164,9 @@ class ADrawingHasToBeGeometricallyTrue(unittest.TestCase):
                         * (max(c.rect.y1 for c in cells) - min(c.rect.y for c in cells)))
                 gap = span - sum(c.rect.area for c in cells)
                 if gap > 0:
-                    holed += 1
-                    worst = max(worst, gap)
-        self.assertLessEqual(
-            holed, 6,
-            f"{holed} floors leave part of the footprint uncovered, up to "
-            f"{worst / 1e6:.1f} m2. It was 6 in this sweep when that was "
-            "pinned; more than that means a change spread the holes.")
-        self.assertLessEqual(
-            worst, 13_367_895,
-            f"the largest hole is now {worst / 1e6:.2f} m2, against 13.37 when "
-            "this was pinned. A change made an existing hole bigger.")
+                    holed.append(f"{label} floor {storey}: {gap / 1e6:.1f} m2 "
+                                 "of the footprint has no room on it")
+        self.assertEqual([], holed, "\n".join(holed))
 
     def test_the_exterior_walls_close_the_building(self):
         """A missing length of exterior wall is a gap in the outside of the house.
