@@ -1470,6 +1470,15 @@ def _check_stairs_line_up(layout: Layout) -> None:
     connect. A drawing that cannot be built should say so rather than be
     quietly issued.
 
+    One approach has been tested against this and does NOT work, which is
+    worth knowing before anyone builds it. Making the upper storeys pack the
+    SAME envelope as the ground floor -- carving the front strip's depth off
+    every floor, not just the one with the garage in it -- changes nothing:
+    twelve cases, twelve misalignments, before and after. The floors do not
+    merely pack different shapes, they pack different room LISTS, so the
+    band split and the row apportionment come out different anyway. The
+    stair has to be pinned, not the envelopes matched.
+
     It goes on `warnings` rather than `unsatisfied` because that is the list
     that reaches the sheet and the code report. `unsatisfied` is printed by
     the CLI and nowhere else, and a defect that only appears in somebody's
