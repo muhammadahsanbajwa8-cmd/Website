@@ -622,6 +622,7 @@ def _stack(
     along_y: bool,
     warnings: list[str],
     outer_low: bool = True,
+    pinned: dict[str, int] | None = None,
 ) -> list[tuple[str, SpaceRequirement, Rect]]:
     """Lay rooms along a band, sized by area and floored by their minimums.
 
@@ -647,6 +648,28 @@ def _stack(
     spans = [max(1, span_total * row.target // totals) for row in rows]
     floors = [row.min_span() for row in rows]
     spans = _apportion(spans, floors, span_total, warnings)
+
+    # A row whose run was settled on another floor. The stair is the only one:
+    # a flight has to take the same length of the same band on every floor it
+    # passes through, or it arrives under the floor above. The rest of the
+    # band is apportioned again over what is left, so the pin costs the other
+    # rooms length rather than pushing the row off the end of the band.
+    if pinned:
+        for i, row in enumerate(rows):
+            want = next((pinned[k] for k, _ in row.rooms if k in pinned), None)
+            if want is None or want == spans[i]:
+                continue
+            free = span_total - want
+            rest = [j for j in range(len(rows)) if j != i]
+            if free < sum(floors[j] for j in rest):
+                continue          # the floor cannot give the flight its run
+            spans[i] = want
+            if rest:
+                share = _apportion([spans[j] for j in rest],
+                                   [floors[j] for j in rest], free, warnings)
+                for j, v in zip(rest, share):
+                    spans[j] = v
+            break
 
     placed: list[tuple[str, SpaceRequirement, Rect]] = []
     cursor = band.y if along_y else band.x
@@ -990,6 +1013,7 @@ def _two_bands(
     right_depth: int,
     road_first: bool,
     warnings: list[str],
+    pinned: dict[str, int] | None = None,
 ) -> list[Cell]:
     """The single spine: band, passage, band. The default form."""
     left_rooms = _order_for_road(left_rooms, road_first)
@@ -1003,8 +1027,10 @@ def _two_bands(
         right_band = Rect(corridor_rect.x1, envelope.y, right_depth, envelope.h)
         # The left band's outside wall is its low edge; the right band's is
         # its high edge, because the corridor is on its low side.
-        placed = _stack(left_rooms, left_band, True, warnings, outer_low=True)
-        placed += _stack(right_rooms, right_band, True, warnings, outer_low=False)
+        placed = _stack(left_rooms, left_band, True, warnings, outer_low=True,
+                        pinned=pinned)
+        placed += _stack(right_rooms, right_band, True, warnings,
+                         outer_low=False, pinned=pinned)
     else:
         left_band = Rect(envelope.x, envelope.y, envelope.w, left_depth)
         corridor_rect = Rect(envelope.x, envelope.y + left_depth,
@@ -1186,12 +1212,80 @@ def _core_bands(
     return cells
 
 
+@dataclass(slots=True)
+class _Below:
+    """What the ground floor settled, for the floors stacked on top of it.
+
+    A stair has to arrive where it left from, and nothing was holding it:
+    each storey is packed on its own, so the flight came out somewhere
+    different on every floor. Four things have to agree before it can line
+    up, and this carries all four down from the ground floor -- the shape
+    being packed, where the spine sits in it, which side of the spine the
+    flight is on, and how much of that band's run it takes.
+
+    Matching only the first was tried and moved nothing: the band split is
+    decided by each floor's own room areas, so it lands somewhere else
+    regardless of the envelope.
+    """
+
+    envelope: Rect
+    spine_x: int
+    stair_left: bool
+    stair_span: int
+
+
 def _layout_storey(
     storey: int,
     rooms: list[tuple[str, SpaceRequirement]],
     envelope: Rect,
     plot: Plot,
     warnings: list[str],
+    below: _Below | None = None,
+) -> list[Cell]:
+    """Place one floor, stacked on the ground floor where that still works.
+
+    Holding an upper floor to the ground floor's shape and spine is what
+    lets the stair line up, and it costs that floor something real: the area
+    over the garage, and a spine placed for the rooms downstairs rather than
+    its own. Usually the floor can carry it. Where it cannot the rooms come
+    out too small to take a door, and the whole plan is then refused -- a
+    two-storey house nobody can have, in exchange for a stair that lines up
+    on the drawing they no longer get.
+
+    So the floor is laid out both ways and the stacked one is kept only if
+    it does not force a room under that limit. Where it is given up the
+    stair does not line up, and `_check_stairs_line_up` says so.
+    """
+    if below is None:
+        return _layout_storey_once(storey, rooms, envelope, plot, warnings)
+
+    # An attempt that is thrown away must not leave its explanations behind
+    # on the report, so each one's notes are kept separate and only the
+    # surviving layout's are put back.
+    base = len(warnings)
+    stacked = _layout_storey_once(storey, rooms, envelope, plot, warnings, below)
+    if all(c.rect.short_side >= _MIN_TILE for c in stacked):
+        return stacked
+    stacked_notes = warnings[base:]
+
+    del warnings[base:]
+    loose = _layout_storey_once(storey, rooms, envelope, plot, warnings)
+    if min((c.rect.short_side for c in loose), default=0) <= min(
+        (c.rect.short_side for c in stacked), default=0
+    ):
+        del warnings[base:]
+        warnings.extend(stacked_notes)
+        return stacked
+    return loose
+
+
+def _layout_storey_once(
+    storey: int,
+    rooms: list[tuple[str, SpaceRequirement]],
+    envelope: Rect,
+    plot: Plot,
+    warnings: list[str],
+    below: _Below | None = None,
 ) -> list[Cell]:
     """Place one floor: a front zone if there is a garage, then a corridor
     spine down the long axis with rooms either side of it."""
@@ -1207,6 +1301,13 @@ def _layout_storey(
         if not rooms:
             return _place_front(front_rooms, strip, None, warnings) if strip else []
     spine_x = strip.centre.x if strip is not None else None
+    if below is not None:
+        # Pack the shape the ground floor packed, with the spine where it put
+        # it. An upper floor otherwise packs the whole footprint, including
+        # the strip the garage holds below, and splits its bands by its own
+        # room areas -- two reasons the stair lands somewhere else.
+        envelope = below.envelope
+        spine_x = below.spine_x
 
     corridor = next((r for r in rooms if r[1].function is Function.CORRIDOR), None)
     others = [r for r in rooms if r is not corridor]
@@ -1239,6 +1340,13 @@ def _layout_storey(
         )
 
     left_rooms, right_rooms = _band_split(others)
+    if below is not None:
+        want, other = ((left_rooms, right_rooms) if below.stair_left
+                       else (right_rooms, left_rooms))
+        moved = [kr for kr in other if kr[1].function is Function.STAIR]
+        for kr in moved:
+            other.remove(kr)
+            want.insert(0, kr)
     usable = cross - corridor_width
     run = envelope.h if corridor_vertical else envelope.w
 
@@ -1324,9 +1432,13 @@ def _layout_storey(
     # those apart. Both layouts are cheap to build, so both get built and the
     # one that treats the lit rooms better wins.
     core = _core_split(left_rooms, right_rooms, usable, run)
+    pinned = None
+    if below is not None:
+        pinned = {k: below.stair_span
+                  for k, r in others if r.function is Function.STAIR}
     plain = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
                        corridor_vertical, corridor_width, left_depth,
-                       right_depth, road_first, [])
+                       right_depth, road_first, [], pinned)
     # Scored on what was BUILT, not on an estimate of it. The estimate said a
     # 15 x 30 m block wanted a core; building it says two of its rooms are
     # awkward, which a second passage is not worth -- and the core it would
@@ -1365,7 +1477,7 @@ def _layout_storey(
 
     cells = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
                        corridor_vertical, corridor_width, left_depth,
-                       right_depth, road_first, warnings)
+                       right_depth, road_first, warnings, pinned)
     corridor_rect = next(
         c.rect for c in cells if c.function is Function.CORRIDOR
     )
@@ -1451,6 +1563,31 @@ def _footprint(
     if plot.road_side == "west":
         return Rect(envelope.x, envelope.y, width, depth)
     return Rect(envelope.x1 - width, envelope.y, width, depth)
+
+
+def _ground_floor(cells: list[Cell], footprint: Rect) -> _Below | None:
+    """Read back what the ground floor settled, for the floors above it.
+
+    Taken from the cells rather than returned out of the packer because the
+    packer decides all of it in different places -- the envelope after the
+    front zone is carved, the spine after the bands are balanced, the side
+    and the run of the flight after the rows are apportioned. The corridor
+    cell carries the first two: it spans the envelope, so its extent IS the
+    envelope's along the run, and its centre is the spine.
+    """
+    corridor = next((c for c in cells if c.function is Function.CORRIDOR), None)
+    stair = next((c for c in cells if c.function is Function.STAIR), None)
+    if corridor is None or stair is None:
+        return None
+    if corridor.rect.h < corridor.rect.w:
+        return None                       # spine runs across; not handled here
+    return _Below(
+        envelope=Rect(footprint.x, corridor.rect.y,
+                      footprint.w, corridor.rect.h),
+        spine_x=corridor.rect.centre.x,
+        stair_left=stair.rect.x < corridor.rect.x,
+        stair_span=stair.rect.h,
+    )
 
 
 def _check_stairs_line_up(layout: Layout) -> None:
@@ -1610,6 +1747,7 @@ def solve(
     footprint = _footprint(envelope, needed, plot, max_footprint, layout.warnings)
     layout.envelope = footprint
 
+    below: _Below | None = None
     for storey in range(program.storeys):
         rooms = [(key, req) for key, req, s in placed if s == storey]
         if not rooms:
@@ -1624,9 +1762,11 @@ def solve(
                 f"gives {footprint.area / 1e6:.1f} m² -- {over:.1f} m² over. "
                 "Rooms were scaled down proportionally."
             )
-        layout.cells.extend(
-            _layout_storey(storey, rooms, footprint, plot, layout.warnings)
-        )
+        cells = _layout_storey(storey, rooms, footprint, plot, layout.warnings,
+                               below)
+        layout.cells.extend(cells)
+        if storey == 0:
+            below = _ground_floor(cells, footprint)
 
     _check_stairs_line_up(layout)
     _refuse_slivers(layout, program, footprint)

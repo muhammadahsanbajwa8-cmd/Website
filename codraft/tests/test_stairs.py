@@ -1,26 +1,33 @@
 """A flight has to arrive in the same place it leaves from.
 
-Each storey is packed on its own, and the stair is packed with it, so
-nothing has been holding the flight on one floor over the flight on the
-next. They came out in different places and at different sizes -- on a
-10.5 x 32 m lot, 3562 x 3121 in the middle of the ground floor and
-3605 x 6989 against the street on the floor above. Someone climbing that
-stair arrives under a bedroom floor.
+Each storey used to be packed on its own, and the stair packed with it, so
+nothing held the flight on one floor over the flight on the next. They came
+out in different places and at different sizes -- on a 10.5 x 32 m lot,
+3562 x 3121 in the middle of the ground floor and 3605 x 6989 against the
+street on the floor above. Someone climbing that stair arrives under a
+bedroom floor. Every multi-storey plan had it.
 
-The cause is that the two storeys are not packing the same shape. The
-ground floor gives up a strip across the frontage to the garage, the
-entry and the portico; the floor above has no garage and packs the whole
-footprint. Different envelopes, different bands, and the stair lands
-wherever each floor happened to have room.
+Four things had to agree before it could line up, and only the last is
+about the stair: the shape being packed, where the spine sits in it, which
+side of the spine the flight is on, and how much of that band's run it
+takes. Fixing the first alone was tried and moved nothing, because the band
+split is decided by each floor's own room areas and lands somewhere else
+regardless. An upper floor is now packed against the ground floor's
+envelope and spine, with the flight pinned to the same run.
 
-The test below is written as the invariant rather than as the current
-state: a stair either lines up, or the layout says it does not. It passes
-today because every misalignment is declared, and it will still pass once
-the stair is held still between floors -- at which point the first branch
-is the one doing the work. What it will not do is pass while a plan is
-quietly issued with a stair that cannot be built.
+Holding a floor to the floor below costs it the area over the garage and a
+spine chosen for somebody else's rooms, and a few floors cannot carry that
+-- their rooms come out too small to take a door, and the plan is refused
+outright. A two-storey house nobody can have is worse than one whose stair
+is drawn wrong and said to be wrong, so those floors are laid out loose and
+the misalignment is reported instead.
+
+Hence two tests where one would look like enough. The first is the
+invariant: a stair either lines up or the plan says it does not, which
+holds whichever way a floor went. The second pins how often the first
+branch is the one doing the work -- otherwise the invariant is satisfied
+completely by giving up and declaring, which is where this started.
 """
-
 import unittest
 
 from codraft.geom import Rect
@@ -73,6 +80,42 @@ class AStairConnectsTheFloorsItPassesThrough(unittest.TestCase):
             [], undeclared,
             "these plans were drawn with a stair that does not connect the "
             "floors, and said nothing about it:\n" + "\n".join(undeclared),
+        )
+
+    def test_most_flights_actually_line_up(self):
+        """The invariant above is satisfied by declaring every misalignment.
+
+        That was the honest state before the floors were stacked, and it is
+        not the state worth keeping: a plan whose stair is drawn wrong is
+        still a plan whose stair is drawn wrong. So the count is pinned. An
+        upper floor now packs the ground floor's shape with the spine where
+        the ground floor put it, and the flight takes the same run of the
+        same band, which lines up four flights in five.
+
+        The bar is set below what is measured today on purpose. It is here
+        to catch the pinning being lost, not to be re-tuned every time the
+        packer moves a wall by a millimetre.
+        """
+        lined_up = adrift = 0
+        for _, _, _, layout in _plans():
+            flights: dict[int, list] = {}
+            for cell in layout.cells:
+                if cell.function is Function.STAIR:
+                    flights.setdefault(cell.storey, []).append(cell)
+            floors = sorted(flights)
+            for low, up in zip(floors, floors[1:]):
+                for below in flights[low]:
+                    if any(a.rect == below.rect for a in flights[up]):
+                        lined_up += 1
+                    else:
+                        adrift += 1
+        self.assertGreater(lined_up + adrift, 20, "the sweep found no flights")
+        self.assertGreaterEqual(
+            lined_up, 24,
+            f"only {lined_up} of {lined_up + adrift} flights line up between "
+            "floors. The upper floors are meant to be packed against the "
+            "ground floor's envelope and spine, with the flight pinned to the "
+            "same run -- check that `_Below` is still reaching them.",
         )
 
     def test_the_top_floor_still_carries_the_flight(self):
