@@ -661,8 +661,15 @@ def _stack(
                 continue
             free = span_total - want
             rest = [j for j in range(len(rows)) if j != i]
-            if free < sum(floors[j] for j in rest):
-                continue          # the floor cannot give the flight its run
+            if want > spans[i] and free < sum(floors[j] for j in rest):
+                # Giving the flight MORE would take another row under its
+                # own minimum, so this floor cannot honour the run. Taking
+                # length away never can: whatever the flight gives up, the
+                # rest of the band gets, so a shrinking pin is always
+                # allowed -- including on a band already over-subscribed,
+                # where every row is under its floor and this test would
+                # otherwise refuse a pin that helps them.
+                continue
             spans[i] = want
             if rest:
                 share = _apportion([spans[j] for j in rest],
@@ -1241,6 +1248,7 @@ def _layout_storey(
     plot: Plot,
     warnings: list[str],
     below: _Below | None = None,
+    stair_run: int | None = None,
 ) -> list[Cell]:
     """Place one floor, stacked on the ground floor where that still works.
 
@@ -1257,13 +1265,15 @@ def _layout_storey(
     stair does not line up, and `_check_stairs_line_up` says so.
     """
     if below is None:
-        return _layout_storey_once(storey, rooms, envelope, plot, warnings)
+        return _layout_storey_once(storey, rooms, envelope, plot, warnings,
+                                   stair_run=stair_run)
 
     # An attempt that is thrown away must not leave its explanations behind
     # on the report, so each one's notes are kept separate and only the
     # surviving layout's are put back.
     base = len(warnings)
-    stacked = _layout_storey_once(storey, rooms, envelope, plot, warnings, below)
+    stacked = _layout_storey_once(storey, rooms, envelope, plot, warnings,
+                                  below, stair_run)
     if all(c.rect.short_side >= _MIN_TILE for c in stacked):
         return stacked
     stacked_notes = warnings[base:]
@@ -1286,6 +1296,7 @@ def _layout_storey_once(
     plot: Plot,
     warnings: list[str],
     below: _Below | None = None,
+    stair_run: int | None = None,
 ) -> list[Cell]:
     """Place one floor: a front zone if there is a garage, then a corridor
     spine down the long axis with rooms either side of it."""
@@ -1432,9 +1443,15 @@ def _layout_storey_once(
     # those apart. Both layouts are cheap to build, so both get built and the
     # one that treats the lit rooms better wins.
     core = _core_split(left_rooms, right_rooms, usable, run)
+    # The run the flight takes, on whichever floor this is. It comes either
+    # from the floor below or from the common run `solve` settled across all
+    # of them; a stair pinned on the ground floor is how the upper ones get
+    # a run they can actually afford.
+    run_target = stair_run if stair_run is not None else (
+        below.stair_span if below is not None else None)
     pinned = None
-    if below is not None:
-        pinned = {k: below.stair_span
+    if run_target:
+        pinned = {k: run_target
                   for k, r in others if r.function is Function.STAIR}
     plain = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
                        corridor_vertical, corridor_width, left_depth,
@@ -1563,6 +1580,79 @@ def _footprint(
     if plot.road_side == "west":
         return Rect(envelope.x, envelope.y, width, depth)
     return Rect(envelope.x1 - width, envelope.y, width, depth)
+
+
+def _common_stair_run(
+    program: SpaceProgram,
+    placed: list[tuple[str, SpaceRequirement, int]],
+    footprint: Rect,
+    plot: Plot,
+) -> int | None:
+    """The run every floor can give the flight, so they can all take the same.
+
+    Pinning the upper floors to the GROUND floor's run is the wrong way
+    round. The ground floor gets its run from its own apportionment and it is
+    often the most generous -- 2295 mm where a stair of that width needs
+    1734 -- and an upper floor that can only spare 2214 then refuses the pin
+    and lands somewhere else, over eighty millimetres of slack that neither
+    floor wanted.
+
+    So ask every floor what it would give unpinned, take the smallest, and
+    hold it against what a stair of that width actually needs. Everything
+    above that floor is negotiable; below it the flight stops being a flight,
+    and that floor genuinely cannot stack.
+
+    Costs one extra layout of each storey. That is cheap, and it is the only
+    way to know: what a floor can spare is decided by the apportionment,
+    which is decided by every other room on it.
+    """
+    if program.storeys < 2:
+        return None
+
+    def _flight(storey: int, below: _Below | None) -> Cell | None:
+        rooms = [(k, r) for k, r, s in placed if s == storey]
+        if not rooms:
+            return None
+        try:
+            cells = _layout_storey(storey, rooms, footprint, plot, [], below)
+        except LayoutError:
+            return None
+        return next((c for c in cells if c.function is Function.STAIR), None)
+
+    ground = _flight(0, None)
+    if ground is None:
+        return None
+    base = _ground_floor([ground], footprint)
+    if base is None:
+        # The ground floor's own cells are needed for the envelope and spine,
+        # not just the flight; ask for them properly.
+        rooms = [(k, r) for k, r, s in placed if s == 0]
+        try:
+            base = _ground_floor(
+                _layout_storey(0, rooms, footprint, plot, []), footprint)
+        except LayoutError:
+            return None
+        if base is None:
+            return None
+
+    # Probe each upper floor in the stacked geometry with the run left free,
+    # which is what it can actually spare there. Asking an unstacked floor is
+    # meaningless: it puts the flight in a different band of a different
+    # width, so its run is not a figure the stacked floor could honour.
+    loose = _Below(base.envelope, base.spine_x, base.stair_left, 0)
+    runs = [ground.rect.h]
+    needs = 0
+    req = ground.requirement
+    if req is not None and req.min_area:
+        needs = -(-_tile_area(req.min_area) // max(1, ground.rect.w))
+    for storey in range(1, program.storeys):
+        flight = _flight(storey, loose)
+        if flight is None:
+            return None
+        runs.append(flight.rect.h)
+    if not runs:
+        return None
+    return max(min(runs), needs) or None
 
 
 def _ground_floor(cells: list[Cell], footprint: Rect) -> _Below | None:
@@ -1756,6 +1846,7 @@ def solve(
     footprint = _footprint(envelope, needed, plot, max_footprint, layout.warnings)
     layout.envelope = footprint
 
+    common_run = _common_stair_run(program, placed, footprint, plot)
     below: _Below | None = None
     for storey in range(program.storeys):
         rooms = [(key, req) for key, req, s in placed if s == storey]
@@ -1772,7 +1863,7 @@ def solve(
                 "Rooms were scaled down proportionally."
             )
         cells = _layout_storey(storey, rooms, footprint, plot, layout.warnings,
-                               below)
+                               below, common_run)
         layout.cells.extend(cells)
         if storey == 0:
             below = _ground_floor(cells, footprint)

@@ -89,8 +89,8 @@ class AStairConnectsTheFloorsItPassesThrough(unittest.TestCase):
         not the state worth keeping: a plan whose stair is drawn wrong is
         still a plan whose stair is drawn wrong. So the count is pinned. An
         upper floor now packs the ground floor's shape with the spine where
-        the ground floor put it, and the flight takes the same run of the
-        same band, which lines up four flights in five.
+        the ground floor put it, and the flight takes the run every floor
+        can afford -- which lines up all but a few.
 
         The bar is set below what is measured today on purpose. It is here
         to catch the pinning being lost, not to be re-tuned every time the
@@ -111,7 +111,7 @@ class AStairConnectsTheFloorsItPassesThrough(unittest.TestCase):
                         adrift += 1
         self.assertGreater(lined_up + adrift, 20, "the sweep found no flights")
         self.assertGreaterEqual(
-            lined_up, 24,
+            lined_up, 30,
             f"only {lined_up} of {lined_up + adrift} flights line up between "
             "floors. The upper floors are meant to be packed against the "
             "ground floor's envelope and spine, with the flight pinned to the "
