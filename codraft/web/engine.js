@@ -978,6 +978,31 @@ function design(a) {
         + `nothing yet holds the stair still between them.`);
     }
 
+  // A room called a Double Garage has to hold two cars, or say that it does
+  // not. The template asks for 3.2 m of width, which is one bay, so nothing
+  // stops one coming out 3724 mm across -- fifteen plans in a sweep of
+  // thirty-three, every one of them drawn in silence.
+  //
+  // Asking for 5.4 m instead is not the fix: it makes no garage wider and
+  // costs findings elsewhere. The frontage is set out around the front door,
+  // which has to line up with the passage behind it, and the garage takes
+  // what is left. On a narrow block a double garage, a front door and a
+  // portico do not all fit across the frontage. That is a fact about the
+  // block, and this is where the plan says it.
+  const car = storeys[0] && storeys[0].find(c => c.r.fn === "garage");
+  if (car && /double/i.test(car.r.name)) {
+    const g = clear(car);
+    const wide = Math.min(g.w, g.h), deep = Math.max(g.w, g.h);
+    if (wide < 5400 || deep < 6000)
+      notes.push(`The ${car.r.name} came out ${wide} × ${deep} mm clear. Two `
+        + `cars side by side need about 5400 × 6000 mm, so this holds one car `
+        + `and a narrow space beside it. The frontage is set out around the `
+        + `front door, which has to line up with the passage behind it, and `
+        + `what is left over is what the garage gets — on a narrow block there `
+        + `isn't enough street frontage for a double garage, a front door and `
+        + `a portico at once. A single garage, or a wider block.`);
+  }
+
   notes.push(...PACK_WARNINGS);
   if (tight.length)
     notes.push(`These rooms came out under the size they should be — `

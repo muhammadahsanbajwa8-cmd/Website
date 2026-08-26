@@ -1694,6 +1694,53 @@ def _ground_floor(cells: list[Cell], footprint: Rect) -> _Below | None:
     )
 
 
+# What two cars need side by side, and the depth to get out of them. The
+# template's own comment has always carried these figures; its declared
+# minimum WIDTH is 3.2 m, which is one bay, so nothing has been stopping a
+# room labelled "Double Garage" coming out 3724 mm across.
+_DOUBLE_GARAGE_WIDTH = 5400
+_DOUBLE_GARAGE_DEPTH = 6000
+
+
+def _check_the_garage_holds_its_cars(layout: Layout) -> None:
+    """A room called a Double Garage that only fits one car must say so.
+
+    Raising the declared minimum to 5.4 m was tried and made the plans worse
+    without making a single garage wider. The frontage is split around the
+    entry, which has to sit over the passage behind it, and the garage takes
+    whichever side is left -- so its width is decided by where the passage
+    landed, not by what it asked for. A larger minimum only pushed the
+    eviction and strip sizing around, costing seventy-odd findings elsewhere
+    and moving no cars.
+
+    On a 12 m lot with 10 m to build on, a double garage and a front door
+    and a portico do not all fit across the frontage, and no packer will
+    make them. That is a fact about the block. Saying it is the part that
+    was missing: fifteen plans in a sweep of thirty-three drew one narrower
+    than two cars need, and every one of them was drawn in silence.
+    """
+    for cell in layout.cells:
+        if cell.function is not Function.GARAGE:
+            continue
+        req = cell.requirement
+        if req is None or "double" not in req.name.lower():
+            continue
+        wide = cell.rect.short_side - _WALL_ALLOWANCE
+        deep = cell.rect.long_side - _WALL_ALLOWANCE
+        if wide >= _DOUBLE_GARAGE_WIDTH and deep >= _DOUBLE_GARAGE_DEPTH:
+            continue
+        layout.warnings.append(
+            f"The {req.name} came out {wide} x {deep} mm clear. Two cars side "
+            f"by side need about {_DOUBLE_GARAGE_WIDTH} x "
+            f"{_DOUBLE_GARAGE_DEPTH} mm, so this holds one car and a narrow "
+            "space beside it. The frontage is set out around the front door, "
+            "which has to line up with the passage behind it, and what is "
+            "left over is what the garage gets -- on a narrow block there is "
+            "not enough street frontage for a double garage, a front door "
+            "and a portico at once. A single garage, or a wider block."
+        )
+
+
 def _check_stairs_line_up(layout: Layout) -> None:
     """A stair occupies the same rectangle on every floor it passes through.
 
@@ -1883,6 +1930,7 @@ def solve(
             below = _ground_floor(cells, footprint)
 
     _check_stairs_line_up(layout)
+    _check_the_garage_holds_its_cars(layout)
     _refuse_slivers(layout, program, footprint)
 
     for cell in layout.cells:
