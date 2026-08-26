@@ -499,7 +499,13 @@ function stack(rooms, band, alongY, outerLow = true, pinned = null) {
       if (want === sizes[i]) break;
       const rest = rows.map((_, j) => j).filter(j => j !== i);
       const free = span - want;
-      if (free < rest.reduce((t, j) => t + floors[j], 0)) break;
+      // Giving the flight MORE would take another row under its own
+      // minimum, so this floor cannot honour the run. Taking length away
+      // never can: whatever the flight gives up, the rest of the band gets,
+      // so a shrinking pin is always allowed -- including on a band already
+      // over-subscribed, where every row is under its floor and this test
+      // would otherwise refuse a pin that helps them.
+      if (want > sizes[i] && free < rest.reduce((t, j) => t + floors[j], 0)) break;
       sizes[i] = want;
       if (rest.length) {
         const share = apportion(rest.map(j => sizes[j]), rest.map(j => floors[j]),
@@ -629,7 +635,7 @@ function placeFront(front, strip, over) {
 // agree before a stair can arrive where it left from. Matching only the shape
 // was tried and moved nothing -- the band split is decided by each floor's own
 // room areas, so it lands somewhere else regardless.
-function layoutStorey(rooms, env, storeyIndex, below = null) {
+function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
   if (!rooms.length) return [];
   let cells = [], spineX = null, envelope = env, strip = null, frontRooms = [];
 
@@ -787,10 +793,14 @@ function layoutStorey(rooms, env, storeyIndex, below = null) {
     return sorted.filter(r => rank(r) < 5)
       .concat(interleave(sorted.filter(r => rank(r) >= 5)));
   };
+  // The run the flight takes on this floor: the common one `design` settled
+  // across every floor, else the floor below's. A stair pinned on the ground
+  // floor is how the upper ones get a run they can actually afford.
+  const runTarget = stairRun != null ? stairRun : (below ? below.stairSpan : null);
   let pin = null;
-  if (below) {
+  if (runTarget) {
     pin = {};
-    for (const r of others) if (r.fn === "stair") pin[r.key] = below.stairSpan;
+    for (const r of others) if (r.fn === "stair") pin[r.key] = runTarget;
   }
   let placed = [], corridorRect;
   if (vertical) {
@@ -830,6 +840,43 @@ function layoutStorey(rooms, env, storeyIndex, below = null) {
     ? placeFront(frontRooms, strip, vertical ? [corridorRect.x, corridorRect.x + cw] : null)
     : [];
   return cells.concat(placed.map(p => ({ ...p, at: storeyIndex })), passages);
+}
+
+// The run every floor can give the flight, so they can all take the same.
+//
+// Pinning the upper floors to the GROUND floor's run is the wrong way round.
+// The ground floor takes its run from its own apportionment and it is
+// usually the most generous, so an upper floor with slightly less to spare
+// refuses the pin and lands somewhere else over slack neither floor wanted.
+//
+// Each upper floor is probed in the STACKED geometry with the run left free
+// -- that is what it can actually spare there. Probing an unstacked floor is
+// meaningless: it puts the flight in a different band of a different width,
+// so its run is not a figure the stacked floor could honour.
+function commonStairRun(placedRooms, foot, storeys) {
+  if (storeys < 2) return null;
+  const flightOn = (s, below) => {
+    const mine = placedRooms.filter(r => r.at === s);
+    if (!mine.length) return null;
+    return layoutStorey(mine, foot, s, below).find(c => c.r.fn === "stair") || null;
+  };
+  const groundCells = placedRooms.filter(r => r.at === 0).length
+    ? layoutStorey(placedRooms.filter(r => r.at === 0), foot, 0, null) : [];
+  const ground = groundCells.find(c => c.r.fn === "stair");
+  const base = groundFloor(groundCells, foot);
+  if (!ground || !base) return null;
+  const loose = { ...base, stairSpan: 0 };
+  const runs = [ground.rect.h];
+  for (let s = 1; s < storeys; s++) {
+    const f = flightOn(s, loose);
+    if (!f) return null;
+    runs.push(f.rect.h);
+  }
+  // Above what a stair of that width actually needs; below it the flight
+  // stops being a flight and that floor genuinely cannot stack.
+  const needs = ground.r.minArea
+    ? Math.ceil(tileArea(ground.r.minArea) / Math.max(1, ground.rect.w)) : 0;
+  return Math.max(Math.min(...runs), needs) || null;
 }
 
 // What the ground floor settled, read back off its cells. Taken from the
@@ -928,10 +975,11 @@ function design(a) {
 
   PACK_WARNINGS = [];
   const storeys = [];
+  const commonRun = commonStairRun(placedRooms, foot, a.storeys);
   let below = null;
   for (let s = 0; s < a.storeys; s++) {
     const mine = placedRooms.filter(r => r.at === s);
-    let cells = layoutStorey(mine, foot, s, below);
+    let cells = layoutStorey(mine, foot, s, below, commonRun);
     // Holding a floor to the one below costs it the area over the garage and
     // a spine placed for the rooms downstairs. Usually it can carry that.
     // Where it cannot the rooms come out too small to take a door and the
@@ -941,7 +989,7 @@ function design(a) {
     // nothing under that limit.
     const worst = cs => Math.min(...cs.map(c => Math.min(c.rect.w, c.rect.h)));
     if (below && cells.length && worst(cells) < MIN_TILE) {
-      const loose = layoutStorey(mine, foot, s, null);
+      const loose = layoutStorey(mine, foot, s, null, commonRun);
       if (loose.length && worst(loose) > worst(cells)) cells = loose;
     }
     storeys.push(cells);
