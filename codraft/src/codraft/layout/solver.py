@@ -939,7 +939,11 @@ def _place_front(
             want = max(want, -(-_tile_area(portico[1].min_area) // max(1, strip.h)))
         # Take it from the roomier side, and never so much that the side is
         # left unable to hold anything.
-        on_left = left_w >= right_w
+        # The portico takes the NARROWER side, so the wider one is left for
+        # the garage. Taking the roomier side put a 4208 mm portico beside a
+        # 4120 mm "double" garage on a 12 m frontage -- a covered porch wider
+        # than the room meant to hold two cars.
+        on_left = left_w <= right_w
         available = (left_w if on_left else right_w)
         take = min(want, max(0, available - (_ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)))
         if take < _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE:

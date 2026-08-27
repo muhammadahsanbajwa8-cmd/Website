@@ -497,7 +497,10 @@ function placeFront(front, strip, over) {
     let want = Math.max(tileW(portico.minWidth) || 0, MIN_DIM + WALL_ALLOW);
     if (portico.minArea)
       want = Math.max(want, Math.ceil(tileArea(portico.minArea) / Math.max(1, strip.h)));
-    const onLeft = leftW >= rightW;
+    // The portico takes the NARROWER side, so the wider one is left for the
+    // garage. Taking the roomier side put a 4208 mm covered porch beside a
+    // 4120 mm "double" garage on a 12 m frontage.
+    const onLeft = leftW <= rightW;
     const available = onLeft ? leftW : rightW;
     let take = Math.min(want, Math.max(0, available - (MIN_DIM + WALL_ALLOW)));
     if (take < MIN_DIM + WALL_ALLOW) take = Math.min(want, available);

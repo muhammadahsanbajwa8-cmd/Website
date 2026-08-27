@@ -63,6 +63,41 @@ class ADoubleGarageHoldsTwoCarsOrSaysSo(unittest.TestCase):
         self.assertGreater(quiet, 0, "no block in the sweep fits two bays, so "
                                      "this test proved nothing")
 
+    def test_the_covered_porch_is_never_wider_than_the_garage(self):
+        """Which side the portico takes decides what the garage gets.
+
+        It took the roomier side, which is the side the garage wants, and on
+        three plans that produced a covered porch WIDER than the room meant
+        to hold two cars -- 4208 mm of portico beside a 4120 mm double
+        garage. It takes the narrower side now, which leaves the wider one
+        for the garage and moves the narrowest double garage in the sweep
+        from 3896 mm to 4188.
+
+        Still short of the 5400 two cars need, and still reported as short.
+        On a 10 m frontage the front door has to keep meeting the passage
+        behind it, and that pins it near the middle -- so neither side can
+        be a full double garage, whatever order the rooms go in. This only
+        stops the plan looking absurd while it says so.
+        """
+        odd = []
+        for width in (12000, 14000, 15000, 16000, 18000, 20000, 24000):
+            for beds in (3, 4, 5):
+                try:
+                    _, building = _plan(width, 30000, beds)
+                except LayoutError:
+                    continue
+                spaces = list(building.all_spaces())
+                garage = next((s for s in spaces
+                               if s.function is Function.GARAGE), None)
+                porch = next((s for s in spaces if s.name == "Portico"), None)
+                if garage is None or porch is None:
+                    continue
+                if porch.rect.w > garage.rect.w:
+                    odd.append(f"{width/1000}x30 {beds}bd: portico "
+                               f"{porch.rect.w} mm across, garage "
+                               f"{garage.rect.w} mm")
+        self.assertEqual([], odd, "\n".join(odd))
+
     def test_every_plan_that_falls_short_says_so(self):
         undeclared = []
         for width in (12000, 14000, 15000, 16000, 18000, 20000, 24000):
