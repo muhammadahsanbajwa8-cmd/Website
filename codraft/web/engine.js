@@ -210,7 +210,23 @@ function awkward(cells) {
   }
   return [count, excess];
 }
-const better = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+const better = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])
+  || (a[0] === b[0] && a[1] === b[1] && a[2] < b[2]);
+
+// How well a layout treats its rooms: shape and thinness together. `awkward`
+// counts the lit rooms drawn like a passage. It is the right thing to
+// optimise and it is not, on its own, enough to CHOOSE by -- a layout can
+// trade two of those for several rooms under 1500 mm and come out ahead on
+// the count while being worse to live in. 1500 mm is roughly where a bedroom
+// stops being a bedroom and a bathroom stops taking a door swing. Ported from
+// `_shape_score` in src/codraft/layout/solver.py.
+function shapeScore(cells) {
+  const [count, excess] = awkward(cells);
+  let thin = 0;
+  for (const c of cells)
+    if (c.r && Math.min(c.rect.w, c.rect.h) - WALL_ALLOW < 1500) thin += 1;
+  return [count + thin, count, excess];
+}
 
 // Three bands: band / passage / core / passage / band.
 //
@@ -758,7 +774,7 @@ function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
   const plain = awkward(placed);
   if (plain[0] >= 3) {
     const core = coreBands(L, Rr, corridor, envelope, vertical, cw, run, order, storeyIndex);
-    if (core && better(awkward(core.placed), plain)) {
+    if (core && better(shapeScore(core.placed), shapeScore(placed))) {
       placed = core.placed;
       corridorRect = core.near;
       passages = [{ r: corridor, rect: core.near, at: storeyIndex },

@@ -365,7 +365,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Seven attempts to improve the packer have been made and reverted. They are
+# Eight attempts to improve the packer have been made and reverted. They are
 # recorded here because each cost a session to re-derive and each failed for
 # a reason that is not obvious from the code.
 #
@@ -448,6 +448,34 @@ class _Row:
 #    drawn, because stopping the shed at a different point left a WC at
 #    730 mm. Any eighth attempt here should fix where the frontage surplus
 #    goes, not which rooms are allowed to leave.
+
+# 8. The L: one band brought forward to the street beside the garage, so the
+#    front strip spans only the frontage the garage and the front door need
+#    instead of the whole of it. This is the plan type the warning further
+#    down asks for by name, and it was built -- both ways round, scored on
+#    the whole floor, front rooms included, and kept only where it beat the
+#    straight spine. It never did, and the measurement says why.
+#
+#    The front strip really is over-provisioned: across sixty-seven plans it
+#    holds 1041 m2 more than the rooms in it asked for, about 15.5 m2 a plan,
+#    at the same time as the bands behind are over-subscribed. But that
+#    surplus is in DEPTH, not in width. The strip is as deep as a car needs --
+#    about 6 m -- across its whole width, and the theatre, the store and the
+#    portico beside the garage need barely two of those metres. Every one of
+#    them still needs its own slice of the FRONTAGE.
+#
+#    So the width left over at one end, which is the only thing a wing
+#    brought forward can occupy, is tiny: 13 mm on a 12.5 m lot, 952 and 1063
+#    on an 18 m one, 3307 where the theatre had already been evicted. The
+#    bands it would join are 3.5 to 7.5 m thick. Squeezed into the surplus
+#    anyway it drew a 1063 mm wing and scored seventeen bad rooms against the
+#    straight spine's five.
+#
+#    A ninth attempt has to reach the DEPTH surplus, which means a strip that
+#    is deep only over the garage and shallow beside it. That makes the band
+#    behind L-shaped rather than the floor, and every check here rests on
+#    bands being rectangles that tile exactly -- `_stack`, the hole sweep, and
+#    the wall builder all assume it. It is a bigger change than it looks.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
@@ -1107,6 +1135,25 @@ def _two_bands(
     return cells
 
 
+def _shape_score(cells: list[Cell]) -> tuple[int, int, int]:
+    """How well a layout treats its rooms: shape and thinness together.
+
+    `_awkward` counts the lit rooms drawn like a passage. It is the right
+    thing to optimise and it is not, on its own, enough to CHOOSE by: a
+    layout can trade two of those for several rooms under 1500 mm and come
+    out ahead on the count while being worse to live in. 1500 mm is roughly
+    where a bedroom stops being a bedroom and a bathroom stops taking a door
+    swing, and `tools/thin_rooms.py` has watched that figure since the start.
+    """
+    count, excess = _awkward(cells)
+    thin = sum(
+        1 for c in cells
+        if c.requirement is not None
+        and c.rect.short_side - _WALL_ALLOWANCE < 1500
+    )
+    return count + thin, count, excess
+
+
 def _awkward(cells: list[Cell]) -> tuple[int, int]:
     """How badly a layout treats the rooms that need daylight.
 
@@ -1536,7 +1583,7 @@ def _layout_storey_once(
             storey, core, corridor, envelope, corridor_vertical,
             corridor_width, run, road_first, aside,
         )
-        if core_cells and _awkward(core_cells) < _awkward(plain):
+        if core_cells and _shape_score(core_cells) < _shape_score(plain):
             warnings.extend(aside)
             front_cells: list[Cell] = []
             if strip is not None:
