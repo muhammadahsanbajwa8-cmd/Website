@@ -1090,6 +1090,101 @@ def _place_front(
     ]
 
 
+def _garage_column(
+    storey: int,
+    garage: tuple[str, SpaceRequirement],
+    other_front: list[tuple[str, SpaceRequirement]],
+    left_rooms: list,
+    right_rooms: list,
+    corridor: tuple[str, SpaceRequirement],
+    full: Rect,
+    corridor_width: int,
+    road_first: bool,
+    warnings: list[str],
+    pinned: dict[str, int] | None = None,
+) -> tuple[list[Cell], Rect] | None:
+    """The garage in a column of its own, so the frontage stops being 6 m deep.
+
+    The front strip is as deep as a car needs -- about 6 m -- and it is that
+    deep across the WHOLE frontage, because it is one rectangle. Beside the
+    garage sit the entry, the portico, sometimes a store: rooms that need
+    about two metres of depth and are given six. Measured across sixty-seven
+    plans that is 1041 m2 of floor the rooms in it never asked for, while the
+    bands behind them are over-subscribed.
+
+    Taking the garage OUT of the strip is what reaches it. The garage becomes
+    a column at one end of the frontage running back from the street, the
+    strip beside it shrinks to the depth the front door actually needs, and
+    the four metres that frees across the rest of the frontage go to the
+    bands. Every piece is still a rectangle, so the floor still tiles exactly.
+
+    This is also how the frontage reads on a project home: the garage door
+    and the front door side by side, the garage as deep as the house is at
+    that end, and the rest of the elevation the height of one storey rather
+    than a six-metre-deep box.
+
+    Returns the cells and the strip the frontage now has, or None where the
+    column will not fit.
+    """
+    _key, greq = garage
+    # Wide enough for what the garage is FOR. Its declared minimum width is
+    # 3200 mm, which is a single bay; the figure the plan is checked against
+    # afterwards is _DOUBLE_GARAGE_WIDTH, so use that here rather than draw a
+    # column too narrow and report it later.
+    wide = _tile_width(greq) or _ABSOLUTE_MIN_DIM
+    if (greq.min_area or 0) >= _DOUBLE_GARAGE_WIDTH * _DOUBLE_GARAGE_DEPTH:
+        wide = max(wide, _DOUBLE_GARAGE_WIDTH + _WALL_ALLOWANCE)
+    deep = max(_DOUBLE_GARAGE_DEPTH + _WALL_ALLOWANCE,
+               -(-(_target(greq) or 0) // max(1, wide)))
+    if wide + corridor_width + _MIN_TILE > full.w:
+        return None
+    if deep >= full.h - _MIN_TILE:
+        return None
+
+    # What is left of the frontage, and how deep it has to be for the rooms
+    # still on it. The entry has to reach from the street to the passage, so
+    # it sets the floor.
+    strip_w = full.w - wide
+    need = sum(_target(r) or 0 for _, r in other_front)
+    strip_h = max(
+        _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE,
+        -(-need // max(1, strip_w)),
+        max((_tile_width(r) or 0) for _, r in other_front) if other_front else 0,
+    )
+    strip_h = min(strip_h, deep)
+    if full.h - strip_h < _MIN_TILE * 2:
+        return None
+
+    strip = Rect(full.x + wide, full.y, strip_w, strip_h)
+    corridor_rect = Rect(full.x + wide, full.y + strip_h,
+                         corridor_width, full.h - strip_h)
+    right_band = Rect(corridor_rect.x1, corridor_rect.y,
+                      full.x1 - corridor_rect.x1, corridor_rect.h)
+    if right_band.w < _MIN_TILE:
+        return None
+
+    # The garage takes the street end of its own column and the rooms of the
+    # left band fall in behind it. It is laid out FIRST, at the run a car
+    # needs, rather than stacked with them: `_stack` shares a shortfall out
+    # over every row, and on an over-subscribed band that drew the garage
+    # 4703 mm deep. A car does not share the shortfall. What is left of the
+    # column is what the rooms behind get, and if that is not enough they say
+    # so the way they always have.
+    if full.h - deep < _MIN_TILE:
+        return None
+    column = Rect(full.x, full.y + deep, wide, full.h - deep)
+    placed = [(garage[0], garage[1], Rect(full.x, full.y, wide, deep))]
+    placed += _stack(_order_for_road(left_rooms, road_first), column, True,
+                     warnings, outer_low=True, pinned=pinned)
+    placed += _stack(_order_for_road(right_rooms, road_first), right_band, True,
+                     warnings, outer_low=False, pinned=pinned)
+    cells = [Cell(key, req.name, req.function, rect, storey, req)
+             for key, req, rect in placed]
+    cells.append(Cell(corridor[0], corridor[1].name, Function.CORRIDOR,
+                      corridor_rect, storey, corridor[1]))
+    return cells, strip
+
+
 def _two_bands(
     storey: int,
     left_rooms: list,
@@ -1420,6 +1515,9 @@ def _layout_storey_once(
 
     front_rooms: list[tuple[str, SpaceRequirement]] = []
     strip: Rect | None = None
+    # `_front_zone` hands back the remainder BEHIND the strip as `envelope`.
+    # A plan form that rearranges the frontage needs the whole floor.
+    full_envelope = envelope
     if storey == 0:
         front_rooms, strip, envelope, rooms = _front_zone(
             rooms, envelope, plot, warnings
@@ -1607,6 +1705,17 @@ def _layout_storey_once(
             )
             return front_cells + core_cells
 
+    # The garage in a column of its own, where that beats the strip across the
+    # frontage. Built and scored the way the service core is: both are cheap
+    # to build, so build both and keep the one that treats the rooms better.
+    column = _try_the_garage_in_a_column(
+        storey, front_rooms, left_rooms, right_rooms, corridor, full_envelope,
+        strip, corridor_vertical, corridor_width, road_first, pinned, plain,
+        warnings,
+    )
+    if column is not None:
+        return column
+
     cells = _two_bands(storey, left_rooms, right_rooms, corridor, envelope,
                        corridor_vertical, corridor_width, left_depth,
                        right_depth, road_first, warnings, pinned)
@@ -1625,6 +1734,87 @@ def _layout_storey_once(
             else None
         )
         front_cells = _place_front(front_rooms, strip, meets, warnings)
+    return front_cells + cells
+
+
+def _try_the_garage_in_a_column(
+    storey: int,
+    front_rooms: list[tuple[str, SpaceRequirement]],
+    left_rooms: list,
+    right_rooms: list,
+    corridor: tuple[str, SpaceRequirement] | None,
+    full: Rect,
+    strip: Rect | None,
+    corridor_vertical: bool,
+    corridor_width: int,
+    road_first: bool,
+    pinned: dict[str, int] | None,
+    plain: list[Cell],
+    warnings: list[str],
+) -> list[Cell] | None:
+    """Build the garage column and keep it only if it measures better.
+
+    Returns the finished floor, or None to leave the strip across the front.
+    """
+    if strip is None or corridor is None or not corridor_vertical:
+        return None
+    if not road_first:
+        # The geometry below puts the street at the low edge. `road_first`
+        # covers south and west, which is most of what a subdivision faces.
+        return None
+    garage = next(
+        (kr for kr in front_rooms if kr[1].function is Function.GARAGE), None
+    )
+    if garage is None:
+        return None
+    other_front = [kr for kr in front_rooms if kr is not garage]
+    if not other_front:
+        return None
+
+    plain_front = _place_front(
+        front_rooms, strip,
+        next(((c.rect.x0, c.rect.x1) for c in plain
+              if c.function is Function.CORRIDOR), None),
+        [],
+    )
+    plain_score = _shape_score(plain + plain_front)
+
+    aside: list[str] = []
+    built = _garage_column(
+        storey, garage, other_front, left_rooms, right_rooms, corridor, full,
+        corridor_width, road_first, aside, pinned,
+    )
+    if built is None:
+        return None
+    cells, narrowed = built
+    passage = next((c for c in cells if c.function is Function.CORRIDOR), None)
+    meets = (passage.rect.x0, passage.rect.x1) if passage else None
+    front_cells = _place_front(other_front, narrowed, meets, aside)
+    if _shape_score(cells + front_cells) >= plain_score:
+        return None
+    # A form that scores better and forces a sliver is not better. The column
+    # takes 5.6 m of a 10.5 m frontage and what is left has to hold the front
+    # door, the portico and the store: on one brief that drew a 545 mm
+    # portico, and `_refuse_slivers` threw the whole plan out afterwards --
+    # a plan the strip across the front draws. This is that same test, asked
+    # here where there is still another form to fall back to.
+    #
+    # It has to be the same test. Asked instead whether the column leaves any
+    # room narrower than the strip does, it turned the column down almost
+    # everywhere: the shrunken strip always narrows the portico or the store
+    # a little, even where the bands behind gain far more than that.
+    if any(c.rect.short_side < _MIN_TILE for c in cells + front_cells):
+        return None
+
+    warnings.extend(aside)
+    warnings.append(
+        "The garage runs back from the street in a column of its own rather "
+        "than sitting in a strip across the whole frontage. A strip has to be "
+        "as deep as a car, and everything beside the garage -- the front "
+        "door, the portico -- is then given six metres of depth for rooms "
+        "that need two. Standing the garage on its own returns that depth to "
+        "the rooms behind."
+    )
     return front_cells + cells
 
 
