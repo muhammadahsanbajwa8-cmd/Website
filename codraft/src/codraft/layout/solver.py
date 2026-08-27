@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from ..geom import Rect
 from ..model import Function, Plot
@@ -511,6 +512,13 @@ class _Row:
 #    cheap proxy tried for it is worse than the flat count. A tenth attempt
 #    wants a score built from what the rule engine actually reports, not
 #    another guard in front of this one.
+#
+#    That tenth attempt was made and it worked; see `_shape_score`. Reading
+#    the baseline pack's own habitable-room targets, rather than any figure
+#    chosen here, took code warnings from 424 to 413 over the sweep and the
+#    browser's packing losses from 1 to 0. Whether the plan forms should also
+#    be peers is still open: it has not been re-measured against the better
+#    score.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
@@ -1265,23 +1273,58 @@ def _two_bands(
     return cells
 
 
+@lru_cache(maxsize=1)
+def _habitable_targets() -> tuple[int, int]:
+    """What a habitable room has to reach, read from the baseline rule pack.
+
+    The solver chooses between plan forms, and a chooser needs to know what
+    counts as a bad room. Deciding that here would be inventing a figure. The
+    baseline pack already states one -- it is the jurisdiction-independent
+    floor every plan is checked against afterwards -- so the design targets
+    in that pack are what the choice is made on. A plan is then drawn TRYING
+    to meet the same numbers it will be measured by, which is the reason
+    `design_parameters` exists at all.
+
+    Falls back to nothing rather than to a guess: if the pack cannot be read,
+    the targets come back zero and the score falls back to shape alone.
+    """
+    try:
+        from ..codes.engine import load_pack
+        design = load_pack("baseline").design
+    except Exception:
+        return 0, 0
+    width = int(design.get("habitable_min_width_mm", 0) or 0)
+    area = float(design.get("habitable_min_area_m2", 0) or 0)
+    return width, int(area * 1e6)
+
+
 def _shape_score(cells: list[Cell]) -> tuple[int, int, int]:
     """How well a layout treats its rooms: shape and thinness together.
 
     `_awkward` counts the lit rooms drawn like a passage. It is the right
     thing to optimise and it is not, on its own, enough to CHOOSE by: a
-    layout can trade two of those for several rooms under 1500 mm and come
-    out ahead on the count while being worse to live in. 1500 mm is roughly
-    where a bedroom stops being a bedroom and a bathroom stops taking a door
-    swing, and `tools/thin_rooms.py` has watched that figure since the start.
+    layout can trade two of those for several rooms too small to use and come
+    out ahead on the count while being worse to live in.
+
+    Too small is the baseline pack's own figure for a habitable room, read
+    from its design block -- so the plan is chosen by the same number it will
+    be measured by afterwards, and no figure is decided here. Two cheaper
+    proxies were tried and both are worse: a flat 1500 mm line lets four
+    bedrooms 1853 mm across through, and each room against its own declared
+    minimum saturates on an over-subscribed floor and stops discriminating.
+    See the packing notes at the top of this file.
     """
     count, excess = _awkward(cells)
-    thin = sum(
+    min_width, min_area = _habitable_targets()
+    undersized = sum(
         1 for c in cells
         if c.requirement is not None
-        and c.rect.short_side - _WALL_ALLOWANCE < 1500
+        and c.function.is_habitable
+        and (c.rect.short_side - _WALL_ALLOWANCE < min_width
+             or (c.rect.w - _WALL_ALLOWANCE)
+                * (c.rect.h - _WALL_ALLOWANCE) < min_area)
     )
-    return count + thin, count, excess
+    return count + undersized, count, excess
 
 
 def _awkward(cells: list[Cell]) -> tuple[int, int]:

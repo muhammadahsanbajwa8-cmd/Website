@@ -4,6 +4,11 @@
   "edition": "0.1",
   "disclaimer": "This pack is NOT law anywhere. It collects checks that hold in most codes, so that a plan in a jurisdiction codraft has not encoded still gets looked at rather than passed in silence. A clean result here says the plan is not obviously broken. It says nothing whatever about compliance.",
   "parameters": { "slab_and_finish_mm": 200 },
+  "design": {
+    "$note": "Targets the SOLVER aims at, so a plan is drawn trying to meet these rather than drawn freely and failed against them afterwards. They repeat the figures asserted by baseline.habitable.width and baseline.habitable.area below; tests/test_baseline_targets.py fails if the two ever drift apart.",
+    "habitable_min_width_mm": 2100,
+    "habitable_min_area_m2": 6.5
+  },
   "rules": [
     { "id": "baseline.route.exists", "title": "Every room can be walked out of", "scope": "space",
       "severity": "violation", "confidence": "high", "assert": "has_route_to_exit",

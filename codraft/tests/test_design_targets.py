@@ -48,6 +48,8 @@ MEASURED_BY: dict[str, tuple[str, tuple[str, ...]]] = {
     "stair_going_max_mm": ("going_mm", ()),
     "glazing_ratio": ("glazing_ratio", ()),
     "ventilation_ratio": ("openable_ratio", ()),
+    "habitable_min_width_mm": ("width_mm", ("habitable",)),
+    "habitable_min_area_m2": ("area_m2", ("habitable",)),
 }
 
 # Stated for the builder, not assertable: these describe how the thing is

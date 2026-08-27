@@ -49,17 +49,18 @@ the `/* ---- drawing the plan ---- */` marker.
 
 ## Where the sweeps stand
 
-    cases drawn 310 | refused 50
-    cases with an undersized habitable room: 12
-      of those, every undersized room named in the notes: 12
+    cases drawn 311 | refused 49
+    cases with an undersized habitable room: 11
+      of those, every undersized room named in the notes: 11
       cases with at least one UNDECLARED undersized room: 0
     with a room that has no route to circulation: 0
     undersized where the floor is genuinely SHORT of area: 11
-    undersized where the area was there and the PACKING lost it: 1
+    undersized where the area was there and the PACKING lost it: 0
 
-The one packing loss left is the 2-bedroom brief on a 15 x 30 m lot in QLD.
-The WA case beside it went when the garage column landed. The Python loses
-the same case.
+The packing losses are gone. Every undersized habitable room left is on a
+floor genuinely short of area, which is the kind the plan is right to
+report rather than pack away. The last two went with the garage column and
+with scoring plan forms on the baseline pack's habitable targets.
 
 These moved a long way when `shedExtras` landed -- 279 drawn / 81 refused
 became 310 / 50, and undersized habitable rooms 23 cases to 13 while twelve

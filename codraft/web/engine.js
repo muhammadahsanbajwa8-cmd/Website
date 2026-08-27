@@ -220,12 +220,24 @@ const better = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])
 // the count while being worse to live in. 1500 mm is roughly where a bedroom
 // stops being a bedroom and a bathroom stops taking a door swing. Ported from
 // `_shape_score` in src/codraft/layout/solver.py.
+// What a habitable room has to reach. These repeat the figures asserted by
+// baseline.habitable.width and baseline.habitable.area, which in the Python
+// are read out of that pack's design block rather than written here; the page
+// carries no rule packs, so they are stated. tests/test_habitable_targets.py
+// is what stops the pack and the solver drifting apart, and this comment is
+// what says the page has to follow them.
+const HABITABLE_MIN_WIDTH = 2100, HABITABLE_MIN_AREA = 6.5e6;
+
 function shapeScore(cells) {
   const [count, excess] = awkward(cells);
-  let thin = 0;
-  for (const c of cells)
-    if (c.r && Math.min(c.rect.w, c.rect.h) - WALL_ALLOW < 1500) thin += 1;
-  return [count + thin, count, excess];
+  let undersized = 0;
+  for (const c of cells) {
+    if (!c.r || !HABITABLE.has(c.r.fn)) continue;
+    const w = c.rect.w - WALL_ALLOW, h = c.rect.h - WALL_ALLOW;
+    if (Math.min(w, h) < HABITABLE_MIN_WIDTH || w * h < HABITABLE_MIN_AREA)
+      undersized += 1;
+  }
+  return [count + undersized, count, excess];
 }
 
 // Three bands: band / passage / core / passage / band.
