@@ -916,20 +916,6 @@ function design(a) {
         + `caps site cover at ${(maxCover*100).toFixed(0)}% — ${(cap/1e6).toFixed(0)} m². Built to the cap.`);
   }
 
-  // If the shortfall is severe, a drawing would be a lie: the rooms would come
-  // out at a size nobody can use. Say so instead of drawing it.
-  const briefTotal = perStorey.reduce((t, x) => t + x, 0) * 1.14;
-  const capacity = Math.min(cap, envArea) * a.storeys;
-  if (capacity < briefTotal * 0.7) {
-    const floorsNeeded = Math.ceil(briefTotal / Math.max(1, Math.min(cap, envArea)));
-    return { error: `That brief doesn't fit this block. The rooms come to about `
-      + `${(briefTotal/1e6).toFixed(0)} m², and ${a.lotW/1000} × ${a.lotD/1000} m in ${P.name} gives `
-      + `${(capacity/1e6).toFixed(0)} m² over ${a.storeys} floor${a.storeys>1?"s":""} once the setbacks `
-      + `and the ${(maxCover*100).toFixed(0)}% cover cap are taken off. `
-      + `It would take about ${floorsNeeded} floors, a shorter list of rooms, or a wider block. `
-      + `I'd rather tell you than draw rooms you can't use.` };
-  }
-
   let fw = Math.min(env.w, MAX_FRONTAGE);
   let fd = Math.ceil(needed / Math.max(1, fw));
 
@@ -949,9 +935,31 @@ function design(a) {
   fd = Math.max(MIN_DIM * 2, Math.min(env.h, fd));
   const foot = { x: env.x + Math.floor((env.w - fw) / 2), y: env.y, w: fw, h: fd };
 
+  placedRooms = shedExtras(placedRooms, foot, a.storeys, notes);
+
+  // If the shortfall is severe, a drawing would be a lie: the rooms would come
+  // out at a size nobody can use. Say so instead of drawing it.
+  //
+  // This is asked AFTER the extras have gone, not before. Asked first it
+  // refuses briefs the shed can rescue: 12.5 x 28 m in WA with four bedrooms
+  // was turned away for wanting 298 m2 on 175 m2, when dropping the alfresco,
+  // the pantry, the store and the linen brings it inside what this block can
+  // carry. What has to be too big for the block is the HOUSE, not the wish
+  // list.
+  const briefTotal = placedRooms.reduce((t, r) => t + (target(r) || 0), 0) * 1.14;
+  const capacity = Math.min(cap, envArea) * a.storeys;
+  if (capacity < briefTotal * 0.7) {
+    const floorsNeeded = Math.ceil(briefTotal / Math.max(1, Math.min(cap, envArea)));
+    return { error: `That brief doesn't fit this block. The rooms come to about `
+      + `${(briefTotal/1e6).toFixed(0)} m², and ${a.lotW/1000} × ${a.lotD/1000} m in ${P.name} gives `
+      + `${(capacity/1e6).toFixed(0)} m² over ${a.storeys} floor${a.storeys>1?"s":""} once the setbacks `
+      + `and the ${(maxCover*100).toFixed(0)}% cover cap are taken off. `
+      + `It would take about ${floorsNeeded} floors, a shorter list of rooms, or a wider block. `
+      + `I'd rather tell you than draw rooms you can't use.` };
+  }
+
   PACK_WARNINGS = [];
   const storeys = [];
-  placedRooms = shedExtras(placedRooms, foot, a.storeys, notes);
   const commonRun = commonStairRun(placedRooms, foot, a.storeys);
   let below = null;
   for (let s = 0; s < a.storeys; s++) {

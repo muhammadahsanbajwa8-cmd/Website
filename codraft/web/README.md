@@ -46,3 +46,23 @@ so is correct) and floors where the area was there and the packing lost it
 The page is built by splicing `engine.js` into the `<script>` block of
 `design-my-house.html`, replacing everything from the top of the script down to
 the `/* ---- drawing the plan ---- */` marker.
+
+## Where the sweeps stand
+
+    cases drawn 310 | refused 50
+    cases with an undersized habitable room: 13
+      of those, every undersized room named in the notes: 13
+      cases with at least one UNDECLARED undersized room: 0
+    with a room that has no route to circulation: 0
+    undersized where the floor is genuinely SHORT of area: 11
+    undersized where the area was there and the PACKING lost it: 2
+
+The two packing losses are the 2-bedroom brief on a 15 x 30 m lot in WA and
+in QLD. Both were always there and the Python loses the same case.
+
+These moved a long way when `shedExtras` landed -- 279 drawn / 81 refused
+became 310 / 50, and undersized habitable rooms 23 cases to 13 while twelve
+more plans draw. Two things did it: dropping the extras a floor cannot hold
+before squeezing the rooms it must, and asking the "does this fit at all"
+question AFTER the extras have gone rather than before. Asked first it
+refused briefs the shed can rescue.
