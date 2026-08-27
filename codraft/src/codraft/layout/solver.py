@@ -2382,9 +2382,21 @@ def solve(
             continue
         clear_area = max(0, cell.area - _WALL_ALLOWANCE * (cell.rect.w + cell.rect.h))
         if req.min_area and clear_area < req.min_area:
+            # Both figures are shown to a tenth of a square metre, and a
+            # shortfall smaller than that prints as "36.0 m² clear; 36.0 m²
+            # was asked for" -- a sentence that says a room missed a target
+            # it visibly meets. This file is the one the customer is handed,
+            # so say which it is rather than leave them to work out that the
+            # two identical numbers are not identical.
+            short = req.min_area - clear_area
+            by = (
+                "which is short by less than 0.1 m²"
+                if round(clear_area / 1e6, 1) == round(req.min_area / 1e6, 1)
+                else f"which is {short / 1e6:.1f} m² short"
+            )
             layout.unsatisfied.append(
                 f"{cell.name} is about {clear_area / 1e6:.1f} m² clear; "
-                f"{req.min_area / 1e6:.1f} m² was asked for."
+                f"{req.min_area / 1e6:.1f} m² was asked for, {by}."
             )
         clear_width = cell.rect.short_side - _WALL_ALLOWANCE
         if req.min_width and clear_width < req.min_width:

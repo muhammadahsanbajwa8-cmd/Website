@@ -563,6 +563,7 @@ def cmd_plan(args) -> int:
         building, jurisdiction,
         layout.warnings + service_warnings + schedule_warnings + drawing_notes,
         site=site,
+        unsatisfied=layout.unsatisfied,
     )
     if args.json:
         (out / f"{stem}-report.json").write_text(

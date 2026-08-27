@@ -66,6 +66,10 @@ class Report:
     assumptions: list[str] = field(default_factory=list)
     disclaimers: list[str] = field(default_factory=list)
     design_warnings: list[str] = field(default_factory=list)
+    # What the brief asked for, room by room, that the drawing did not give
+    # it. Kept apart from the layout's notes because it is a different kind
+    # of statement: a note explains a decision, this records a shortfall.
+    unsatisfied: list[str] = field(default_factory=list)
 
     # -- slices ----------------------------------------------------------
     @property
@@ -129,6 +133,7 @@ class Report:
             "assumptions": self.assumptions,
             "disclaimers": self.disclaimers,
             "design_warnings": self.design_warnings,
+            "unsatisfied": self.unsatisfied,
             "caveat": self.jurisdiction.caveat(),
         }
 
@@ -194,6 +199,19 @@ class Report:
                 out.append(f"  - {w}")
             out.append("")
 
+        if self.unsatisfied:
+            # Whoever is handed this file has to be able to see that a room
+            # is smaller than it was asked to be. It used to be printed to
+            # the terminal and nowhere else, so it reached the person who ran
+            # the command and not the person given the drawing -- and a
+            # squeezed room somebody is told about is a stated limitation
+            # where the same room in silence is a lie.
+            out.append("ASKED FOR BUT NOT ACHIEVED")
+            out.append("-" * 72)
+            for item in self.unsatisfied:
+                out.append(f"  - {item}")
+            out.append("")
+
         if self.assumptions:
             out.append("ASSUMPTIONS THIS REPORT RESTS ON")
             out.append("-" * 72)
@@ -236,8 +254,14 @@ def check(
     jurisdiction: Jurisdiction,
     design_warnings: list[str] | None = None,
     site: dict | None = None,
+    unsatisfied: list[str] | None = None,
 ) -> Report:
     """Run every pack that applies, and collect what each rule decided.
+
+    `unsatisfied` is what the layout could not give the brief, room by room.
+    It is not a compliance question and no rule reads it; it is here because
+    this file is the one the customer is handed, and a room drawn smaller
+    than it was asked to be has to be visible in it.
 
     `site` is the planning controls resolved for this lot's density code.
     Without them a rule keyed by density -- outdoor living area is one --
@@ -263,6 +287,7 @@ def check(
         assumptions=list(fact_set.assumptions),
         disclaimers=[p.disclaimer for p in packs if p.disclaimer],
         design_warnings=list(design_warnings or ()),
+        unsatisfied=list(unsatisfied or ()),
     )
 
     for pack in packs:
