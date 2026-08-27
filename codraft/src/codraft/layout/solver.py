@@ -365,7 +365,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Four attempts to improve the packer have been made and reverted. They are
+# Seven attempts to improve the packer have been made and reverted. They are
 # recorded here because each cost a session to re-derive and each failed for
 # a reason that is not obvious from the code.
 #
@@ -419,6 +419,35 @@ class _Row:
 #    What the attempt did leave behind is worth more than it was: the sweep
 #    it prompted found nine cases already being drawn with a room that has no
 #    route out. See web/route.mjs.
+
+# 5. Pairing across the daylight line first -- in `_group_rows`, preferring a
+#    partner whose need for a window differs from the room's, so the robe
+#    pairs with the bedroom rather than with the ensuite. Measured over the
+#    sweep: no change at all, in any figure.
+#
+#    The reason is worth keeping, because it is what sent the next attempt
+#    somewhere better. On the band it was aimed at -- 12.5 x 28 m, four beds
+#    -- the bedrooms are not `_thin` and never enter the pairing branch: at
+#    4623 mm of depth a 13.2 m2 bedroom wants 2859 mm of length, an aspect of
+#    1.62, which is a good room. They came out 1321 mm across anyway. The
+#    band was not mis-shaping them; it was over-subscribed, holding 90.9 m2
+#    of rooms in 49.3 m2 of band, and `_apportion` shared the shortfall. No
+#    grouping rule can pack a floor into two thirds of itself.
+#
+# 6. Refusing to shed a room on the street frontage (see `_shed_extras`).
+#    The reasoning was that the front strip is as deep as the garage needs
+#    whatever stands beside it, so width given up there goes to the portico
+#    rather than to the bedrooms behind -- which does happen: dropping the
+#    theatre leaves a 21.6 m2 covered porch on a floor whose bedrooms are
+#    1.7 m across. Measured, it is still worse: awkward 67 to 69, thin rooms
+#    327 to 347, refusals 13 to 14. The frontage rooms do cost the bands
+#    something, and the ugly portico is cheaper than the alternative.
+#
+# 7. Shedding the frontage rooms LAST rather than not at all. Better on one
+#    axis -- thin rooms 327 to 321 -- and it refused a lot the tests require
+#    drawn, because stopping the shed at a different point left a WC at
+#    730 mm. Any eighth attempt here should fix where the frontage surplus
+#    goes, not which rooms are allowed to leave.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
@@ -1552,6 +1581,78 @@ def _layout_storey_once(
     return front_cells + cells
 
 
+# The template ranks every room it asks for, and the ones it ranks 4 or
+# worse are the ones it already treats as extras: the theatre and the
+# alfresco sit behind constructor flags, and the portico, the walk-in
+# pantry, the garage store and the linen press are what a builder adds when
+# the block has room for them. 1 to 3 is the house itself -- the passage,
+# the living, the kitchen, the bedrooms, the bathrooms, the laundry. The
+# split is the template's, read in the direction the template declares it;
+# nothing here decides that a theatre matters less than a bedroom.
+_EXTRA_PRIORITY = 4
+
+
+def _shed_extras(
+    placed: list[tuple[str, SpaceRequirement, int]],
+    footprint: Rect,
+    storeys: int,
+    warnings: list[str],
+) -> list[tuple[str, SpaceRequirement, int]]:
+    """Cut the brief to the block before cutting the rooms to the brief.
+
+    A floor asked to hold 261 m2 of rooms on a 168 m2 footprint does not get
+    64 per cent of a house. The shortfall is shared out along the bands, and
+    because a band's depth is fixed the whole of it lands on one dimension:
+    every bedroom comes out 1321 mm across and the master suite 7.1 m2. The
+    warnings said so honestly, and it was still a drawing nobody could
+    build.
+
+    What a builder does on a block this size is delete the theatre and the
+    alfresco -- not shave a metre and a half off every bedroom. So drop the
+    extras, worst-ranked and largest first, until the floor fits, and say
+    which ones went. If the floor still does not fit once the extras are
+    gone, nothing more is dropped: the house itself is what is left, and the
+    existing over-subscription warning is the honest answer.
+
+    A room another surviving room is asked to sit next to is never dropped.
+    The portico is exactly that room -- the entry is declared adjacent to it
+    -- and the front zone is set out around the pair.
+    """
+    kept = list(placed)
+    for storey in range(storeys):
+        while True:
+            asked = sum(_target(req) or 0 for _, req, s in kept if s == storey)
+            if asked <= footprint.area:
+                break
+            wanted = {
+                name
+                for _, req, _ in kept
+                for name in req.adjacent_to
+            }
+            candidates = [
+                (i, req)
+                for i, (_k, req, s) in enumerate(kept)
+                if s == storey
+                and req.priority >= _EXTRA_PRIORITY
+                and req.key not in wanted
+            ]
+            if not candidates:
+                break
+            i, req = max(
+                candidates, key=lambda ir: (ir[1].priority, _target(ir[1]) or 0)
+            )
+            kept.pop(i)
+            over = (asked - footprint.area) / 1e6
+            warnings.append(
+                f"{req.name} was left out of storey {storey}. The rooms asked "
+                f"for are {over:.1f} m2 more than the {footprint.area / 1e6:.1f} "
+                f"m2 the footprint gives, and {req.name} is an extra rather "
+                "than part of the house. Drawing it would have come out of "
+                "the width of every bedroom instead."
+            )
+    return kept
+
+
 def _footprint(
     envelope: Rect,
     needed: int,
@@ -1931,6 +2032,8 @@ def solve(
     needed = int(needed * 1.14)
     footprint = _footprint(envelope, needed, plot, max_footprint, layout.warnings)
     layout.envelope = footprint
+
+    placed = _shed_extras(placed, footprint, program.storeys, layout.warnings)
 
     common_run = _common_stair_run(program, placed, footprint, plot)
     below: _Below | None = None

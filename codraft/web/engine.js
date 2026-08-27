@@ -74,42 +74,42 @@ function buildProgram(a) {
   const rooms = [];
   const upper = a.storeys > 1;
 
-  rooms.push(R("portico", "Portico", "entry", 4, 1500, { zone: "front", storey: 0 }));
-  rooms.push(R("entry", "Entry", "entry", 6, 1500, { zone: "front", storey: 0, solo: true }));
-  rooms.push(R("passage", "Passage", "corridor", 12, a.livable ? 1000 : 1000));
-  rooms.push(R("living", "Living", "living", 24, 3600, { storey: 0, prefer: 32 }));
-  rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0, prefer: 18 }));
-  rooms.push(R("kitchen", "Kitchen", "kitchen", 12, 3000, { storey: 0 }));
-  rooms.push(R("wip", "WIP", "storage", 4, 1400, { storey: 0 }));
+  rooms.push(R("portico", "Portico", "entry", 4, 1500, { zone: "front", storey: 0, priority: 4 }));
+  rooms.push(R("entry", "Entry", "entry", 6, 1500, { zone: "front", storey: 0, solo: true, priority: 1, adj: ["portico"] }));
+  rooms.push(R("passage", "Passage", "corridor", 12, a.livable ? 1000 : 1000, { priority: 1 }));
+  rooms.push(R("living", "Living", "living", 24, 3600, { storey: 0, prefer: 32, priority: 1, adj: ["dining"] }));
+  rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0, prefer: 18, priority: 2, adj: ["kitchen"] }));
+  rooms.push(R("kitchen", "Kitchen", "kitchen", 12, 3000, { storey: 0, priority: 1 }));
+  rooms.push(R("wip", "WIP", "storage", 4, 1400, { storey: 0, priority: 4, adj: ["kitchen"] }));
   rooms.push(R("master", "Master Suite", "bedroom", 16, 3400,
-               upper ? { storey: 1, prefer: 18 } : { prefer: 18 }));
-  rooms.push(R("wir", "WIR", "storage", 5, 1600, upper ? { storey: 1 } : {}));
-  rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, upper ? { storey: 1 } : {}));
+               upper ? { storey: 1, prefer: 18, priority: 1 } : { prefer: 18, priority: 1 }));
+  rooms.push(R("wir", "WIR", "storage", 5, 1600, upper ? { storey: 1, priority: 3, adj: ["master"] } : { priority: 3, adj: ["master"] }));
+  rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, upper ? { storey: 1, priority: 2, adj: ["master"] } : { priority: 2, adj: ["master"] }));
 
   for (let i = 2; i <= a.bedrooms; i++)
     rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000,
-                 upper ? { storey: 1, prefer: 12 } : { prefer: 12 }));
+                 upper ? { storey: 1, prefer: 12, priority: 1 } : { prefer: 12, priority: 1 }));
   for (let i = 2; i <= a.bathrooms; i++)
     rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800,
-                 upper ? { storey: 1 } : {}));
+                 upper ? { storey: 1, priority: 2 } : { priority: 2 }));
 
-  rooms.push(R("wc", "WC", "wc", 1.8, 900, { storey: 0 }));
-  rooms.push(R("laundry", "Laundry", "utility", 7, 1800, { storey: 0 }));
-  rooms.push(R("linen", "Linen", "storage", 1.5, 600));
-  if (a.theatre) rooms.push(R("theatre", "Theatre", "living", 14, 3400, { zone: "front", storey: 0 }));
-  if (a.study) rooms.push(R("study", "Study", "office", 9, 2700, { storey: 0 }));
-  if (a.alfresco) rooms.push(R("alfresco", "Alfresco", "alfresco", 15, 3000, { storey: 0 }));
+  rooms.push(R("wc", "WC", "wc", 1.8, 900, { storey: 0, priority: 3 }));
+  rooms.push(R("laundry", "Laundry", "utility", 7, 1800, { storey: 0, priority: 3 }));
+  rooms.push(R("linen", "Linen", "storage", 1.5, 600, { priority: 8 }));
+  if (a.theatre) rooms.push(R("theatre", "Theatre", "living", 14, 3400, { zone: "front", storey: 0, priority: 4 }));
+  if (a.study) rooms.push(R("study", "Study", "office", 9, 2700, { storey: 0, priority: 4 }));
+  if (a.alfresco) rooms.push(R("alfresco", "Alfresco", "alfresco", 15, 3000, { storey: 0, priority: 5, adj: ["living"] }));
   if (a.garage) {
     rooms.push(R("garage", a.garage === 1 ? "Garage" : "Double Garage", "garage",
-                 a.garage === 1 ? 20 : 36, 3200, { zone: "front", storey: 0, solo: true }));
-    rooms.push(R("store", "Store", "storage", 4, 1500, { zone: "front", storey: 0 }));
+                 a.garage === 1 ? 20 : 36, 3200, { zone: "front", storey: 0, solo: true, priority: 2 }));
+    rooms.push(R("store", "Store", "storage", 4, 1500, { zone: "front", storey: 0, priority: 7, adj: ["garage"] }));
   }
   // No storey pin: `assignStoreys` replicates circulation onto every floor,
   // and it can only do that for rooms that have not already been pinned to
   // one. Pinned to storey 0, the stair was drawn on the ground floor alone --
   // the floors above had no flight on them at all, and got the stair's 10 m2
   // of floor area to fill with rooms, which is floor that is not there.
-  if (a.storeys > 1) rooms.push(R("stair", "Stair", "stair", 10, 2200, {}));
+  if (a.storeys > 1) rooms.push(R("stair", "Stair", "stair", 10, 2200, { priority: 1 }));
   return rooms;
 }
 
@@ -786,6 +786,49 @@ function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
 // -- that is what it can actually spare there. Probing an unstacked floor is
 // meaningless: it puts the flight in a different band of a different width,
 // so its run is not a figure the stacked floor could honour.
+/* The template ranks every room it asks for, and the ones it ranks 4 or worse
+   are the ones it already treats as extras: the theatre, the study and the
+   alfresco sit behind checkboxes, and the portico, the walk-in pantry, the
+   garage store and the linen press are what a builder adds when the block has
+   room for them. 1 to 3 is the house itself. Ported from `_EXTRA_PRIORITY` in
+   src/codraft/layout/solver.py. */
+const EXTRA_PRIORITY = 4;
+
+function shedExtras(placedRooms, foot, storeys, notes) {
+  // Cut the brief to the block before cutting the rooms to the brief. A floor
+  // asked to hold 261 m² of rooms on a 168 m² footprint does not get 64 per
+  // cent of a house: the shortfall is shared along the bands, a band's depth
+  // is fixed, so all of it lands on one dimension and every bedroom comes out
+  // 1321 mm across. What a builder does on a block this size is delete the
+  // theatre and the alfresco, not shave a metre and a half off every bedroom.
+  //
+  // A room another surviving room is asked to sit next to is never dropped --
+  // the portico is exactly that room, and the frontage is set out around it.
+  let kept = placedRooms.slice();
+  for (let s = 0; s < storeys; s++) {
+    for (;;) {
+      const asked = kept.filter(r => r.at === s)
+        .reduce((t, r) => t + (target(r) || 0), 0);
+      if (asked <= foot.w * foot.h) break;
+      const wanted = new Set();
+      for (const r of kept) for (const name of (r.adj || [])) wanted.add(name);
+      const candidates = kept.filter(r => r.at === s
+        && (r.priority ?? 5) >= EXTRA_PRIORITY && !wanted.has(r.key));
+      if (!candidates.length) break;
+      candidates.sort((x, y) => (y.priority ?? 5) - (x.priority ?? 5)
+        || (target(y) || 0) - (target(x) || 0));
+      const gone = candidates[0];
+      kept = kept.filter(r => r !== gone);
+      const over = (asked - foot.w * foot.h) / 1e6;
+      notes.push(`${gone.name} was left out of the ground floor. The rooms asked `
+        + `for are ${over.toFixed(1)} m² more than the ${((foot.w*foot.h)/1e6).toFixed(1)} m² `
+        + `the footprint gives, and ${gone.name} is an extra rather than part of `
+        + `the house. Drawing it would have come out of the width of every bedroom.`);
+    }
+  }
+  return kept;
+}
+
 function commonStairRun(placedRooms, foot, storeys) {
   if (storeys < 2) return null;
   const flightOn = (s, below) => {
@@ -846,7 +889,7 @@ function design(a) {
 
   a.livable = P.livable;
   const rooms = buildProgram(a);
-  const placedRooms = assignStoreys(rooms, a.storeys);
+  let placedRooms = assignStoreys(rooms, a.storeys);
   const maxCover = pick(P.cover);
   const perStorey = [];
   for (let s = 0; s < a.storeys; s++)
@@ -908,6 +951,7 @@ function design(a) {
 
   PACK_WARNINGS = [];
   const storeys = [];
+  placedRooms = shedExtras(placedRooms, foot, a.storeys, notes);
   const commonRun = commonStairRun(placedRooms, foot, a.storeys);
   let below = null;
   for (let s = 0; s < a.storeys; s++) {
