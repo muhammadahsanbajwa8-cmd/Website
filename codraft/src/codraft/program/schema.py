@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..courses import snap_to_course
 from ..model import Function
 from ..units import area_mm2, mm
 
@@ -145,6 +146,57 @@ class SpaceProgram:
 
     def unplaced(self) -> list[SpaceRequirement]:
         return [s for s in self.spaces if s.storey is None]
+
+    def build_to(self, design: dict) -> list[str]:
+        """Raise the brief to the targets the jurisdiction's packs ask for.
+
+        A program comes from a template, and a template is written somewhere:
+        `au-house` sets a 28-course ceiling because that is what a project
+        home in Perth is built to. Handed to Lahore, where the by-laws ask
+        2750 mm, every habitable room fails on ceiling height -- 67 findings
+        in a sweep of nine plans -- and the target that would have prevented
+        it was sitting unread in the pack the plan was checked against.
+
+        Doing this in one place is the point. It was done in `cmd_fit`, in a
+        different and shorter form in the fallback beside it, and not at all
+        for anyone using the library, so which corrections a plan got
+        depended on which entry point drew it.
+
+        Returns what was raised, so a caller can say so.
+        """
+        changed: list[str] = []
+        corridor_width = int(design.get("corridor_width_mm", 0) or 0)
+        if corridor_width:
+            corridor = self.get("corridor")
+            if corridor is not None and corridor_width > corridor.min_width:
+                corridor.min_width = corridor_width
+                changed.append(f"corridor widened to {corridor_width} mm")
+
+        ceiling = int(design.get("ceiling_height_mm", 0) or 0)
+        if ceiling:
+            # Floor to floor has to clear the required ceiling AND the floor
+            # structure under it. `slab_and_finish_mm` is the same allowance
+            # the rule engine subtracts back off when it measures the clear
+            # height, so the two agree by construction.
+            # The CEILING is what gets snapped to a whole course, not the
+            # floor-to-floor: brickwork runs from floor level to the plate,
+            # and the floor structure sits under it as a slab, not as courses.
+            # Snapping the sum instead raised every Australian storey from
+            # 2634 to 2666 for a 2400 mm requirement the 28-course ceiling
+            # already cleared.
+            floor = int(design.get("slab_and_finish_mm", 200) or 200)
+            wanted = snap_to_course(ceiling) + floor
+            if wanted > self.storey_height:
+                self.storey_height = wanted
+                changed.append(f"storey height raised to {wanted} mm")
+
+        # Done after the storey height, which is one of its inputs.
+        if self.size_stair_for(
+            int(design.get("stair_riser_max_mm", 0) or 0),
+            int(design.get("stair_going_min_mm", 0) or 0),
+        ):
+            changed.append("stair sized to the local riser and going limits")
+        return changed
 
     def size_stair_for(self, riser_max_mm: int, going_min_mm: int,
                        flights: int = 2, landing_mm: int = 900,

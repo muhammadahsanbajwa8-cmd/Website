@@ -286,22 +286,8 @@ def cmd_plan(args) -> int:
     # Targets the jurisdiction's packs ask for, handed to the builder so the
     # plan is drawn trying to comply rather than failed for a default.
     design = codes.design_parameters(jurisdiction, program.use)
-    if design.get("corridor_width_mm"):
-        corridor = program.get("corridor")
-        if corridor is not None:
-            corridor.min_width = max(corridor.min_width,
-                                     int(design["corridor_width_mm"]))
-    if design.get("ceiling_height_mm"):
-        # Storey height has to clear the required ceiling plus the structure.
-        program.storey_height = max(
-            program.storey_height, int(design["ceiling_height_mm"]) + 200
-        )
-    # Done after the storey height, which is one of its inputs.
-    if program.size_stair_for(
-        int(design.get("stair_riser_max_mm", 0) or 0),
-        int(design.get("stair_going_min_mm", 0) or 0),
-    ):
-        print("Stair sized to the local riser and going limits.")
+    for raised in program.build_to(design):
+        print(f"Brief raised to the local code: {raised}.")
 
     print(f"Jurisdiction : {jurisdiction.label}")
     if jurisdiction.authority:
@@ -847,12 +833,7 @@ def _generate_for_lot(args, plot, jurisdiction, site) -> int:
         bathrooms=2, storeys=args.storeys or 1,
     )
     design_targets = codes.design_parameters(jurisdiction, program.use)
-    if design_targets.get("corridor_width_mm"):
-        corridor = program.get("corridor")
-        if corridor is not None:
-            corridor.min_width = max(
-                corridor.min_width, int(design_targets["corridor_width_mm"])
-            )
+    program.build_to(design_targets)
     coverage = site.get("max_coverage_ratio")
     try:
         layout = solve(
