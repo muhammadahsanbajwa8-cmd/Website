@@ -365,7 +365,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Eight attempts to improve the packer have been made and reverted. They are
+# Nine attempts to improve the packer have been made and reverted. They are
 # recorded here because each cost a session to re-derive and each failed for
 # a reason that is not obvious from the code.
 #
@@ -476,6 +476,41 @@ class _Row:
 #    behind L-shaped rather than the floor, and every check here rests on
 #    bands being rectangles that tile exactly -- `_stack`, the hole sweep, and
 #    the wall builder all assume it. It is a bigger change than it looks.
+
+# 9. Making the three plan forms peers. The single spine, the service core
+#    and the garage column are tried in that ORDER and the first that beats
+#    the spine returns, so on a 16 to 20 m frontage -- where the core fires --
+#    the column is never even built. That is a preference by position, not by
+#    measurement, and it looked plainly wrong.
+#
+#    Built as peers -- all three scored on the whole floor, front rooms
+#    included, best kept -- the column wins one more plan and the sweep goes
+#    awkward 51 to 49, thin 320 to 319, and code failures 463 to 469. The
+#    extra failures are all on that one plan: on a 20 x 35 m block the column
+#    scores two better and draws four bedrooms 1853 mm across where the core
+#    draws them wider, which is four habitable-width findings, an area one and
+#    a doorway. `_shape_score` counts ROOMS, and the count can be won on the
+#    wrong ones -- a rounder bathroom paying for a narrower bed.
+#
+#    Four ways to stop that trade were tried and each cost more than it saved:
+#      - score every room against its own declared minimum width instead of a
+#        flat 1500 mm: failures 463 to 498, four tests broken. On an
+#        over-subscribed floor nearly every room is under its minimum, so the
+#        count saturates and stops telling two layouts apart at all.
+#      - count thinness only among the rooms that need daylight, so a narrow
+#        bathroom stops paying for a narrow bedroom: awkward 51 to 53,
+#        failures to 472. The obvious refinement, and it loses.
+#      - refuse a column that draws any lit room narrower than the form it
+#        replaces: awkward to 61, failures to 462. It blocks nearly every
+#        column, including the ones that were paying.
+#      - refuse a column that puts MORE lit rooms under their declared width:
+#        awkward 62, failures 472. Worse again.
+#
+#    So the ordering stays, and it stays for a reason worth writing down:
+#    nothing here yet measures a layout the way the code checks do, and every
+#    cheap proxy tried for it is worse than the flat count. A tenth attempt
+#    wants a score built from what the rule engine actually reports, not
+#    another guard in front of this one.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
