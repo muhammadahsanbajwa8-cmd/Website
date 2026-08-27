@@ -314,11 +314,27 @@ def _openings_for_storey(
     # wall. Each pass reaches one room further from the passage, so the door
     # is always hung towards the way out. What is left when a pass adds
     # nothing is genuinely unreachable, and still says so below.
+    # One LAYER at a time, not one room at a time. Adding each room to
+    # `reached` the moment it is settled makes the result depend on the order
+    # the cells happen to be in: a bedroom whose neighbours are a bathroom
+    # reached earlier in the same pass and a robe reached later in it saw only
+    # the bathroom, and hung its door on the 191 mm of wall where the two
+    # rooms clip a corner -- rather than on the 2802 mm it shares with the
+    # robe that opens onto the passage. Both rooms are the same distance from
+    # circulation, so both belong to the same layer and the widest wall
+    # between them should decide.
+    # A wall shorter than the jamb a frame needs is not a way through. Two
+    # rooms clipping a corner share a wall of 150 mm, and a door hung there
+    # is a doorway of no width -- which is not a narrow door, it is the
+    # absence of one. Rooms are joined only along walls that can carry a
+    # leaf, so neither the route out nor the door graph is built on one.
+    def _passable(wall_id: str) -> bool:
+        return wall_by_id[wall_id].length - 300 >= DOOR_MIN_STRUCTURAL
+
     routed: dict[str, tuple[str, str]] = {}
     reached = set(circulation)
-    growing = True
-    while growing:
-        growing = False
+    while True:
+        layer: dict[str, tuple[str, str]] = {}
         for cell in cells:
             if cell.key in reached:
                 continue
@@ -326,13 +342,16 @@ def _openings_for_storey(
                 (other.key, between[(cell.key, other.key)])
                 for other in cells
                 if other.key in reached and (cell.key, other.key) in between
+                and _passable(between[(cell.key, other.key)])
             ]
             if not towards:
                 continue
             towards.sort(key=lambda kw: -wall_by_id[kw[1]].length)
-            routed[cell.key] = towards[0]
-            reached.add(cell.key)
-            growing = True
+            layer[cell.key] = towards[0]
+        if not layer:
+            break
+        routed.update(layer)
+        reached.update(layer)
 
     # -- internal doors --------------------------------------------------
     for cell in cells:
@@ -342,6 +361,7 @@ def _openings_for_storey(
             (key, between[(cell.key, key)])
             for key in circulation
             if (cell.key, key) in between
+            and _passable(between[(cell.key, key)])
         ]
         if not targets:
             # Nothing to open onto directly. Fall back to the largest
@@ -352,6 +372,7 @@ def _openings_for_storey(
                 (other.key, between[(cell.key, other.key)])
                 for other in cells
                 if other.key != cell.key and (cell.key, other.key) in between
+                and _passable(between[(cell.key, other.key)])
             ]
             if not neighbours:
                 warnings.append(
@@ -402,6 +423,15 @@ def _openings_for_storey(
                     "would otherwise get."
                 )
             width = available
+        if width <= 0:
+            # A doorway of no width is not a narrow door, it is the absence
+            # of one, and drawing it is worse than leaving it out: the route
+            # check walks the door graph, so a phantom opening makes a room
+            # nothing can enter look connected, and `has_route_to_exit`
+            # passes on a fiction. The two rooms touch along a wall shorter
+            # than the 300 mm of jamb a frame needs -- they meet at a corner,
+            # not along a side. The warning above already says so.
+            continue
         openings.append(
             Opening(
                 id=opening_id(),

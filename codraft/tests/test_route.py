@@ -23,7 +23,8 @@ from codraft.codes import check
 from codraft.codes.jurisdiction import resolve
 from codraft.geom import Rect
 from codraft.layout import LayoutError, build_building, solve
-from codraft.model import Plot, Roof
+from codraft.layout.walls import DOOR_MIN_STRUCTURAL
+from codraft.model import OpeningKind, Plot, Roof
 from codraft.program import template
 
 # The two lots that produced the failures, plus their neighbours either side.
@@ -90,3 +91,42 @@ class EveryRoomCanBeWalkedTo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheDoorGraphIsNotAFiction(unittest.TestCase):
+    """A doorway of no width is the absence of a door, not a narrow one.
+
+    Two rooms that clip a corner share a wall of 150 or 191 mm. A door hung
+    there came out 0 mm wide and was drawn anyway -- and because the route
+    check walks the door graph, the room it "served" looked connected. Six
+    plans in the lot sweep passed `baseline.route.exists` on that fiction,
+    and one of them was a master suite reached only through a 150 mm clip of
+    the portico.
+    """
+
+    def test_no_opening_is_drawn_with_no_width(self):
+        for label, building, _layout in _plans():
+            with self.subTest(label):
+                for storey in building.storeys:
+                    for opening in storey.openings:
+                        self.assertGreater(
+                            opening.width, 0,
+                            f"{label}: {opening.id} is an opening of no width",
+                        )
+
+    def test_every_door_sits_on_a_wall_that_can_carry_one(self):
+        # 300 mm of jamb either side of the leaf is what the builder allows
+        # for; a wall shorter than that plus a leaf is not a way through.
+        for label, building, _layout in _plans():
+            with self.subTest(label):
+                for storey in building.storeys:
+                    for opening in storey.openings:
+                        if opening.kind is not OpeningKind.DOOR:
+                            continue
+                        wall = storey.wall(opening.wall)
+                        if wall is None or wall.is_exterior:
+                            continue
+                        self.assertGreaterEqual(
+                            wall.length - 300, DOOR_MIN_STRUCTURAL,
+                            f"{label}: a door on a {wall.length} mm wall",
+                        )

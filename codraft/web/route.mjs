@@ -53,18 +53,27 @@ export function stranded(cells) {
 
   // Outwards from circulation: a room may only open into a room that
   // already has a route, and among those it takes the widest wall.
+  //
+  // One LAYER at a time. Adding each room to `reached` the moment it is
+  // settled makes the answer depend on the order the rooms happen to be in:
+  // a bedroom between a bathroom reached earlier in the same pass and a robe
+  // reached later in it sees only the bathroom. Both are the same distance
+  // from circulation, so both belong to the same layer and the widest wall
+  // should decide. Same rule as `_openings_for_storey` in
+  // src/codraft/layout/walls.py.
   const door = {};
   const reached = new Set(circ);
-  for (let growing = true; growing; ) {
-    growing = false;
+  for (;;) {
+    const layer = {};
     for (let i = 0; i < R.length; i++) {
       if (reached.has(i)) continue;
       const towards = Object.keys(shared[i]).map(Number).filter(j => reached.has(j));
       if (!towards.length) continue;
-      door[i] = towards.reduce((m, j) => shared[i][j] > shared[i][m] ? j : m, towards[0]);
-      reached.add(i);
-      growing = true;
+      layer[i] = towards.reduce((m, j) => shared[i][j] > shared[i][m] ? j : m, towards[0]);
     }
+    const found = Object.keys(layer);
+    if (!found.length) break;
+    for (const i of found) { door[i] = layer[i]; reached.add(Number(i)); }
   }
 
   const out = [];
