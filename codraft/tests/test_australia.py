@@ -74,9 +74,18 @@ class TestDesignTargets(unittest.TestCase):
         self.assertEqual(melbourne["door_clear_width_mm"], 820)
         self.assertEqual(melbourne["glazing_ratio"], 0.10)
 
-        # Sydney has no livable housing pack, so no 820 mm door target.
+        # Sydney has no livable housing pack, so it does not get the 820 mm
+        # door. It is not left without a target either: the practice baseline
+        # states the 750 mm its own rule asserts, so a doorway is drawn wide
+        # enough to walk through wherever nothing more local applies. Before
+        # that, every store and laundry door in the country was drawn at 715
+        # and failed the baseline check by 35 mm.
         sydney = codes.design_parameters(resolve("Sydney"), "residential")
-        self.assertNotIn("door_clear_width_mm", sydney)
+        self.assertEqual(sydney["door_clear_width_mm"], 750)
+        self.assertGreater(
+            melbourne["door_clear_width_mm"], sydney["door_clear_width_mm"],
+            "the local pack has to win over the baseline floor",
+        )
 
     def test_the_builder_honours_the_stair_limits(self):
         building, _, _ = _plan("Melbourne")

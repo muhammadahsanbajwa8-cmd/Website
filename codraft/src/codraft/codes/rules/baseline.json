@@ -7,7 +7,8 @@
   "design": {
     "$note": "Targets the SOLVER aims at, so a plan is drawn trying to meet these rather than drawn freely and failed against them afterwards. They repeat the figures asserted by baseline.habitable.width and baseline.habitable.area below; tests/test_baseline_targets.py fails if the two ever drift apart.",
     "habitable_min_width_mm": 2100,
-    "habitable_min_area_m2": 6.5
+    "habitable_min_area_m2": 6.5,
+    "door_clear_width_mm": 750
   },
   "rules": [
     { "id": "baseline.route.exists", "title": "Every room can be walked out of", "scope": "space",
