@@ -584,9 +584,63 @@ function placeFront(front, strip, over) {
 // agree before a stair can arrive where it left from. Matching only the shape
 // was tried and moved nothing -- the band split is decided by each floor's own
 // room areas, so it lands somewhere else regardless.
+const DOUBLE_GARAGE_WIDTH = 5400, DOUBLE_GARAGE_DEPTH = 6000;
+
+// The garage in a column of its own, so the frontage stops being 6 m deep.
+//
+// A front strip has to be as deep as a car, and it is one rectangle, so
+// everything beside the garage gets that depth too: the front door, the
+// portico and the store are given six metres for rooms that need about two.
+// Taking the garage OUT of the strip is what reaches that surplus -- it
+// becomes a column at one end of the frontage running back from the street,
+// the strip beside it shrinks to the depth the front door needs, and the four
+// metres that frees across the rest of the frontage go to the bands. Every
+// piece is still a rectangle, so the floor still tiles exactly.
+//
+// Ported from `_garage_column` in src/codraft/layout/solver.py.
+function garageColumn(garage, otherFront, L, Rr, corridor, full, cw, order,
+                      storeyIndex, pin) {
+  // Wide enough for what the garage is FOR. Its declared minimum width is a
+  // single bay; the figure the plan is checked against afterwards is the
+  // double-garage width, so use that rather than draw a column too narrow.
+  let wide = tileW(garage.minWidth) || MIN_DIM;
+  if ((garage.minArea || 0) >= DOUBLE_GARAGE_WIDTH * DOUBLE_GARAGE_DEPTH)
+    wide = Math.max(wide, DOUBLE_GARAGE_WIDTH + WALL_ALLOW);
+  const deep = Math.max(DOUBLE_GARAGE_DEPTH + WALL_ALLOW,
+                        Math.ceil((target(garage) || 0) / Math.max(1, wide)));
+  if (wide + cw + MIN_TILE > full.w) return null;
+  if (deep >= full.h - MIN_TILE) return null;
+  if (full.h - deep < MIN_TILE) return null;
+
+  const stripW = full.w - wide;
+  const need = otherFront.reduce((t, r) => t + (target(r) || 0), 0);
+  let stripH = Math.max(MIN_DIM + WALL_ALLOW, Math.ceil(need / Math.max(1, stripW)));
+  for (const r of otherFront) stripH = Math.max(stripH, tileW(r.minWidth) || 0);
+  stripH = Math.min(stripH, deep);
+  if (full.h - stripH < MIN_TILE * 2) return null;
+
+  const strip = { x: full.x + wide, y: full.y, w: stripW, h: stripH };
+  const corridorRect = { x: full.x + wide, y: full.y + stripH,
+                         w: cw, h: full.h - stripH };
+  const rightBand = { x: corridorRect.x + cw, y: corridorRect.y,
+                      w: full.x + full.w - (corridorRect.x + cw), h: corridorRect.h };
+  if (rightBand.w < MIN_TILE) return null;
+
+  // The garage is laid out FIRST, at the run a car needs, rather than stacked
+  // with the rooms behind it: `stack` shares a shortfall over every row, and
+  // on an over-subscribed band that drew it 4703 mm deep. A car does not
+  // share the shortfall.
+  const column = { x: full.x, y: full.y + deep, w: wide, h: full.h - deep };
+  const placed = [{ r: garage, rect: { x: full.x, y: full.y, w: wide, h: deep } }]
+    .concat(stack(order(L), column, true, true, pin))
+    .concat(stack(order(Rr), rightBand, true, false, pin));
+  return { placed, strip, corridorRect };
+}
+
 function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
   if (!rooms.length) return [];
   let cells = [], spineX = null, envelope = env, strip = null, frontRooms = [];
+  let frontGarage = null;
 
   if (storeyIndex === 0) {
     let front = rooms.filter(r => r.zone === "front");
@@ -624,6 +678,7 @@ function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
         // garage, leaving every room behind the front door with no way out.
         strip = { x: env.x, y: env.y, w: env.w, h: depth };
         frontRooms = front;
+        frontGarage = garage;
         spineX = strip.x + Math.floor(strip.w / 2);
         envelope = { x: env.x, y: env.y + depth, w: env.w, h: env.h - depth };
         rooms = rooms.filter(r => r.zone !== "front");
@@ -780,6 +835,42 @@ function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
       passages = [{ r: corridor, rect: core.near, at: storeyIndex },
                   { r: { ...corridor, key: String(corridor.key) + "_far" },
                     rect: core.far, at: storeyIndex }];
+    }
+  }
+
+  // The garage in a column of its own, where that beats the strip across the
+  // frontage. Built and scored the way the core is: both are cheap to build,
+  // so build both and keep the one that treats the rooms better.
+  if (strip && frontGarage && vertical && !below) {
+    const otherFront = frontRooms.filter(r => r !== frontGarage);
+    const col = otherFront.length
+      ? garageColumn(frontGarage, otherFront, L, Rr, corridor, env, cw, order,
+                     storeyIndex, pin)
+      : null;
+    if (col) {
+      const plainFront = placeFront(frontRooms, strip,
+                                    [corridorRect.x, corridorRect.x + cw]);
+      const colFront = placeFront(otherFront, col.strip,
+                                  [col.corridorRect.x, col.corridorRect.x + cw]);
+      const mine = col.placed.concat(colFront);
+      // A form that scores better and forces a sliver is not better: the
+      // column takes 5.6 m of the frontage and what is left has to hold the
+      // front door and the portico. This is the same test the sliver refusal
+      // applies later, asked here where there is still a strip to fall back
+      // on.
+      const sliver = mine.some(c => Math.min(c.rect.w, c.rect.h) < MIN_TILE);
+      if (!sliver && better(shapeScore(mine),
+                            shapeScore(placed.concat(plainFront)))) {
+        packWarn("The garage runs back from the street in a column of its own "
+          + "rather than sitting in a strip across the whole frontage. A strip "
+          + "has to be as deep as a car, and everything beside the garage — "
+          + "the front door, the portico — is then given six metres of depth "
+          + "for rooms that need two. Standing the garage on its own returns "
+          + "that depth to the rooms behind.");
+        return colFront.concat(
+          col.placed.map(p => ({ ...p, at: storeyIndex })),
+          [{ r: corridor, rect: col.corridorRect, at: storeyIndex }]);
+      }
     }
   }
 
