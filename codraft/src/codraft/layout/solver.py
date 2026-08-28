@@ -2065,7 +2065,19 @@ def _footprint(
             )
     area = min(max(needed, 1), cap)
     if area >= envelope.area:
-        return envelope
+        # Filling the envelope is only allowed if the envelope itself fits
+        # under the cap once its walls are counted. Returning here without
+        # asking was how three Karachi plans stayed 0.02 over their
+        # floor-area ratio after the trim was added: the trim was never
+        # reached on the one path that hands back the whole envelope.
+        deep = _depth_within_the_cap(
+            envelope.w, envelope.h, max_footprint, warnings
+        )
+        if deep >= envelope.h:
+            return envelope
+        if plot.road_side == "north":
+            return Rect(envelope.x, envelope.y1 - deep, envelope.w, deep)
+        return Rect(envelope.x, envelope.y, envelope.w, deep)
 
     # Build to the side setbacks and control the depth. Scaling the whole
     # envelope down proportionally makes a house as narrow as the block is
@@ -2097,33 +2109,45 @@ def _footprint(
     width = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.w, width))
     depth = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.h, depth))
 
-    # The cap is on the ground the building COVERS, and the walls are part of
-    # that. Trim the depth until the outline fits, frontage first because a
-    # plan wants its frontage; if even the narrowest usable frontage cannot
-    # be made to fit, say so rather than draw over the limit.
-    if max_footprint is not None:
-        wall = _thickest_exterior_wall()
-        while ((width + wall) * (depth + wall) > max_footprint
-               and depth > _ABSOLUTE_MIN_DIM * 2):
-            depth -= 25
-        if (width + wall) * (depth + wall) > max_footprint:
-            warnings.append(
-                f"Site cover is capped at {max_footprint / 1e6:.0f} m² here and "
-                f"the smallest footprint this brief can be laid out on covers "
-                f"more than that once the external walls are counted. The plan "
-                "is drawn to the smallest that works; check the cover figure "
-                "in the report."
-            )
-        depth = max(_ABSOLUTE_MIN_DIM * 2, depth)
+
+    depth = _depth_within_the_cap(width, depth, max_footprint, warnings)
 
     # Push the building up against the road frontage; the slack falls behind.
-    if plot.road_side == "south":
-        return Rect(envelope.x, envelope.y, width, depth)
+    # Done after the trim, so that whichever edge the building is held to, it
+    # is still held to it once the depth has come off.
     if plot.road_side == "north":
         return Rect(envelope.x, envelope.y1 - depth, width, depth)
-    if plot.road_side == "west":
-        return Rect(envelope.x, envelope.y, width, depth)
-    return Rect(envelope.x1 - width, envelope.y, width, depth)
+    if plot.road_side == "east":
+        return Rect(envelope.x1 - width, envelope.y, width, depth)
+    return Rect(envelope.x, envelope.y, width, depth)
+
+
+def _depth_within_the_cap(
+    width: int, depth: int, max_footprint: int | None, warnings: list[str]
+) -> int:
+    """How deep the footprint may be before the ground it COVERS breaks the cap.
+
+    The tiles meet on wall centrelines, so the built outline runs half an
+    external wall outside them on every side: a cap spent on tile area is a
+    cap quietly exceeded. Depth goes before frontage, because a plan wants
+    its frontage and the depth comes out of the back garden either way.
+    """
+    if max_footprint is None:
+        return depth
+    wall = _thickest_exterior_wall()
+    while ((width + wall) * (depth + wall) > max_footprint
+           and depth > _ABSOLUTE_MIN_DIM * 2):
+        depth -= 25
+    depth = max(_ABSOLUTE_MIN_DIM * 2, depth)
+    if (width + wall) * (depth + wall) > max_footprint:
+        warnings.append(
+            f"The planning limits here allow {max_footprint / 1e6:.0f} m² a "
+            "floor and the smallest footprint this brief can be laid out on "
+            "covers more than that once the external walls are counted. The "
+            "plan is drawn to the smallest that works; check the cover and "
+            "floor-area figures in the report."
+        )
+    return depth
 
 
 def _common_stair_run(
@@ -2387,7 +2411,8 @@ def _refuse_slivers(layout: Layout, program: SpaceProgram, footprint: Rect) -> N
 
 
 def solve(
-    program: SpaceProgram, plot: Plot, max_footprint: int | None = None
+    program: SpaceProgram, plot: Plot, max_footprint: int | None = None,
+    max_gross_area: int | None = None,
 ) -> Layout:
     """Lay the program out on the plot's buildable envelope.
 
@@ -2395,7 +2420,19 @@ def solve(
     solver. Passing it means the plan is built within the limit rather than
     built freely and failed afterwards -- the rule engine still checks it,
     but on a design that was trying to comply.
+
+    `max_gross_area` is the same idea for a floor-area-ratio cap, and it is
+    the tighter of the two the moment a plan goes up. Site cover limits the
+    footprint; a ratio limits the footprint TIMES the number of storeys, so a
+    three-storey brief inside its cover cap can be half again over its ratio.
+    Fifteen of a hundred and six Pakistani plans were, by up to 0.25 -- every
+    one of them under its cover cap, none of them told about the other limit.
+    Both are gross areas measured over the walls, so they compare directly.
     """
+    if max_gross_area is not None and program.storeys > 0:
+        per_floor = max_gross_area // program.storeys
+        max_footprint = (per_floor if max_footprint is None
+                         else min(max_footprint, per_floor))
     envelope = plot.buildable
     if envelope.w <= 0 or envelope.h <= 0:
         raise LayoutError(

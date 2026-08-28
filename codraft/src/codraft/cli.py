@@ -282,6 +282,11 @@ def cmd_plan(args) -> int:
         plot = Plot(rect=Rect(0, 0, size[0], size[1]), **setbacks)
     coverage = site.get("max_coverage_ratio")
     max_footprint = int(plot.area * float(coverage)) if coverage else None
+    # Site cover limits the footprint; a floor-area ratio limits the footprint
+    # times the storeys, and is the tighter of the two the moment a plan goes
+    # up. Hand the solver both and let it take whichever binds.
+    ratio = site.get("max_floor_area_ratio")
+    max_gross = int(plot.area * float(ratio)) if ratio else None
 
     # Targets the jurisdiction's packs ask for, handed to the builder so the
     # plan is drawn trying to comply rather than failed for a default.
@@ -306,7 +311,8 @@ def cmd_plan(args) -> int:
 
     # -- 3. lay it out ----------------------------------------------------
     try:
-        layout = solve(program, plot, max_footprint=max_footprint)
+        layout = solve(program, plot, max_footprint=max_footprint,
+                       max_gross_area=max_gross)
     except LayoutError as exc:
         return _fail(str(exc))
     building = build_building(
@@ -839,9 +845,11 @@ def _generate_for_lot(args, plot, jurisdiction, site) -> int:
     program.build_to(design_targets)
     coverage = site.get("max_coverage_ratio")
     try:
+        ratio = site.get("max_floor_area_ratio")
         layout = solve(
             program, plot,
             max_footprint=int(plot.area * float(coverage)) if coverage else None,
+            max_gross_area=int(plot.area * float(ratio)) if ratio else None,
         )
     except LayoutError as exc:
         return _fail(str(exc))
