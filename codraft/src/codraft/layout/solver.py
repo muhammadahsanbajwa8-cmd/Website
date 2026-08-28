@@ -62,6 +62,37 @@ class Layout:
     def for_storey(self, index: int) -> list[Cell]:
         return [c for c in self.cells if c.storey == index]
 
+    def shortfall_notes(self) -> list[str]:
+        """What to print on the DRAWING about rooms that came up short.
+
+        `unsatisfied` is the schedule of it, room by room, and it belongs in
+        the report: twenty lines is a table, not a drawing note. But a sheet
+        gets separated from its report, and a plan that says nothing about a
+        9.6 m2 master suite lets the drawing read as the design somebody
+        intended. So the sheet carries the statement and the report carries
+        the list.
+        """
+        short: list[tuple[int, Cell, int, int]] = []
+        for cell in self.cells:
+            req = cell.requirement
+            if req is None or not req.min_area:
+                continue
+            clear = max(0, cell.area
+                        - _WALL_ALLOWANCE * (cell.rect.w + cell.rect.h))
+            if clear >= req.min_area:
+                continue
+            short.append((req.min_area - clear, cell, clear, req.min_area))
+        if not short:
+            return []
+        by, cell, clear, asked = max(short, key=lambda item: item[0])
+        rooms = "room is" if len(short) == 1 else "rooms are"
+        return [
+            f"{len(short)} {rooms} smaller than the brief asked for. The "
+            f"largest shortfall is {cell.name}, {clear / 1e6:.1f} m² clear "
+            f"against {asked / 1e6:.1f} m² asked, {by / 1e6:.1f} m² short. "
+            "Every one of them is listed in the compliance report."
+        ]
+
 
 # Rooms this narrow are unusable whatever a code says; the solver refuses to
 # emit one rather than draw a corridor and call it a bedroom.

@@ -488,6 +488,7 @@ def cmd_plan(args) -> int:
                     footprint=layout.envelope,
                     system=args.units,
                     sheet_size=args.sheet,
+                    notes=layout.shortfall_notes(),
                 )
             )
             continue
@@ -510,6 +511,7 @@ def cmd_plan(args) -> int:
                     sheet_no=number,
                     sheet_of=len(pages),
                     sheet_size=args.sheet,
+                    notes=layout.shortfall_notes(),
                 )
             )
     if "elevations" in sheets:

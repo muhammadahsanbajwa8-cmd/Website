@@ -463,6 +463,7 @@ def write_pdf(
     system: str = "metric",
     sheet_size: str = "A3",
     compress: bool = True,
+    notes: list[str] | None = None,
 ) -> Path:
     """Write the whole set as one PDF, a page per sheet.
 
@@ -504,7 +505,9 @@ def write_pdf(
         frame = fit_scale(content_w, content_h, size=sheet_size)
         stream, skipped = _page_stream(
             canvas, origin, content_w, content_h, frame, block,
-            name, number, len(pages), styles, canvas.sheet_notes,
+            name, number, len(pages), styles,
+            canvas.sheet_notes + [n for n in (notes or ())
+                                  if n not in canvas.sheet_notes],
         )
         unsupported += skipped
         contents.append(stream)

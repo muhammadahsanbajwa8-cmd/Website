@@ -1274,11 +1274,22 @@ def write_svg(
     sheet_no: int = 1,
     sheet_of: int = 1,
     sheet_size: str = "A3",
+    notes: list[str] | None = None,
 ) -> Path:
-    """Write one sheet as SVG. `services` maps a storey index to its plan."""
+    """Write one sheet as SVG. `services` maps a storey index to its plan.
+
+    `notes` are statements about the design that belong on the sheet rather
+    than only in the report -- a room drawn smaller than it was asked to be
+    is the case this was added for. A drawing gets separated from its report;
+    a limitation only the report states is a limitation the person holding
+    the drawing does not know about.
+    """
     canvas, origin, content_w, content_h, name = build_sheet(
         building, storey_index, sheet, services, footprint, system
     )
+    for note in notes or ():
+        if note not in canvas.sheet_notes:
+            canvas.sheet_notes.append(note)
     return _write_sheet(
         Path(path), "\n".join(canvas.parts), content_w, content_h,
         origin=origin,
