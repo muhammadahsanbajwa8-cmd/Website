@@ -2021,6 +2021,23 @@ def _shed_extras(
     return kept
 
 
+# What a cap on site cover has to leave room for. The tiles the solver lays
+# meet on wall CENTRELINES, so the built outline runs half an external wall
+# outside them on every side -- the difference between a 234 m2 tiling and
+# the 241 m2 of ground it actually covers. A cap read as tile area is a cap
+# quietly exceeded.
+#
+# The figure is the thickest external wall the construction catalogue in
+# `layout.walls` carries. Which system a plan is built in is not known here
+# and does not have to be: reserving for the thickest makes the house a few
+# centimetres smaller than a timber-framed one could be, and reserving for
+# the thinnest would let a brick one creep over a limit it is checked
+# against. Being under a cap costs frontage; being over it costs the permit.
+def _thickest_exterior_wall() -> int:
+    from .walls import CONSTRUCTION
+    return max(system["exterior"] for system in CONSTRUCTION.values())
+
+
 def _footprint(
     envelope: Rect,
     needed: int,
@@ -2079,6 +2096,25 @@ def _footprint(
         width = min(envelope.w, -(-area // max(1, depth)))
     width = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.w, width))
     depth = max(_ABSOLUTE_MIN_DIM * 2, min(envelope.h, depth))
+
+    # The cap is on the ground the building COVERS, and the walls are part of
+    # that. Trim the depth until the outline fits, frontage first because a
+    # plan wants its frontage; if even the narrowest usable frontage cannot
+    # be made to fit, say so rather than draw over the limit.
+    if max_footprint is not None:
+        wall = _thickest_exterior_wall()
+        while ((width + wall) * (depth + wall) > max_footprint
+               and depth > _ABSOLUTE_MIN_DIM * 2):
+            depth -= 25
+        if (width + wall) * (depth + wall) > max_footprint:
+            warnings.append(
+                f"Site cover is capped at {max_footprint / 1e6:.0f} m² here and "
+                f"the smallest footprint this brief can be laid out on covers "
+                f"more than that once the external walls are counted. The plan "
+                "is drawn to the smallest that works; check the cover figure "
+                "in the report."
+            )
+        depth = max(_ABSOLUTE_MIN_DIM * 2, depth)
 
     # Push the building up against the road frontage; the slack falls behind.
     if plot.road_side == "south":

@@ -326,9 +326,52 @@ class Storey:
         return self.ceiling or max(0, self.height - 200)
 
     @property
-    def floor_area(self) -> int:
-        """Gross area of everything enclosed on this storey."""
+    def net_area(self) -> int:
+        """Floor a person can stand on: inside the rooms, walls excluded."""
         return sum(s.area for s in self.spaces)
+
+    @property
+    def floor_area(self) -> int:
+        """Gross area of everything enclosed, measured over the walls.
+
+        `Space.rect` is the CLEAR rectangle -- what is left after half a wall
+        comes off each side -- so summing the rooms gives a NET area, and this
+        used to return it under a docstring saying gross. On a 15 x 30 m lot
+        that reported 218.0 m2 for a house covering 241.2, and site cover of
+        48.4 per cent where it is really 53.6: a plan handed back as passing
+        the R-Codes' 50 per cent cap that in fact breaches it. Coverage and
+        floor-area ratios are the numbers a planning scheme is written
+        against, and every one of them reads this.
+
+        Measured as the exact union of the rooms and the walls around them,
+        each wall taken at its full thickness and extended half a thickness
+        past each end so the square at an external corner -- which neither of
+        the two walls meeting there covers -- is counted once. A union rather
+        than a sum, because walls overlap where they meet and a sum counts
+        those junctions twice.
+        """
+        pieces: list[tuple[int, int, int, int]] = [
+            (s.rect.x0, s.rect.y0, s.rect.x1, s.rect.y1) for s in self.spaces
+        ]
+        for wall in self.walls:
+            half = wall.thickness // 2
+            x0 = min(wall.start.x, wall.end.x) - half
+            x1 = max(wall.start.x, wall.end.x) + half
+            y0 = min(wall.start.y, wall.end.y) - half
+            y1 = max(wall.start.y, wall.end.y) + half
+            pieces.append((x0, y0, x1, y1))
+        if not pieces:
+            return 0
+        xs = sorted({v for p in pieces for v in (p[0], p[2])})
+        ys = sorted({v for p in pieces for v in (p[1], p[3])})
+        total = 0
+        for i in range(len(xs) - 1):
+            for j in range(len(ys) - 1):
+                cx, cy = xs[i], ys[j]
+                if any(x0 <= cx and cx < x1 and y0 <= cy and cy < y1
+                       for x0, y0, x1, y1 in pieces):
+                    total += (xs[i + 1] - xs[i]) * (ys[j + 1] - ys[j])
+        return total
 
     def space(self, space_id: str) -> Space | None:
         return next((s for s in self.spaces if s.id == space_id), None)

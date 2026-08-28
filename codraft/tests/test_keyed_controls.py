@@ -92,7 +92,15 @@ class TestThePakistanControlsFollowTheCity(unittest.TestCase):
         plot = Plot(rect=Rect(0, 0, 12000, 20000), road_side="south",
                     setback_front=4500, setback_rear=1500,
                     setback_left=1000, setback_right=1000)
-        layout = solve(program, plot)
+        # Built TO the cover cap, the way the CLI does it. Without this the
+        # plan is laid out freely and then measured against a limit it was
+        # never given -- which used to pass only because site cover was
+        # computed from the clear room areas and came out a tenth low.
+        cover = site.get("max_coverage_ratio")
+        layout = solve(
+            program, plot,
+            max_footprint=int(plot.area * float(cover)) if cover else None,
+        )
         building = build_building(program, plot, layout, jurisdiction=j.key)
         return codes.check(building, j, layout.warnings,
                            site={**site, **(site_override or {})}), building

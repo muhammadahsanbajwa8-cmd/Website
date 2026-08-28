@@ -1052,6 +1052,22 @@ function design(a) {
   if (fd > env.h) { fd = env.h; fw = Math.min(env.w, Math.ceil(needed / Math.max(1, fd))); }
   fw = Math.max(MIN_DIM * 2, Math.min(env.w, fw));
   fd = Math.max(MIN_DIM * 2, Math.min(env.h, fd));
+
+  // The cap is on the ground the building COVERS, and the walls are part of
+  // that. The tiles meet on wall centrelines, so the outline runs half an
+  // external wall further out on every side -- a cap spent on tiles is a cap
+  // quietly exceeded. Trim the depth until the outline fits, frontage first
+  // because a plan wants its frontage.
+  //
+  // The reserve is the THICKEST external wall in the catalogue, not this
+  // plan's own, so that this engine and the Python reserve the same amount:
+  // the Python does not know the construction where it sizes the footprint.
+  // Being under a cap costs a few centimetres of house; being over it costs
+  // the permit.
+  const THICKEST_WALL = Math.max(...Object.values(CONSTRUCTION).map(c => c.ext));
+  while ((fw + THICKEST_WALL) * (fd + THICKEST_WALL) > cap && fd > MIN_DIM * 2)
+    fd -= 25;
+  fd = Math.max(MIN_DIM * 2, fd);
   const foot = { x: env.x + Math.floor((env.w - fw) / 2), y: env.y, w: fw, h: fd };
 
   placedRooms = shedExtras(placedRooms, foot, a.storeys, notes);
@@ -1128,7 +1144,22 @@ function design(a) {
   const walls = CONSTRUCTION[P.construction];
   const clear = c => ({ x: c.rect.x + walls.int / 2, y: c.rect.y + walls.int / 2,
                         w: Math.max(0, c.rect.w - walls.int), h: Math.max(0, c.rect.h - walls.int) });
-  const areas = storeys.map(cells => cells.reduce((t, c) => { const r = clear(c); return t + r.w * r.h; }, 0));
+  // Gross, measured OVER the walls. Summing the clear rooms gives a NET
+  // area, and site cover and floor-area ratio are what a planning scheme is
+  // written against: on a 15 x 30 m lot the net sum reported 218 m² for a
+  // house covering 241, and cover of 48.4 per cent where it is really 53.6 --
+  // under a cap of 50. The tiles meet on wall centrelines, so the built
+  // outline is their bounding box plus half an external wall on every side.
+  // Ported from `Storey.floor_area` in src/codraft/model.py.
+  const grossOf = cells => {
+    if (!cells.length) return 0;
+    const x0 = Math.min(...cells.map(c => c.rect.x));
+    const x1 = Math.max(...cells.map(c => c.rect.x + c.rect.w));
+    const y0 = Math.min(...cells.map(c => c.rect.y));
+    const y1 = Math.max(...cells.map(c => c.rect.y + c.rect.h));
+    return (x1 - x0 + walls.ext) * (y1 - y0 + walls.ext);
+  };
+  const areas = storeys.map(grossOf);
   const gfa = areas.reduce((a, b) => a + b, 0);
   const cover = areas[0] / lot.area;
 
