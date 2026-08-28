@@ -543,10 +543,20 @@ def cmd_plan(args) -> int:
     rows, schedule_warnings = schedule(building)
     windows = [r for r in rows if r.kind is OpeningKind.WINDOW]
     doors = [r for r in rows if r.kind is OpeningKind.DOOR]
+    # Unframed openings were dropped on the floor: the schedule was built
+    # from the window rows and the door rows, and anything that was neither
+    # went in neither. That was survivable while an opening meant a cased
+    # gap between the entry and the passage. It stopped being survivable when
+    # the garage got its vehicle opening, which is 5.2 m wide, in a
+    # loadbearing external wall, and wants a lintel nobody was being told
+    # about.
+    unframed = [r for r in rows if r.kind is OpeningKind.OPENING]
     schedule_text = "\n".join(
         format_schedule(windows, "WINDOW SCHEDULE")
         + [""]
         + format_schedule(doors, "DOOR SCHEDULE")
+        + [""]
+        + format_schedule(unframed, "OPENING SCHEDULE")
         + ["", "SPECIFICATION AT EVERY EXTERNAL OPENING", "-" * 72,
            "  NONE OF THIS IS CHECKED. It cannot be read off a plan. These are",
            "  the items to be drawn, priced and built, each against the standard",

@@ -262,7 +262,7 @@ def format_schedule(rows: list[ScheduleRow], title: str) -> list[str]:
     out = [title, "-" * 72]
     out.append(
         f"  {'MARK':5} {'CODE':6} {'SIZE (W x H)':16} {'SET OUT':34} "
-        f"{'NO':3} LOCATION"
+        f"{'NO':3} {'LINTEL':7} LOCATION"
     )
     for r in rows:
         size = f"{r.width} x {r.height}"
@@ -271,9 +271,21 @@ def format_schedule(rows: list[ScheduleRow], title: str) -> list[str]:
             location = location[:37] + "..."
         out.append(
             f"  {r.mark:5} {r.code:6} {size:16} {r.set_out():34} "
-            f"{r.count:<3} {location}"
+            f"{r.count:<3} {'YES' if r.needs_lintel else '-':7} {location}"
         )
     out.append("")
+    if any(r.needs_lintel for r in rows):
+        # The specification item for lintels says "the schedule marks which
+        # openings need one". It did not: `needs_lintel` was worked out for
+        # every row and printed nowhere, so the document made a claim about
+        # itself that was not true. The garage opening is what made it matter
+        # -- 5.2 m of loadbearing external wall over a hole, and no column
+        # anywhere saying so.
+        out.append(
+            "  LINTEL YES means the opening is in a loadbearing wall and needs "
+            "one. The span and the load decide the section, and both are an "
+            "engineer's; this marks them, it does not size them."
+        )
     out.append(
         "  Size codes read HEIGHT then WIDTH in units of 100 mm, which is the "
         "commoner Australian convention -- but suppliers differ, so order "
