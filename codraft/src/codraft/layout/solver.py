@@ -15,10 +15,10 @@ down to the millimetre, on every run.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 
-from ..geom import Rect
+from ..geom import Point, Rect
 from ..model import Function, Plot
 from ..program import SpaceProgram, SpaceRequirement
 
@@ -2429,6 +2429,39 @@ def solve(
     one of them under its cover cap, none of them told about the other limit.
     Both are gross areas measured over the walls, so they compare directly.
     """
+    if plot.road_side in ("east", "west"):
+        # Solve it turned, then turn the answer back.
+        #
+        # Everything downstream of here is written for a street running
+        # east-west: `_front_zone` lays its strip across x at the low or high
+        # y, the spine runs the depth, `_place_front` sets the door out along
+        # x. Half of that reads `road_side` and half of it does not, so a lot
+        # fronting east came out with its garage strip on a side boundary and
+        # the passage running across the frontage -- 169 findings on a sweep
+        # where the same lot facing south gets 64.
+        #
+        # Rotating the problem is not a shortcut around writing it properly;
+        # it IS writing it properly. A plan on a lot turned ninety degrees is
+        # the same plan turned ninety degrees, and one implementation that is
+        # exercised by every case beats two that agree only where they were
+        # both remembered.
+        turned = replace(
+            plot,
+            rect=Rect(plot.rect.y, plot.rect.x, plot.rect.h, plot.rect.w),
+            boundary=[Point(pt.y, pt.x) for pt in plot.boundary]
+            if plot.boundary else None,
+            road_side="north" if plot.road_side == "east" else "south",
+            setback_left=plot.setback_right,
+            setback_right=plot.setback_left,
+            _buildable=None,
+        )
+        laid = solve(program, turned, max_footprint, max_gross_area)
+        flip = lambda r: Rect(r.y, r.x, r.h, r.w)   # noqa: E731
+        laid.cells = [replace(c, rect=flip(c.rect)) for c in laid.cells]
+        if laid.envelope is not None:
+            laid.envelope = flip(laid.envelope)
+        return laid
+
     if max_gross_area is not None and program.storeys > 0:
         per_floor = max_gross_area // program.storeys
         max_footprint = (per_floor if max_footprint is None
