@@ -215,7 +215,13 @@ def elevation(building: Building, direction: str, number: int = 1) -> ElevationV
             end = _across(direction, wall.end.x, wall.end.y)
             step = 1 if end >= start else -1
             for opening in storey.openings_on(wall.id):
-                if opening.kind is OpeningKind.OPENING:
+                # An unframed opening between two rooms is not visible from
+                # outside. One in an EXTERIOR wall is: the garage's vehicle
+                # opening is drawn as an opening rather than a door, because
+                # a panel-lift door does not swing, and skipping it by kind
+                # left the street elevation showing a 1000 mm front door and
+                # a blank five-metre wall with the driveway running up to it.
+                if opening.kind is OpeningKind.OPENING and not wall.is_exterior:
                     continue
                 x0 = start + step * opening.offset
                 x1 = x0 + step * opening.width

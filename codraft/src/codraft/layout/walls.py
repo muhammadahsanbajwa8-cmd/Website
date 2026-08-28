@@ -486,7 +486,14 @@ def _openings_for_storey(
         if w.is_exterior and road_edge(w) and set(w.separates) & set(entry_keys)
     ]
     if not front_candidates:
-        front_candidates = [w for w in walls if w.is_exterior and road_edge(w)]
+        # Any road-facing wall will do, except the garage's: the front door
+        # and the vehicle door landed on the same 5.5 m wall and overlapped.
+        garage_keys = {c.key for c in cells if c.function is Function.GARAGE}
+        front_candidates = [
+            w for w in walls
+            if w.is_exterior and road_edge(w)
+            and not (set(w.separates) & garage_keys)
+        ]
     if front_candidates and storey_index == 0:
         wall = max(front_candidates, key=lambda w: w.length)
         entry_width = max(ENTRY_DOOR_WIDTH, required_clear + 45)
@@ -505,6 +512,71 @@ def _openings_for_storey(
         warnings.append(
             "No exterior wall faces the road, so no front door was placed."
         )
+
+    # -- the garage door --------------------------------------------------
+    # A garage with no way to drive into it. Sixty-five of sixty-seven plans
+    # in the lot sweep had one: the elevation facing the street showed a
+    # single 1000 mm front door and a blank wall five and a half metres wide,
+    # with the driveway drawn running up to it. Rooms are doored onto
+    # circulation, and a garage's opening is not that -- it is a hole in the
+    # front of the house for a car, and nothing was placing it.
+    #
+    # The width is the wall's, less the jamb the rest of this module allows:
+    # the same reasoning `place_driveway` uses when it takes its own width
+    # from the garage rather than from a table. What kind of door hangs in it
+    # -- panel lift, roller, tilt -- and the leaf inside the structural
+    # opening are the supplier's, which is what the elevation notes already
+    # say about every other opening on the sheet.
+    if storey_index == 0:
+        for cell in cells:
+            if cell.function is not Function.GARAGE:
+                continue
+            facing = [
+                w for w in walls
+                if w.is_exterior and road_edge(w) and cell.key in w.separates
+            ]
+            if not facing:
+                facing = [w for w in walls
+                          if w.is_exterior and cell.key in w.separates]
+                if facing:
+                    warnings.append(
+                        f"{cell.name} has no wall onto the street, so its door "
+                        "is drawn on the exterior wall it does have. Check it "
+                        "against where the crossover can go."
+                    )
+            if not facing:
+                warnings.append(
+                    f"{cell.name} has no exterior wall at all, so no vehicle "
+                    "door could be placed. A car cannot reach it."
+                )
+                continue
+            wall = max(facing, key=lambda w: w.length)
+            width = max(0, wall.length - 300)
+            if width < DOOR_MIN_STRUCTURAL:
+                warnings.append(
+                    f"{cell.name} fronts {wall.length} mm of wall, which "
+                    f"leaves {width} mm for a vehicle door. That is a planning "
+                    "problem, not a dimension to be adjusted."
+                )
+                continue
+            # An OPENING, not a DOOR, and the distinction is not pedantry:
+            # a door is drawn in plan with its leaf and a quarter-circle
+            # swing, and a 5.2 m swing arc is 5.2 m of drawing that is not
+            # there. It took the architectural sheet from 1:100 to 1:200 --
+            # the whole plan a scale step smaller to make room for the swing
+            # of a door that does not swing. A panel-lift or roller door
+            # lifts into the space above, so what the plan has to show is the
+            # hole, which is what an opening is.
+            openings.append(
+                Opening(
+                    id=opening_id(),
+                    wall=wall.id,
+                    kind=OpeningKind.OPENING,
+                    offset=_centre_opening(wall, width),
+                    width=width,
+                    height=DOOR_HEIGHT,
+                )
+            )
 
     # -- a second way out -------------------------------------------------
     # Above about fifty occupants every code wants two exits, remote from
@@ -594,7 +666,14 @@ def _openings_for_storey(
         for candidate in sorted(exterior, key=lambda w: -w.length):
             if remaining <= 0:
                 break
-            available = max(0, candidate.length - 600)
+            # Only the wall nothing is already standing in. A window was
+            # centred on the wall whatever else was on it, which put a 900 mm
+            # garage window through the middle of the 5.4 m vehicle opening.
+            # Nothing caught it until the garage got its door, because until
+            # then the only openings on an exterior wall were the front door
+            # and the windows themselves, and those are placed one to a wall.
+            free_start, free_length = _widest_free_run(candidate, openings)
+            available = max(0, free_length - 600)
             if available < 600:
                 continue
             # Round the width up. Truncating lands a room at 9.99% of the
@@ -626,7 +705,7 @@ def _openings_for_storey(
                 unit_width = min(MAX_WINDOW_UNIT, available)
                 span = unit_width
 
-            start = _centre_opening(candidate, span)
+            start = free_start + max(0, (free_length - span) // 2)
             for unit in range(units):
                 openings.append(
                     Opening(
@@ -650,6 +729,37 @@ def _openings_for_storey(
             )
 
     return openings
+
+
+def _widest_free_run(
+    wall: Wall, openings: list[Opening]
+) -> tuple[int, int]:
+    """The longest stretch of a wall with nothing already in it.
+
+    Returns (offset, length) along the wall. Openings are placed one module
+    at a time and nothing was checking what a wall already carried, which is
+    fine while every exterior wall gets at most one thing -- and stops being
+    fine the moment a garage has both a vehicle opening and a wall long
+    enough to look like it wants a window.
+    """
+    taken = sorted(
+        (o.offset, o.offset + o.width)
+        for o in openings if o.wall == wall.id
+    )
+    best_start, best_length = 0, wall.length
+    cursor = 0
+    runs: list[tuple[int, int]] = []
+    for start, end in taken:
+        if start > cursor:
+            runs.append((cursor, start - cursor))
+        cursor = max(cursor, end)
+    if cursor < wall.length:
+        runs.append((cursor, wall.length - cursor))
+    if runs:
+        best_start, best_length = max(runs, key=lambda run: run[1])
+    elif taken:
+        best_start, best_length = 0, 0
+    return best_start, best_length
 
 
 def _stairs_for_storey(

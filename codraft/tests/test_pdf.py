@@ -48,11 +48,20 @@ def _write(**kwargs) -> Path:
 
 
 def _streams(path: Path) -> list[str]:
-    """Every page's content stream, inflated."""
+    """Every page's content stream, inflated.
+
+    Read by the declared /Length, which is how a PDF says where a stream
+    ends. Searching for the "endstream" keyword instead looks equivalent and
+    is not: the pattern has to allow an optional CR before the newline, so a
+    compressed stream whose last byte happens to be 0x0D loses it, and the
+    inflate fails. Which byte that is depends on the drawing -- adding one
+    opening to an elevation was enough to trip it -- so the test failed on a
+    file that was perfectly valid.
+    """
     raw = path.read_bytes()
     out = []
-    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", raw, re.S):
-        body = match.group(1)
+    for match in re.finditer(rb"/Length (\d+)[^>]*>>\s*stream\r?\n", raw):
+        body = raw[match.end():match.end() + int(match.group(1))]
         try:
             out.append(zlib.decompress(body).decode("cp1252", "replace"))
         except zlib.error:
