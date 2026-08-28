@@ -321,7 +321,10 @@ def _title_block_ops(frame, block: TitleBlock, sheet_name: str,
 
     cursor -= 11
     text(x + 4, cursor + 6.0, "SCALE", "tb-label")
-    text(x + 4, cursor + 0.8, f"1:{frame.scale}", "tb-scale")
+    from .svg import NOT_TO_SCALE
+    text(x + 4, cursor + 0.8,
+         "NTS" if sheet_name in NOT_TO_SCALE else f"1:{frame.scale}",
+         "tb-scale")
     text(x + 40, cursor + 6.0, "SHEET", "tb-label")
     text(x + 40, cursor + 0.8, f"{sheet_no} of {sheet_of}", "tb-scale")
     text(x + 4, cursor - 3.4, f"at {frame.size}. {scale_note}", "tb-small")
@@ -493,6 +496,10 @@ def write_pdf(
             pages += [("elevations", page)
                       for page in range(elevation_sheets(building))]
             pages.append(("sections", None))
+        # The schedules belong in the set, not only in a text file beside it.
+        # A drawing gets separated from the files that came with it, and a
+        # builder holding the plans and no schedule has the sizes of nothing.
+        pages.append(("schedules", None))
 
     contents: list[bytes] = []
     sizes: list[tuple[float, float]] = []

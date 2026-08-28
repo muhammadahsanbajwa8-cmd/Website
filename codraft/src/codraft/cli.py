@@ -62,7 +62,8 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
-SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations", "sections")
+SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations",
+          "sections", "schedules")
 
 SERVICES_WORDS = (
     "electrical", "electric", "wiring", "plumbing", "sanitary", "services",

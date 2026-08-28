@@ -36,7 +36,13 @@ from ..schedule import marks as opening_marks
 from ..units import fmt_area
 from ._plan import storey_walls
 
-SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations", "sections")
+SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations",
+          "sections", "schedules")
+
+# Sheets that carry no geometry, by the name `build_sheet` gives them. A
+# schedule is a table: printing "1:100" on it invites somebody to scale a
+# size off a column of type, and the sizes are written in the table.
+NOT_TO_SCALE = frozenset({"Schedules"})
 
 STYLE = """
   .sheet { fill: #fbfaf7; }
@@ -130,6 +136,11 @@ STYLE = """
   .elev-level-text { font: 600 210px "IBM Plex Mono", ui-monospace, monospace;
                      fill: #b03030; }
   .elev-note { font: 210px system-ui, sans-serif; fill: #6b6357; }
+  /* The schedule is a TABLE, so it is set in a monospaced face and drawn
+     from the same lines the schedule text file carries. Columns that line
+     up are the whole point of a schedule. */
+  .sched-row { font: 210px "IBM Plex Mono", ui-monospace, monospace; fill: #3a352d; }
+  .sched-head { font: 600 210px "IBM Plex Mono", ui-monospace, monospace; fill: #14110d; }
   .elev-code { font: 600 180px "IBM Plex Mono", ui-monospace, monospace;
                fill: #3a352d; text-anchor: middle; }
 
@@ -227,6 +238,65 @@ def _section_canvas(building: Building):
         canvas,
         (int(-canvas.minx) + 3500, int(canvas.maxy) + 3500),
         content_w, content_h, "Section",
+    )
+
+
+def _schedule_canvas(building: Building):
+    """The window, door and opening schedules on a sheet of their own.
+
+    Drawn from the very lines `format_schedule` writes to the text file, so
+    the sheet and the file cannot disagree. A schedule that says one thing on
+    paper and another in a file beside it is worse than one schedule, because
+    somebody will build from whichever they happen to be holding.
+
+    On its own sheet rather than beside the plan: the plan's scale is deducted
+    from the paper before anything else, and twenty rows of table under a
+    floor plan is how a 1:100 drawing becomes 1:200.
+    """
+    from ..model import OpeningKind
+    from ..schedule import format_schedule, schedule
+
+    rows, _warnings = schedule(building)
+    lines: list[str] = []
+    for kind, title in ((OpeningKind.WINDOW, "WINDOW SCHEDULE"),
+                        (OpeningKind.DOOR, "DOOR SCHEDULE"),
+                        (OpeningKind.OPENING, "OPENING SCHEDULE")):
+        block = format_schedule([r for r in rows if r.kind is kind], title)
+        if block:
+            lines += block + [""]
+
+    if not lines:
+        lines = ["No openings are scheduled."]
+
+    canvas = _Canvas()
+    pitch = 380
+    top = 0
+    for line in lines:
+        if line and not line.startswith("  "):
+            # A heading or its rule.
+            canvas.text(0, top, line, "sched-head" if line.strip("- ") else "sched-row")
+        elif line:
+            canvas.text(0, top, line, "sched-row")
+        top -= pitch
+
+    # The content box is measured, not read off the canvas. `_Canvas.saw`
+    # allows for text that is CENTRED on its point and roughly 90 units a
+    # character either side of it -- which is right for a room label and
+    # wrong twice over for a left-anchored line of a table: wrong about where
+    # it starts and about twice as wide as it is. It made this sheet 39400
+    # units across for a table 14000 wide, and the scale that comes of that
+    # put the rows at 1.05 mm on paper.
+    #
+    # A monospaced face advances 0.6 of its size per character. That is a
+    # property of the face, not a figure chosen here.
+    font = 210
+    across = int(max(len(line) for line in lines) * font * 0.6)
+    down = pitch * len(lines)
+    margin = 900
+    return (
+        canvas,
+        (margin, down + margin),
+        across + 2 * margin, down + 2 * margin, "Schedules",
     )
 
 
@@ -818,7 +888,9 @@ def _title_block(frame, block, sheet_name: str, sheet_no: int, sheet_of: int,
     # Scale and sheet number, which are the two things read most often.
     cursor += 11
     text(x + 4, cursor - 6.0, "SCALE", "tb-label")
-    text(x + 4, cursor - 0.8, f"1:{frame.scale}", "tb-scale")
+    text(x + 4, cursor - 0.8,
+         "NTS" if sheet_name in NOT_TO_SCALE else f"1:{frame.scale}",
+         "tb-scale")
     text(x + 40, cursor - 6.0, "SHEET", "tb-label")
     text(x + 40, cursor - 0.8, f"{sheet_no} of {sheet_of}", "tb-scale")
     text(x + 4, cursor + 3.4, f"at {frame.size}. {scale_note}", "tb-small")
@@ -1131,6 +1203,9 @@ def build_sheet(
 
     if sheet == "sections":
         return _section_canvas(building)
+
+    if sheet == "schedules":
+        return _schedule_canvas(building)
 
     # Breathing room around the drawing, in real millimetres. It is deducted
     # from the paper before a scale is chosen, so it is not free: 3000 here
