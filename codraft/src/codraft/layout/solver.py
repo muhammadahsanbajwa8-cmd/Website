@@ -58,6 +58,11 @@ class Layout:
     storey_height: int = 3000
     warnings: list[str] = field(default_factory=list)
     unsatisfied: list[str] = field(default_factory=list)
+    # Rooms the brief asked for that are not on the drawing at all, because
+    # the floor could not hold them. Kept as names rather than read back out
+    # of the warning text: what the sheet says about a missing room should
+    # not depend on the wording of a sentence written for the report.
+    omitted: list[str] = field(default_factory=list)
 
     def for_storey(self, index: int) -> list[Cell]:
         return [c for c in self.cells if c.storey == index]
@@ -82,16 +87,30 @@ class Layout:
             if clear >= req.min_area:
                 continue
             short.append((req.min_area - clear, cell, clear, req.min_area))
-        if not short:
-            return []
-        by, cell, clear, asked = max(short, key=lambda item: item[0])
-        rooms = "room is" if len(short) == 1 else "rooms are"
-        return [
-            f"{len(short)} {rooms} smaller than the brief asked for. The "
-            f"largest shortfall is {cell.name}, {clear / 1e6:.1f} m² clear "
-            f"against {asked / 1e6:.1f} m² asked, {by / 1e6:.1f} m² short. "
-            "Every one of them is listed in the compliance report."
-        ]
+        notes: list[str] = []
+        if self.omitted:
+            # A room that is not drawn at all is worse to leave unsaid than
+            # one drawn small: somebody comparing the sheet against the brief
+            # they gave finds it missing and has nothing on the page telling
+            # them it was a decision rather than an oversight.
+            names = ", ".join(sorted(set(self.omitted)))
+            was = "was" if len(set(self.omitted)) == 1 else "were"
+            notes.append(
+                f"{names} {was} left out. The floor could not hold the whole "
+                "brief, and dropping what a project home treats as an extra "
+                "beats taking the width out of every bedroom. The compliance "
+                "report says by how much."
+            )
+        if short:
+            by, cell, clear, asked = max(short, key=lambda item: item[0])
+            rooms = "room is" if len(short) == 1 else "rooms are"
+            notes.append(
+                f"{len(short)} {rooms} smaller than the brief asked for. The "
+                f"largest shortfall is {cell.name}, {clear / 1e6:.1f} m² clear "
+                f"against {asked / 1e6:.1f} m² asked, {by / 1e6:.1f} m² short. "
+                "Every one of them is listed in the compliance report."
+            )
+        return notes
 
 
 # Rooms this narrow are unusable whatever a code says; the solver refuses to
@@ -1943,6 +1962,7 @@ def _shed_extras(
     footprint: Rect,
     storeys: int,
     warnings: list[str],
+    omitted: list[str] | None = None,
 ) -> list[tuple[str, SpaceRequirement, int]]:
     """Cut the brief to the block before cutting the rooms to the brief.
 
@@ -1988,6 +2008,8 @@ def _shed_extras(
                 candidates, key=lambda ir: (ir[1].priority, _target(ir[1]) or 0)
             )
             kept.pop(i)
+            if omitted is not None:
+                omitted.append(req.name)
             over = (asked - footprint.area) / 1e6
             warnings.append(
                 f"{req.name} was left out of storey {storey}. The rooms asked "
@@ -2379,7 +2401,8 @@ def solve(
     footprint = _footprint(envelope, needed, plot, max_footprint, layout.warnings)
     layout.envelope = footprint
 
-    placed = _shed_extras(placed, footprint, program.storeys, layout.warnings)
+    placed = _shed_extras(placed, footprint, program.storeys,
+                          layout.warnings, layout.omitted)
 
     common_run = _common_stair_run(program, placed, footprint, plot)
     below: _Below | None = None
