@@ -663,15 +663,26 @@ def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_
         key, req = row.rooms[0]
         if req.solo or not _thin(req):
             continue
-        host = next(
-            (j for j in range(len(rows))
-             if j != i and len(rows[j].rooms) == 1
-             and _can_pair(req, rows[j].rooms[0][1])
-             and depth - (_tile_width(req) or _ABSOLUTE_MIN_DIM)
-             >= max(_tile_width(rows[j].rooms[0][1]),
-                    _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)),
-            None,
-        )
+        # The SMALLEST host that can carry it, not the first one found.
+        # A pair shares the row's length and splits its depth, so a WC merged
+        # into the living room's row gets the living room's length: 1072 x
+        # 8218 mm, which is not a WC but a corridor with a toilet at the end
+        # of it. Forty-five of the sixty-seven plans in the lot sweep drew a
+        # room with no wall left to stand its own fittings against, and the
+        # WC was one on every single one of them.
+        #
+        # This is a better choice among the same candidates rather than a new
+        # rule about which are allowed: nothing that could be paired before
+        # cannot be paired now.
+        able = [
+            j for j in range(len(rows))
+            if j != i and len(rows[j].rooms) == 1
+            and _can_pair(req, rows[j].rooms[0][1])
+            and depth - (_tile_width(req) or _ABSOLUTE_MIN_DIM)
+            >= max(_tile_width(rows[j].rooms[0][1]),
+                   _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE)
+        ]
+        host = min(able, key=lambda j: rows[j].target) if able else None
         if host is None:
             continue
         rows[host].rooms.append((key, req))

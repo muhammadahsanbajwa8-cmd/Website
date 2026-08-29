@@ -406,10 +406,21 @@ function stack(rooms, band, alongY, outerLow = true, pinned = null) {
     if (row.rooms.length !== 1) continue;
     const r = row.rooms[0];
     if (r.solo || !isThin(r)) continue;
-    const host = rows.findIndex((other, j) =>
-      j !== i && other.rooms.length === 1 &&
-      canPair(r, other.rooms[0]) && hasRoomBehind(r, other.rooms[0]));
-    if (host < 0) continue;
+    // The SMALLEST host that can carry it, not the first one found. A pair
+    // shares the row's length and splits its depth, so a WC merged into the
+    // living room's row gets the living room's length -- 1072 x 8218 mm,
+    // which is not a WC but a corridor with a toilet at the end of it. A
+    // better choice among the same candidates, not a new rule about which
+    // are allowed. Ported from `_group_rows` in
+    // src/codraft/layout/solver.py.
+    const able = [];
+    rows.forEach((other, j) => {
+      if (j !== i && other.rooms.length === 1 &&
+          canPair(r, other.rooms[0]) && hasRoomBehind(r, other.rooms[0]))
+        able.push(j);
+    });
+    if (!able.length) continue;
+    const host = able.reduce((m, j) => rows[j].t < rows[m].t ? j : m, able[0]);
     rows[host].rooms.push(r);
     rows[host].t += target(r) || 1;
     rows.splice(i, 1);

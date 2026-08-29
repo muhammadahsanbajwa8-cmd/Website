@@ -49,12 +49,12 @@ the `/* ---- drawing the plan ---- */` marker.
 
 ## Where the sweeps stand
 
-    cases drawn 292 | refused 68
-    cases with an undersized habitable room: 7
-      of those, every undersized room named in the notes: 7
+    cases drawn 293 | refused 67
+    cases with an undersized habitable room: 6
+      of those, every undersized room named in the notes: 6
       cases with at least one UNDECLARED undersized room: 0
     with a room that has no route to circulation: 0
-    undersized where the floor is genuinely SHORT of area: 7
+    undersized where the floor is genuinely SHORT of area: 6
     undersized where the area was there and the PACKING lost it: 0
     cases over their own site-cover cap: 0
 
