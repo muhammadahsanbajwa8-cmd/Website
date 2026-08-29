@@ -72,6 +72,34 @@ JOINERY = {
 }
 
 
+# Room enough to stand in front of a fitting and use it. The placement below
+# refuses a wall with less than this across from it, so it is the figure a
+# room has to reach before its fittings can be drawn at all.
+STANDING_ROOM = 500
+
+
+def min_width_for(function: Function, name: str = "") -> int:
+    """The narrowest a room can be and still hold the fittings it is named for.
+
+    Every fitting has to go against a wall with somewhere to stand in front
+    of it, so the room's SHORT side has to clear the deepest of them plus
+    that standing room. Below that the placement gives up and the drawing
+    says the room has no wall left to take them.
+
+    Read off the same catalogue the drawing places from, because the two
+    disagreeing is how the template came to ask for a 900 mm WC: a pan is
+    680 deep and wants 500 in front of it, so 900 was 280 mm short of a room
+    that could hold the one fitting it is named after. Forty-five of the
+    sixty-seven plans in the lot sweep drew one.
+    """
+    kinds = BY_NAME.get(name.strip().lower().split()[0] if name.strip() else "",
+                        BY_FUNCTION.get(function, ()))
+    depths = [footprint(kind)[1] for kind in kinds if kind not in CENTRED]
+    if not depths:
+        return 0
+    return max(depths) + STANDING_ROOM
+
+
 def _wanted(space: Space) -> tuple[str, ...]:
     key = space.name.strip().lower().split()[0] if space.name.strip() else ""
     if key in BY_NAME:
@@ -180,7 +208,7 @@ def place(space: Space) -> tuple[list[Placed], str | None]:
             across = rect.h if side in ("bottom", "top") else rect.w
             if cursors[side] + length + CORNER > run:
                 continue
-            if across < depth + 500:      # somewhere to stand in front of it
+            if across < depth + STANDING_ROOM:   # room to stand in front
                 continue
             placed.append(_put(rect, side, cursors[side], kind))
             cursors[side] += length + GAP

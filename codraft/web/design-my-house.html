@@ -188,7 +188,13 @@ function buildProgram(a) {
     rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800,
                  upper ? { storey: 1, priority: 2 } : { priority: 2 }));
 
-  rooms.push(R("wc", "WC", "wc", 1.8, 900, { storey: 0, priority: 3 }));
+  // 1180, not the 900 the template used to ask for: a pan is 680 deep and
+  // wants 500 mm in front of it to stand in, so 900 was 280 mm short of a
+  // room that could hold the one fitting it is named after. The Python
+  // derives this from the fittings catalogue in export/fixtures.py; the page
+  // carries no fittings, so it is stated here and the comment is what says
+  // where it came from.
+  rooms.push(R("wc", "WC", "wc", 1.8, 1180, { storey: 0, priority: 3 }));
   rooms.push(R("laundry", "Laundry", "utility", 7, 1800, { storey: 0, priority: 3 }));
   rooms.push(R("linen", "Linen", "storage", 1.5, 600, { priority: 8 }));
   if (a.theatre) rooms.push(R("theatre", "Theatre", "living", 14, 3400, { zone: "front", storey: 0, priority: 4 }));

@@ -190,6 +190,21 @@ class SpaceProgram:
                 self.storey_height = wanted
                 changed.append(f"storey height raised to {wanted} mm")
 
+        # A room has to hold the fittings it is named for. This does not come
+        # from the jurisdiction -- a WC needs room for a pan everywhere -- but
+        # it belongs here, in the one method every entry point calls, because
+        # a correction only some callers remember is how the ceiling height
+        # came to be wrong for Lahore.
+        from ..export.fixtures import min_width_for
+
+        for space in self.spaces:
+            needed = min_width_for(space.function, space.name)
+            if needed > space.min_width:
+                changed.append(
+                    f"{space.name} widened to {needed} mm for its fittings"
+                )
+                space.min_width = needed
+
         # Done after the storey height, which is one of its inputs.
         if self.size_stair_for(
             int(design.get("stair_riser_max_mm", 0) or 0),

@@ -64,9 +64,23 @@ class TestBuildTo(unittest.TestCase):
         if corridor is not None:
             self.assertEqual(corridor.min_width, wide)
 
-    def test_an_empty_design_is_a_no_op(self):
+    def test_an_empty_design_changes_no_local_target(self):
+        # Not a no-op: the fittings correction is independent of the
+        # jurisdiction -- a WC needs room for a pan everywhere -- and it runs
+        # here because this is the one method every entry point calls.
         program = _house()
-        self.assertEqual(program.build_to({}), [])
+        raised = program.build_to({})
+        self.assertTrue(all("fittings" in line for line in raised), raised)
+
+    def test_a_room_is_widened_to_hold_its_own_fittings(self):
+        from codraft.export.fixtures import min_width_for
+
+        program = _house()
+        wc = next(s for s in program.spaces if s.name == "WC")
+        self.assertLess(wc.min_width, min_width_for(wc.function, wc.name))
+        program.build_to({})
+        self.assertGreaterEqual(wc.min_width,
+                                min_width_for(wc.function, wc.name))
 
 
 if __name__ == "__main__":

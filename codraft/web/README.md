@@ -49,14 +49,19 @@ the `/* ---- drawing the plan ---- */` marker.
 
 ## Where the sweeps stand
 
-    cases drawn 293 | refused 67
-    cases with an undersized habitable room: 6
-      of those, every undersized room named in the notes: 6
+    cases drawn 317 | refused 43
+    cases with an undersized habitable room: 13
+      of those, every undersized room named in the notes: 13
       cases with at least one UNDECLARED undersized room: 0
     with a room that has no route to circulation: 0
-    undersized where the floor is genuinely SHORT of area: 6
+    undersized where the floor is genuinely SHORT of area: 13
     undersized where the area was there and the PACKING lost it: 0
     cases over their own site-cover cap: 0
+
+Twenty-four more plans draw than before the WC was widened to hold a pan,
+and thirteen of the 317 have an undersized habitable room against six of
+293 -- which is what drawing more marginal plans looks like, not a
+regression. Every one is still named in the notes.
 
 Nineteen fewer plans draw than before site cover was measured over the
 walls, and that is the fix working rather than a regression: 125 of the 311
