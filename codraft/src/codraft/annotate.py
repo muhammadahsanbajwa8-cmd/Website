@@ -331,9 +331,24 @@ def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]
     #
     # Both figures come off the model now, where `Storey.floor_area` measures
     # the union of the rooms and the walls around them.
-    rows.append(("FOOTPRINT", fmt_area(building.footprint)))
+    # Site cover is the first number a planner looks for, and it was computed
+    # and printed only in the report. The lot goes with it so the percentage
+    # can be checked rather than taken: two numbers and a division anybody
+    # can do. What the local CAP is belongs to the report, which knows the
+    # jurisdiction; this says what the design does.
+    #
+    # Order matters here. The box prints its last two rows in the strong
+    # face, so those two are FOOTPRINT -- the figure the note points at as
+    # the one to price from -- and SITE COVER.
+    lot = getattr(getattr(building, "plot", None), "rect", None)
+    if lot is not None and lot.area > 0:
+        rows.append(("LOT", fmt_area(lot.area)))
     if len(building.storeys) > 1:
         rows.append(("GROSS FLOOR AREA", fmt_area(building.gross_floor_area)))
+    rows.append(("FOOTPRINT", fmt_area(building.footprint)))
+    if lot is not None and lot.area > 0:
+        rows.append(("SITE COVER",
+                     f"{building.footprint / lot.area * 100:.0f}%"))
     # Kept to three lines at the title block's 46 characters. A note that
     # runs off the box is a note whose last clause -- the one saying which
     # figure to price from -- is the clause that goes missing.

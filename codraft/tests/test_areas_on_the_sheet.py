@@ -65,6 +65,61 @@ class TestTheAreaBoxAgreesWithTheModel(unittest.TestCase):
         rows = dict(area_schedule(building, layout.envelope)[0])
         self.assertNotIn("GROSS FLOOR AREA", rows)
 
+    def test_site_cover_is_on_the_sheet(self):
+        # It is the first number a planner looks for and it was printed only
+        # in the report. The LOT goes with it so the percentage can be
+        # checked rather than taken.
+        for width, depth in LOTS:
+            for storeys in (1, 2):
+                building, layout = _built(width, depth, storeys)
+                rows = dict(area_schedule(building, layout.envelope)[0])
+                lot = building.plot.rect.area
+                with self.subTest(lot=(width, depth), storeys=storeys):
+                    self.assertEqual(rows["LOT"], fmt_area(lot))
+                    self.assertEqual(
+                        rows["SITE COVER"],
+                        f"{building.footprint / lot * 100:.0f}%",
+                    )
+
+    def test_the_two_rows_read_first_are_the_two_that_matter(self):
+        # The box prints its last two rows in the strong face.
+        for storeys in (1, 2):
+            building, layout = _built(15000, 30000, storeys)
+            rows = [label for label, _value in
+                    area_schedule(building, layout.envelope)[0]]
+            with self.subTest(storeys=storeys):
+                self.assertEqual(rows[-2:], ["FOOTPRINT", "SITE COVER"])
+
+    def test_the_box_and_its_notes_clear_the_disclaimer(self):
+        # Worst case: a squeezed plan, so the areas box is full AND both
+        # shortfall notes are printed under it.
+        import re
+        import tempfile
+        from pathlib import Path as _Path
+
+        from codraft.export.svg import TitleBlock, write_svg
+
+        building, layout = _built(12500, 28000)
+        rows, note = area_schedule(building, layout.envelope)
+        self.assertTrue(layout.shortfall_notes(), "this lot is meant to squeeze")
+        with tempfile.TemporaryDirectory() as tmp:
+            drawn = write_svg(
+                building, _Path(tmp) / "s.svg", storey_index=0,
+                sheet="architectural", footprint=layout.envelope,
+                title=TitleBlock(project="X", areas=rows, area_note=note),
+                notes=layout.shortfall_notes(),
+            ).read_text(encoding="utf-8")
+        start = drawn.find(">NOTES<")
+        self.assertGreater(start, 0)
+        ys = [float(m.group(1)) for m in
+              re.finditer(r'y="([\d.]+)"', drawn[start:start + 4000])]
+        foot = min(float(m.group(1)) for m in
+                   re.finditer(r'y="([\d.]+)"[^>]*>NOT FOR CONSTRUCTION', drawn))
+        under = [y for y in ys if y < foot]
+        self.assertTrue(under)
+        self.assertLess(max(under), foot,
+                        "the notes run into the disclaimer at the foot")
+
     def test_the_note_still_points_at_footprint(self):
         building, layout = _built(15000, 30000)
         _rows, note = area_schedule(building, layout.envelope)
