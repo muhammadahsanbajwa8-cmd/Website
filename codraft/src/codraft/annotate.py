@@ -319,16 +319,26 @@ def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]
             rows.append((label, fmt_area(total)))
 
     rows.append(("TOTAL INTERNAL", fmt_area(sum(sp.area for sp in spaces))))
-    if footprint is not None:
-        rows.append((
-            "FOOTPRINT",
-            fmt_area(footprint.w * footprint.h * len(building.storeys)),
-        ))
+
+    # FOOTPRINT is the ground the building covers, measured over the external
+    # walls, and it is the figure somebody prices from -- which is why the
+    # note under this box points at it. It was neither of those things. It
+    # was the tiling rectangle, which runs to the wall CENTRELINES and so is
+    # 7 m2 short on a 15 x 30 m lot, multiplied by the number of storeys --
+    # so a two-storey house printed 432.6 m2 under the word FOOTPRINT for a
+    # building standing on 223.2, and that was not its floor area either
+    # (373.0), because an upper storey is not the same size as the ground.
+    #
+    # Both figures come off the model now, where `Storey.floor_area` measures
+    # the union of the rooms and the walls around them.
+    rows.append(("FOOTPRINT", fmt_area(building.footprint)))
+    if len(building.storeys) > 1:
+        rows.append(("GROSS FLOOR AREA", fmt_area(building.gross_floor_area)))
     # Kept to three lines at the title block's 46 characters. A note that
     # runs off the box is a note whose last clause -- the one saying which
     # figure to price from -- is the clause that goes missing.
     note = (
-        "Clear inside the wall faces drawn. A quoted area is measured "
-        "over the external walls: that is FOOTPRINT, not the total."
+        "Room areas are clear inside the walls. FOOTPRINT is the ground "
+        "covered over the external walls: the figure to price from."
     )
     return rows, note

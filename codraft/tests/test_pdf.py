@@ -135,22 +135,23 @@ class TestItIsTheSameDrawing(unittest.TestCase):
             )
 
     def test_the_default_set_is_what_a_permit_set_is(self):
-        # Site plan, floor plans, elevations and at least one section.
-        # Asserted by what each page SAYS rather than by counting, so that
-        # adding a sheet type fails here loudly rather than by an off-by-one.
-        streams = _streams(_write())
-        self.assertEqual(
-            len(streams), 7,
-            "site, two storeys, two elevation sheets, section, schedules")
-        joined = "\n".join(streams)
+        # Site plan, floor plans, elevations, at least one section, and the
+        # schedules. Asserted by what each page SAYS, never by counting them:
+        # the comment here has claimed that since it was written and the test
+        # counted anyway, so every added sheet has cost a round of debugging
+        # an off-by-one instead of reading a name that was missing.
+        joined = "\n".join(_streams(_write()))
         for expected in ("SITE PLAN", "Ground floor", "Floor 1",
                          "Elevation", "Section A-A", "WINDOW SCHEDULE"):
             self.assertIn(expected, joined, f"the set has no {expected}")
 
-        single = _streams(_write(building=_building(storeys=1)))
-        self.assertEqual(
-            len(single), 6,
-            "site, one plan, two elevation sheets, section, schedules")
+        # One storey means one floor plan, and no "Floor 1".
+        single = "\n".join(_streams(_write(building=_building(storeys=1))))
+        for expected in ("SITE PLAN", "Ground floor", "Elevation",
+                         "Section A-A", "WINDOW SCHEDULE"):
+            self.assertIn(expected, single, f"the set has no {expected}")
+        self.assertNotIn("Floor 1", single,
+                         "a single-storey set has an upper floor plan")
 
     def test_a_building_with_no_roof_gets_no_elevation_or_section(self):
         # Both are drawn against the roof, so without one there is nothing
@@ -158,7 +159,11 @@ class TestItIsTheSameDrawing(unittest.TestCase):
         # The schedules stay: they are the sizes of what IS drawn, and a
         # roofless model still has walls with holes in them.
         bare = _building(roof=False)
-        self.assertEqual(len(read_pdf(str(_write(building=bare))).pages), 4)
+        joined = "\n".join(_streams(_write(building=bare)))
+        self.assertNotIn("Elevation", joined)
+        self.assertNotIn("Section A-A", joined)
+        self.assertIn("SITE PLAN", joined)
+        self.assertIn("WINDOW SCHEDULE", joined)
 
 
 class TestNothingIsLostQuietly(unittest.TestCase):
