@@ -140,6 +140,8 @@ STYLE = """
      from the same lines the schedule text file carries. Columns that line
      up are the whole point of a schedule. */
   .sched-row { font: 210px "IBM Plex Mono", ui-monospace, monospace; fill: #3a352d; }
+  .north { stroke: #14110d; stroke-width: 30; fill: none; stroke-linecap: round; }
+  .north-text { font: 700 420px system-ui, sans-serif; fill: #14110d; text-anchor: middle; }
   .sched-head { font: 600 210px "IBM Plex Mono", ui-monospace, monospace; fill: #14110d; }
   .elev-code { font: 600 180px "IBM Plex Mono", ui-monospace, monospace;
                fill: #3a352d; text-anchor: middle; }
@@ -298,6 +300,35 @@ def _schedule_canvas(building: Building):
         (margin, down + margin),
         across + 2 * margin, down + 2 * margin, "Schedules",
     )
+
+
+def _north_point(canvas: _Canvas, plot, dx: int) -> None:
+    """A north arrow on the site plan.
+
+    North is +y and always has been: `road_side` names the compass edge the
+    road is on, and the drawing is set out with north up whichever edge that
+    is. So the arrow is not a decoration or a guess -- it is the one fact the
+    plot already asserts, drawn.
+
+    It goes in the corner diagonally opposite the road, INSIDE the lot. The
+    building is pushed against its frontage, so that corner is open ground by
+    construction; outside the lot it would widen the sheet by a quarter and
+    cost the drawing a scale step, which is what the arrow is worth.
+    """
+    lot = plot.rect
+    reach = max(2000, min(lot.w, lot.h) // 8)
+    inset = reach
+    # Away from the street, in both axes, so a corner block still has it in
+    # the quiet corner.
+    x = lot.x0 + inset if plot.road_side == "east" else lot.x1 - inset
+    y = lot.y0 + inset if plot.road_side == "north" else lot.y1 - inset
+    foot = y - reach // 2
+    head = y + reach // 2
+    canvas.line(x + dx, foot, x + dx, head, "north")
+    wing = reach // 5
+    canvas.line(x + dx, head, x - wing + dx, head - wing, "north")
+    canvas.line(x + dx, head, x + wing + dx, head - wing, "north")
+    canvas.text(x + dx, head + reach // 4, "N", "north-text")
 
 
 def _crossover(plot, drive):
@@ -470,6 +501,8 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
     if not ghost and site:
         canvas.rect(plot.rect, "plot", dx)
         canvas.rect(plot.buildable, "setback", dx)
+        if storey.index == 0:
+            _north_point(canvas, plot, dx)
         # Paving goes down before anything else, so the house sits on it
         # rather than under it.
         drive = getattr(building, "driveway", None)
