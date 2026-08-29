@@ -81,6 +81,27 @@ FIELDS = [
     ("hazard.wind_region", "Wind region", "standard", None),
     ("hazard.termite", "Termite management", "standard", None),
     ("hazard.corrosion", "Corrosion / sea-spray zone", "standard", None),
+    # Visual privacy. codraft checks it and reports on it -- 84 findings on a
+    # sweep of sixty-seven Western Australian plans -- and none of the values
+    # it checks against was on the list anybody is asked to confirm. The
+    # setbacks WA carries are reproduced at medium confidence and the pack
+    # says outright that the table is amended regularly. The last two are
+    # what the R-Codes offer INSTEAD of a setback, and codraft models
+    # neither: a plan that fails the setback may comply by screening the
+    # opening or lifting its sill, and until those figures are supplied the
+    # report can only say the setback was not met.
+    ("privacy.setback.bedroom",
+     "Visual privacy setback, bedroom or study window", "mm", None),
+    ("privacy.setback.habitable",
+     "Visual privacy setback, other habitable room window", "mm", None),
+    ("privacy.setback.unenclosed",
+     "Visual privacy setback, balcony or unenclosed outdoor living", "mm",
+     None),
+    ("privacy.sill_exempt_height",
+     "Sill height above which an opening is not a major opening", "mm", None),
+    ("privacy.screening",
+     "Screening accepted in place of the setback, and to what specification",
+     "rule", None),
 ]
 
 # Standards that are national, so the ID is the same everywhere even though
@@ -113,6 +134,32 @@ def _ncc_heights() -> dict[str, tuple[int, str]]:
         digits = "".join(c for c in rule["assert"] if c.isdigit())
         if digits:
             out[field] = (int(digits), rule.get("clause", "NCC Housing Provisions"))
+    return out
+
+
+def _privacy_setbacks() -> dict[str, tuple[int, str]]:
+    """The visual-privacy setbacks, read off the WA pack's own assertions.
+
+    Only WA: the pack is the R-Codes and nothing here knows what another
+    state's instrument says. The balcony figure is deliberately absent --
+    that rule asserts False and states its 7.5 m in prose, because the
+    perpendicular distance from one wall does not describe a balcony at all,
+    and a number scraped out of a sentence is not a number anybody checked.
+    """
+    out: dict[str, tuple[int, str]] = {}
+    pack = _pack("au-wa-privacy")
+    wanted = {
+        "au.wa.privacy.bedroom": "privacy.setback.bedroom",
+        "au.wa.privacy.habitable": "privacy.setback.habitable",
+    }
+    for rule in pack["rules"]:
+        field = wanted.get(rule["id"])
+        if field is None:
+            continue
+        digits = "".join(c for c in rule["assert"] if c.isdigit())
+        if digits:
+            out[field] = (int(digits),
+                          rule.get("clause", pack.get("edition", "R-Codes")))
     return out
 
 
@@ -182,6 +229,7 @@ def build(out: Path | None = None) -> list[tuple[str, str, str, str]]:
     out = out or OUT
     out.mkdir(parents=True, exist_ok=True)
     heights = _ncc_heights()
+    privacy = _privacy_setbacks()
     rows: list[tuple[str, str, str, str]] = []
 
     for code, (name, instrument, pack_name) in STATES.items():
@@ -230,6 +278,8 @@ def build(out: Path | None = None) -> list[tuple[str, str, str, str]]:
                 source = citation
             elif key in heights:
                 value, source = heights[key]
+            elif code == "wa" and key in privacy:
+                value, source = privacy[key]
             elif NATIONAL.get(key):
                 value = None
                 source = NATIONAL[key]

@@ -14,7 +14,7 @@
 state: qld
 name: "Queensland"
 planning_instrument: "Queensland Development Code MP 1.1 / MP 1.2"
-generated: 2026-08-22
+generated: 2026-08-29
 
 rules:
   - id: setback.front
@@ -169,6 +169,46 @@ rules:
   - id: hazard.corrosion
     description: "Corrosion / sea-spray zone"
     unit: standard
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.setback.bedroom
+    description: "Visual privacy setback, bedroom or study window"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.setback.habitable
+    description: "Visual privacy setback, other habitable room window"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.setback.unenclosed
+    description: "Visual privacy setback, balcony or unenclosed outdoor living"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.sill_exempt_height
+    description: "Sill height above which an opening is not a major opening"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.screening
+    description: "Screening accepted in place of the setback, and to what specification"
+    unit: rule
     value: TODO
     source: TODO
     last_checked: null

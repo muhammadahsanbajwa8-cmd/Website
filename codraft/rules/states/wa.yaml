@@ -14,7 +14,7 @@
 state: wa
 name: "Western Australia"
 planning_instrument: "R-Codes (SPP 7.3); density code drives setbacks"
-generated: 2026-08-22
+generated: 2026-08-29
 
 rules:
   - id: setback.front
@@ -188,6 +188,46 @@ rules:
   - id: hazard.corrosion
     description: "Corrosion / sea-spray zone"
     unit: standard
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.setback.bedroom
+    description: "Visual privacy setback, bedroom or study window"
+    unit: mm
+    value: 4500
+    source: "SPP 7.3 R-Codes Volume 1, visual privacy"
+    last_checked: null
+    status: confirm
+
+  - id: privacy.setback.habitable
+    description: "Visual privacy setback, other habitable room window"
+    unit: mm
+    value: 6000
+    source: "SPP 7.3 R-Codes Volume 1, visual privacy"
+    last_checked: null
+    status: confirm
+
+  - id: privacy.setback.unenclosed
+    description: "Visual privacy setback, balcony or unenclosed outdoor living"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.sill_exempt_height
+    description: "Sill height above which an opening is not a major opening"
+    unit: mm
+    value: TODO
+    source: TODO
+    last_checked: null
+    status: missing
+
+  - id: privacy.screening
+    description: "Screening accepted in place of the setback, and to what specification"
+    unit: rule
     value: TODO
     source: TODO
     last_checked: null

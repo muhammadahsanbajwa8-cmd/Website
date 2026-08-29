@@ -8,8 +8,8 @@ value is present it came from a rule pack that cites its own source, and
 it is listed below under *confirm* rather than treated as settled. Where
 no value is present it says `TODO` and is listed under *missing*.
 
-- **114** values missing entirely
-- **38** values present from an existing pack, needing verification against the current edition
+- **152** values missing entirely
+- **40** values present from an existing pack, needing verification against the current edition
 
 Set `last_checked` to the date you checked it and `status: confirmed`
 once a figure has been read off the instrument itself.
@@ -41,6 +41,11 @@ Instrument: Territory Plan, single dwelling code
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### New South Wales (`nsw`)
 
@@ -60,6 +65,11 @@ Instrument: Codes SEPP / Exempt and Complying Development
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### Northern Territory (`nt`)
 
@@ -84,6 +94,11 @@ Instrument: NT Planning Scheme
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### Queensland (`qld`)
 
@@ -103,6 +118,11 @@ Instrument: Queensland Development Code MP 1.1 / MP 1.2
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### South Australia (`sa`)
 
@@ -127,6 +147,11 @@ Instrument: Planning and Design Code
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### Tasmania (`tas`)
 
@@ -151,6 +176,11 @@ Instrument: Tasmanian Planning Scheme, State Planning Provisions
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### Victoria (`vic`)
 
@@ -169,6 +199,11 @@ Instrument: ResCode, Clauses 54 and 55
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.bedroom` | Visual privacy setback, bedroom or study window | mm | — |
+| `privacy.setback.habitable` | Visual privacy setback, other habitable room window | mm | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ### Western Australia (`wa`)
 
@@ -187,6 +222,9 @@ Instrument: R-Codes (SPP 7.3); density code drives setbacks
 | `hazard.wind_region` | Wind region | standard | AS 4055 (region determined by location) |
 | `hazard.termite` | Termite management | standard | AS 3660.1 |
 | `hazard.corrosion` | Corrosion / sea-spray zone | standard | — |
+| `privacy.setback.unenclosed` | Visual privacy setback, balcony or unenclosed outdoor living | mm | — |
+| `privacy.sill_exempt_height` | Sill height above which an opening is not a major opening | mm | — |
+| `privacy.screening` | Screening accepted in place of the setback, and to what specification | rule | — |
 
 ---
 
@@ -273,4 +311,6 @@ instrument, and editions change.
 | `site.min_private_open_space` | R20 30, R25 30, R30 24, R40 20, R60 16, R80 12, default 30 | State Planning Policy 7.3 |
 | `room.min_ceiling_habitable` | 2400 | ABCB Housing Provisions Part 10.3 |
 | `room.min_ceiling_non_habitable` | 2100 | ABCB Housing Provisions Part 10.3 |
+| `privacy.setback.bedroom` | 4500 | SPP 7.3 R-Codes Volume 1, visual privacy |
+| `privacy.setback.habitable` | 6000 | SPP 7.3 R-Codes Volume 1, visual privacy |
 
