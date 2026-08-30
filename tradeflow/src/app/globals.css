@@ -1,0 +1,296 @@
+@import 'tailwindcss';
+
+/* ===========================================================================
+   TradeFlow design tokens
+   ---------------------------------------------------------------------------
+   A trades platform gets used in a ute at 7am and in an office at 7pm, so the
+   palette is built around a high-contrast neutral with one warm accent, and
+   every surface is defined in both schemes. Nothing here is a Tailwind default
+   colour used raw: the app only ever refers to these tokens.
+   =========================================================================== */
+
+@theme {
+  --font-sans: 'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+
+  /* Brand — a warm site-safety amber against deep slate. */
+  --color-brand-50: oklch(0.977 0.021 73);
+  --color-brand-100: oklch(0.954 0.048 74);
+  --color-brand-200: oklch(0.902 0.096 76);
+  --color-brand-300: oklch(0.844 0.146 78);
+  --color-brand-400: oklch(0.789 0.176 71);
+  --color-brand-500: oklch(0.727 0.183 60);
+  --color-brand-600: oklch(0.648 0.185 48);
+  --color-brand-700: oklch(0.548 0.166 42);
+  --color-brand-800: oklch(0.462 0.137 40);
+  --color-brand-900: oklch(0.402 0.113 40);
+  --color-brand-950: oklch(0.264 0.077 38);
+
+  --color-ink-50: oklch(0.984 0.003 248);
+  --color-ink-100: oklch(0.968 0.005 248);
+  --color-ink-200: oklch(0.929 0.009 248);
+  --color-ink-300: oklch(0.869 0.013 248);
+  --color-ink-400: oklch(0.704 0.018 249);
+  --color-ink-500: oklch(0.554 0.021 250);
+  --color-ink-600: oklch(0.446 0.021 252);
+  --color-ink-700: oklch(0.372 0.021 253);
+  --color-ink-800: oklch(0.279 0.02 256);
+  --color-ink-900: oklch(0.208 0.019 261);
+  --color-ink-950: oklch(0.145 0.017 264);
+
+  --radius-card: 0.875rem;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-raised: 0 4px 6px -2px rgb(15 23 42 / 0.05), 0 12px 24px -6px rgb(15 23 42 / 0.12);
+  --shadow-pop: 0 20px 50px -12px rgb(15 23 42 / 0.28);
+}
+
+/* Semantic surface tokens. Every component reads these, so the whole app
+   changes scheme by swapping this block rather than by scattering dark:
+   variants through the markup. */
+:root {
+  --surface-page: oklch(0.985 0.003 248);
+  --surface-card: oklch(1 0 0);
+  --surface-sunken: oklch(0.968 0.005 248);
+  --surface-raised: oklch(1 0 0);
+  --surface-inverse: oklch(0.208 0.019 261);
+
+  --text-strong: oklch(0.208 0.019 261);
+  --text-default: oklch(0.372 0.021 253);
+  --text-muted: oklch(0.554 0.021 250);
+  --text-inverse: oklch(0.984 0.003 248);
+
+  --line-subtle: oklch(0.929 0.009 248);
+  --line-default: oklch(0.869 0.013 248);
+  --line-strong: oklch(0.704 0.018 249);
+
+  --accent: oklch(0.648 0.185 48);
+  --accent-hover: oklch(0.548 0.166 42);
+  --accent-soft: oklch(0.954 0.048 74);
+  --accent-on: oklch(0.99 0.005 80);
+
+  --ok: oklch(0.58 0.15 155);
+  --ok-soft: oklch(0.95 0.04 155);
+  --warn: oklch(0.72 0.16 75);
+  --warn-soft: oklch(0.96 0.05 85);
+  --bad: oklch(0.58 0.2 25);
+  --bad-soft: oklch(0.95 0.03 25);
+  --info: oklch(0.6 0.15 250);
+  --info-soft: oklch(0.95 0.03 250);
+  --progress: oklch(0.62 0.15 285);
+  --progress-soft: oklch(0.95 0.03 285);
+}
+
+.dark {
+  --surface-page: oklch(0.165 0.018 262);
+  --surface-card: oklch(0.208 0.019 261);
+  --surface-sunken: oklch(0.185 0.018 261);
+  --surface-raised: oklch(0.245 0.02 259);
+  --surface-inverse: oklch(0.968 0.005 248);
+
+  --text-strong: oklch(0.975 0.004 248);
+  --text-default: oklch(0.869 0.013 248);
+  --text-muted: oklch(0.664 0.018 249);
+  --text-inverse: oklch(0.208 0.019 261);
+
+  --line-subtle: oklch(0.28 0.02 256);
+  --line-default: oklch(0.34 0.021 254);
+  --line-strong: oklch(0.44 0.021 252);
+
+  --accent: oklch(0.75 0.17 62);
+  --accent-hover: oklch(0.81 0.16 70);
+  --accent-soft: oklch(0.3 0.07 48);
+  --accent-on: oklch(0.18 0.03 45);
+
+  --ok: oklch(0.72 0.15 155);
+  --ok-soft: oklch(0.28 0.06 155);
+  --warn: oklch(0.8 0.15 80);
+  --warn-soft: oklch(0.3 0.06 80);
+  --bad: oklch(0.7 0.18 25);
+  --bad-soft: oklch(0.3 0.08 25);
+  --info: oklch(0.72 0.13 250);
+  --info-soft: oklch(0.28 0.06 250);
+  --progress: oklch(0.74 0.13 285);
+  --progress-soft: oklch(0.29 0.06 285);
+}
+
+@layer base {
+  * {
+    border-color: var(--line-subtle);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--surface-page);
+    color: var(--text-default);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* iOS home indicator and notch on the mobile bottom bar. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--text-strong);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  /* Never below 16px on a control: iOS zooms the viewport on focus otherwise,
+     and a worker filling a form one-handed on site should not have to pinch
+     back out. */
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text-strong);
+  }
+
+  /* Scrollbars that do not look like 2009 on desktop. */
+  @media (pointer: fine) {
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--line-default);
+      border-radius: 999px;
+      border: 3px solid var(--surface-page);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+  }
+}
+
+@layer components {
+  .surface {
+    background: var(--surface-card);
+    border: 1px solid var(--line-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  .field-input {
+    width: 100%;
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    color: var(--text-strong);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .field-input::placeholder { color: var(--text-muted); }
+  .field-input:hover:not(:disabled) { border-color: var(--line-strong); }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 22%, transparent);
+  }
+  .field-input:disabled {
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+  .field-input[aria-invalid='true'] {
+    border-color: var(--bad);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--bad) 18%, transparent);
+  }
+
+  /* A table that becomes a stack of cards on a phone. */
+  .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .data-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid var(--line-subtle);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 0.875rem;
+    border-bottom: 1px solid var(--line-subtle);
+    vertical-align: middle;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr { transition: background-color 100ms ease; }
+  .data-table tbody tr:hover { background: var(--surface-sunken); }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-sunken) 25%,
+      color-mix(in oklch, var(--surface-sunken) 60%, var(--line-subtle)) 37%,
+      var(--surface-sunken) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton 1.4s ease infinite;
+    border-radius: 0.5rem;
+  }
+
+  @keyframes skeleton {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+  }
+
+  .prose-tight p { margin-bottom: 0.75rem; }
+  .prose-tight p:last-child { margin-bottom: 0; }
+}
+
+@layer utilities {
+  .text-strong { color: var(--text-strong); }
+  .text-default { color: var(--text-default); }
+  .text-muted { color: var(--text-muted); }
+  .bg-page { background: var(--surface-page); }
+  .bg-card { background: var(--surface-card); }
+  .bg-sunken { background: var(--surface-sunken); }
+  .bg-raised { background: var(--surface-raised); }
+  .border-subtle { border-color: var(--line-subtle); }
+  .border-default { border-color: var(--line-default); }
+  .accent-text { color: var(--accent); }
+  .accent-bg { background: var(--accent); }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  .animate-in {
+    animation: fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .animate-scale-in {
+    animation: scale-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+  .surface { box-shadow: none; border: 1px solid #ddd; }
+}
