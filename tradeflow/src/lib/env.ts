@@ -44,7 +44,7 @@ export const env = {
     return optional('ANTHROPIC_API_KEY');
   },
   get anthropicModel() {
-    return process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+    return process.env.ANTHROPIC_MODEL || 'claude-opus-5';
   },
   get emailProvider() {
     const value = (process.env.EMAIL_PROVIDER || 'log').toLowerCase();

@@ -35,6 +35,7 @@ export const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { href: '/customers', label: 'Customers', icon: icons.customers, capability: 'customers.view' },
       { href: '/leads', label: 'Leads', icon: icons.leads, capability: 'leads.view' },
       { href: '/emails', label: 'Emails', icon: icons.emails, capability: 'emails.view' },
+      { href: '/calls', label: 'Calls', icon: icons.phone, capability: 'ai.use' },
     ],
   },
   {

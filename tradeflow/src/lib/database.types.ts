@@ -609,7 +609,155 @@ export type AuditLog = {
   created_at: string;
 }
 
+// --- the AI business brain and the phone agent (migration 0005) -------------
+
+export type CallDirection = 'inbound' | 'outbound';
+export type CallStatus =
+  | 'ringing' | 'in_progress' | 'completed' | 'no_answer' | 'failed' | 'voicemail';
+export type CallTurnRole = 'caller' | 'agent' | 'system';
+export type AiVoiceTone =
+  | 'professional' | 'friendly' | 'casual' | 'warm' | 'concise' | 'formal';
+
+export type IndustryProfileRow = Timestamps & {
+  id: string;
+  business_id: string | null;
+  key: string;
+  name: string;
+  description: string | null;
+  terminology: string[];
+  common_services: string[];
+  common_questions: string[];
+  is_system: boolean;
+}
+
+export type AiBrain = Timestamps & {
+  business_id: string;
+  industry_key: string | null;
+  tone: AiVoiceTone;
+  voice_name: string;
+  speaking_rate: number;
+  language: string;
+  greeting: string | null;
+  after_hours_greeting: string | null;
+  voicemail_greeting: string | null;
+  services: string[];
+  service_area: string | null;
+  business_hours: Json;
+  emergency_hours: string | null;
+  staff: Json;
+  escalation_name: string | null;
+  escalation_phone: string | null;
+  escalation_email: string | null;
+  allowed_topics: string[];
+  forbidden_topics: string[];
+  policies: string | null;
+  pricing_guidance: string | null;
+  disclose_ai: boolean;
+  may_discuss_pricing: boolean;
+  may_confirm_bookings: boolean;
+  may_share_job_status: boolean;
+  max_call_minutes: number;
+  enabled: boolean;
+  phone_number: string | null;
+}
+
+export type AiFaq = Timestamps & SoftDelete & {
+  id: string;
+  business_id: string;
+  question: string;
+  answer: string;
+  category: string | null;
+  position: number;
+}
+
+export type AiKnowledge = Timestamps & SoftDelete & {
+  id: string;
+  business_id: string;
+  title: string;
+  body: string;
+  category: string;
+  approved: boolean;
+  created_by: string | null;
+}
+
+export type Call = Timestamps & SoftDelete & {
+  id: string;
+  business_id: string;
+  direction: CallDirection;
+  status: CallStatus;
+  provider: string;
+  provider_call_sid: string | null;
+  from_number: string | null;
+  to_number: string | null;
+  caller_name: string | null;
+  customer_id: string | null;
+  job_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  summary: string | null;
+  intent: string | null;
+  sentiment: 'positive' | 'neutral' | 'frustrated' | 'angry' | null;
+  outcome: string | null;
+  escalated: boolean;
+  escalation_reason: string | null;
+  after_hours: boolean;
+  handled_by_ai: boolean;
+}
+
+export type CallTurn = {
+  id: string;
+  business_id: string;
+  call_id: string;
+  role: CallTurnRole;
+  text: string;
+  confidence: number | null;
+  latency_ms: number | null;
+  interrupted: boolean;
+  position: number;
+  created_at: string;
+}
+
+export type CallAction = Timestamps & {
+  id: string;
+  business_id: string;
+  call_id: string;
+  kind: 'task' | 'note' | 'callback' | 'quote_request' | 'complaint' | 'booking';
+  title: string;
+  detail: string | null;
+  priority: TaskPriority;
+  due_date: string | null;
+  suggested_job_id: string | null;
+  suggested_customer_id: string | null;
+  applied: boolean;
+  applied_at: string | null;
+  task_id: string | null;
+  dismissed: boolean;
+}
+
+export type AiFeedback = {
+  id: string;
+  business_id: string;
+  call_id: string | null;
+  turn_id: string | null;
+  rating: 'good' | 'needs_improvement';
+  misunderstanding: string | null;
+  correction: string | null;
+  applied_to_brain: boolean;
+  knowledge_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 type TableRows = {
+  industry_profiles: IndustryProfileRow;
+  ai_brain: AiBrain;
+  ai_faqs: AiFaq;
+  ai_knowledge: AiKnowledge;
+  calls: Call;
+  call_turns: CallTurn;
+  call_actions: CallAction;
+  ai_feedback: AiFeedback;
   businesses: Business;
   profiles: Profile;
   team_members: TeamMember;
@@ -690,6 +838,8 @@ export type Database = {
       recalc_invoice_payments: { Args: { p_invoice: string }; Returns: undefined };
       recalc_quote_totals: { Args: { p_quote: string }; Returns: undefined };
       recalc_invoice_totals: { Args: { p_invoice: string }; Returns: undefined };
+      ensure_ai_brain: { Args: { target: string }; Returns: undefined };
+      ai_identify_caller: { Args: { target: string; p_number: string }; Returns: Json };
     };
     Enums: {
       team_role: TeamRole;
@@ -706,6 +856,10 @@ export type Database = {
       email_state: EmailState;
       mailbox_provider: MailboxProvider;
       payment_method: PaymentMethod;
+      call_direction: CallDirection;
+      call_status: CallStatus;
+      call_turn_role: CallTurnRole;
+      ai_voice_tone: AiVoiceTone;
     };
     CompositeTypes: Record<never, never>;
   };
