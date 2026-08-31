@@ -16,6 +16,7 @@ import {
   Icon,
   Input,
   Select,
+  Textarea,
   icons,
 } from '@/components/ui';
 import { SubmitButton } from '@/components/ui/client';
@@ -198,6 +199,56 @@ export function BusinessSettingsForm({ business }: { business: Business }) {
           <p className="text-sm text-[var(--text-muted)]">
             These print on every invoice, with the invoice number as the payment reference.
           </p>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Your terms"
+          description="Write these once. Every new quote and invoice starts with them, and they print at the end of what the customer receives. Changing them here never alters a quote you have already sent."
+        />
+        <CardBody className="space-y-5">
+          <Field
+            label="How you expect to be paid"
+            htmlFor="defaultPaymentTerms"
+            hint="One or two lines, shown just above the terms."
+          >
+            <Textarea
+              id="defaultPaymentTerms"
+              name="defaultPaymentTerms"
+              rows={2}
+              defaultValue={business.default_payment_terms ?? ''}
+              placeholder="Payment within 14 days of the invoice date. 30% deposit before work starts."
+            />
+          </Field>
+
+          <Field
+            label="Terms on a quote"
+            htmlFor="defaultQuoteTerms"
+            hint="What is and is not included, how variations are handled, how long the price holds."
+          >
+            <Textarea
+              id="defaultQuoteTerms"
+              name="defaultQuoteTerms"
+              rows={6}
+              defaultValue={business.default_quote_terms ?? ''}
+              placeholder="Variations to the scope are quoted separately in writing before that work starts."
+            />
+          </Field>
+
+          <Field
+            label="Terms on an invoice"
+            htmlFor="defaultInvoiceTerms"
+            hint="Anything the customer should read when the bill arrives."
+          >
+            <Textarea
+              id="defaultInvoiceTerms"
+              name="defaultInvoiceTerms"
+              rows={3}
+              defaultValue={business.default_invoice_terms ?? ''}
+              placeholder="Please quote the invoice number with your payment."
+            />
+          </Field>
         </CardBody>
       </Card>
 

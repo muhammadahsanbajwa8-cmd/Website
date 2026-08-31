@@ -36,6 +36,8 @@ export default async function NewQuotePage({
         gstRegistered={session.business.gst_registered}
         validityDays={session.business.quote_validity_days}
         paymentTermsDays={session.business.default_payment_terms_days}
+        defaultPaymentTerms={session.business.default_payment_terms}
+        defaultTerms={session.business.default_quote_terms}
         defaultCustomerId={customer}
         defaultJobId={job}
         defaultEstimateId={estimate}

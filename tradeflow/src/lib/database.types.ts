@@ -65,6 +65,10 @@ export type Business = Timestamps & SoftDelete & {
   bank_account_name: string | null;
   bank_bsb: string | null;
   bank_account_number: string | null;
+  /** The business's standing policies, copied onto each new document. */
+  default_quote_terms: string | null;
+  default_invoice_terms: string | null;
+  default_payment_terms: string | null;
   plan: string;
   is_demo: boolean;
   onboarded_at: string | null;

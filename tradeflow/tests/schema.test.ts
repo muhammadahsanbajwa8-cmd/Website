@@ -42,6 +42,18 @@ function columnsOf(table: string): string[] {
 
   const body = ALL_SQL.slice(ALL_SQL.indexOf('(', start) + 1, end);
 
+  // Columns added by a later migration are just as real as the ones in the
+  // original create. Without this, every `alter table … add column` would look
+  // like a typo to the checks below.
+  const added: string[] = [];
+  for (const statement of ALL_SQL.matchAll(
+    new RegExp(`alter table ${table}\\b([\\s\\S]*?);`, 'gi')
+  )) {
+    for (const column of statement[1].matchAll(/add column (?:if not exists )?(\w+)/gi)) {
+      added.push(column[1]);
+    }
+  }
+
   return body
     .split('\n')
     .map((line) => line.replace(/--.*$/, '').trim())
@@ -55,7 +67,8 @@ function columnsOf(table: string): string[] {
     .filter(
       (name) =>
         !['references', 'default', 'not', 'null', 'on', 'generated', 'or', 'and'].includes(name)
-    );
+    )
+    .concat(added);
 }
 
 /** The table → type map at the bottom of database.types.ts. */

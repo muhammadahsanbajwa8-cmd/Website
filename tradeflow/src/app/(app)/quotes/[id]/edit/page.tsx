@@ -71,6 +71,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
         gstRegistered={session.business.gst_registered}
         validityDays={session.business.quote_validity_days}
         paymentTermsDays={session.business.default_payment_terms_days}
+        defaultPaymentTerms={session.business.default_payment_terms}
+        defaultTerms={session.business.default_quote_terms}
       />
     </div>
   );

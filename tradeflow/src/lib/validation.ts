@@ -157,6 +157,9 @@ export const businessSettingsSchema = z.object({
       message: 'A BSB is six digits',
     }),
   bankAccountNumber: optionalText(20),
+  defaultPaymentTerms: optionalText(2000),
+  defaultQuoteTerms: optionalText(20_000),
+  defaultInvoiceTerms: optionalText(20_000),
 });
 
 // --- CRM --------------------------------------------------------------------

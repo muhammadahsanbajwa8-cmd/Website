@@ -30,6 +30,8 @@ export function QuoteForm({
   gstRegistered,
   validityDays,
   paymentTermsDays,
+  defaultPaymentTerms,
+  defaultTerms,
   defaultCustomerId,
   defaultJobId,
   defaultEstimateId,
@@ -41,6 +43,9 @@ export function QuoteForm({
   gstRegistered: boolean;
   validityDays: number;
   paymentTermsDays: number;
+  /** The business's standing policies, from Settings. */
+  defaultPaymentTerms?: string | null;
+  defaultTerms?: string | null;
   defaultCustomerId?: string;
   defaultJobId?: string;
   defaultEstimateId?: string;
@@ -174,6 +179,7 @@ export function QuoteForm({
               rows={2}
               defaultValue={
                 quote?.payment_terms ??
+                defaultPaymentTerms ??
                 `Payment within ${paymentTermsDays} days of invoice.`
               }
             />
@@ -182,7 +188,7 @@ export function QuoteForm({
           <Field
             label="Terms and conditions"
             htmlFor="terms"
-            hint="Printed in small type at the end of the quote."
+            hint="Printed at the end of the quote, and on the copy the customer opens. Set your standing terms once in Settings."
           >
             <Textarea
               id="terms"
@@ -190,6 +196,7 @@ export function QuoteForm({
               rows={4}
               defaultValue={
                 quote?.terms ??
+                defaultTerms ??
                 'Prices are in Australian dollars and hold for the validity period shown. ' +
                   'Variations to the scope are quoted separately in writing before work proceeds.'
               }

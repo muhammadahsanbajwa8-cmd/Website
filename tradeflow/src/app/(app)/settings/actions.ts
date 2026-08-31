@@ -31,6 +31,9 @@ export async function saveBusinessSettingsAction(
     bankAccountName: formData.get('bankAccountName'),
     bankBsb: formData.get('bankBsb'),
     bankAccountNumber: formData.get('bankAccountNumber'),
+    defaultPaymentTerms: formData.get('defaultPaymentTerms'),
+    defaultQuoteTerms: formData.get('defaultQuoteTerms'),
+    defaultInvoiceTerms: formData.get('defaultInvoiceTerms'),
   });
   if (!parsed.success) return invalid(fieldErrors(parsed.error));
 
@@ -69,6 +72,11 @@ export async function saveBusinessSettingsAction(
       bank_account_name: parsed.data.bankAccountName ?? null,
       bank_bsb: parsed.data.bankBsb ?? null,
       bank_account_number: parsed.data.bankAccountNumber ?? null,
+      // Changing these does not touch a quote already sent: what a customer
+      // agreed to must not change after the fact.
+      default_payment_terms: parsed.data.defaultPaymentTerms ?? null,
+      default_quote_terms: parsed.data.defaultQuoteTerms ?? null,
+      default_invoice_terms: parsed.data.defaultInvoiceTerms ?? null,
       ...(logoPath ? { logo_path: logoPath } : {}),
     })
     .eq('id', session.business.id);
