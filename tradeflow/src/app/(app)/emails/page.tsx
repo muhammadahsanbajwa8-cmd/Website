@@ -97,13 +97,12 @@ export default async function EmailsPage({
         <div className="mb-5">
           <InfoNote>
             <strong>No mailbox connected.</strong> Quotes, invoices and reports send from here
-            already. Connecting Gmail or Outlook is what puts your existing conversations onto the
-            job they belong to — it needs OAuth credentials from Google or Microsoft, which they
-            issue to a named application. See{' '}
-            <Link href="/settings" className="underline">
-              Settings
-            </Link>{' '}
-            for what to fill in.
+            already. Connecting Gmail or Outlook is what puts the replies onto the job they belong
+            to.{' '}
+            <Link href="/settings/mailboxes" className="underline">
+              Connect one
+            </Link>
+            .
           </InfoNote>
         </div>
       ) : null}

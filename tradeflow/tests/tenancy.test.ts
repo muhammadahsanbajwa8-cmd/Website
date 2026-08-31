@@ -248,7 +248,14 @@ describe('server code never trusts an id from the URL on its own', () => {
       // those two call.
       if (/[/\\](q|i)[/\\]\[token\]/.test(file)) continue;
       if (/[/\\]api[/\\]voice[/\\]/.test(file)) continue;
+      // The service-role modules. None of them can have a session — a phone
+      // caller has no JWT, and a mailbox sync runs on a schedule — so each
+      // instead binds itself to one business id taken from a row the caller
+      // already established. That is asserted positively rather than skipped:
+      // see "the AI cannot be argued into another tenant" below, and
+      // "what the sync is allowed to do" in mailbox.test.ts.
       if (/[/\\]lib[/\\](voice|ai)[/\\]/.test(file)) continue;
+      if (/[/\\]lib[/\\]email[/\\](sync|oauth)\.ts$/.test(file)) continue;
       if (/[/\\]auth[/\\]|[/\\]\(auth\)[/\\]|onboarding|invite/.test(file)) continue;
       if (/supabase[/\\](server|admin|client)\.ts$/.test(file)) continue;
       if (/lib[/\\](session|storage|demo|documents|report-pdf|pickers|query)\.ts$/.test(file)) continue;

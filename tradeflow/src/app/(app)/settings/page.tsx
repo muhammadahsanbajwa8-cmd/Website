@@ -21,6 +21,7 @@ export default async function SettingsPage() {
   const links = [
     { href: '/settings/profile', label: 'Your profile', icon: icons.customers, blurb: 'Your name and phone number.' },
     { href: '/settings/ai', label: 'AI assistant', icon: icons.ai, blurb: 'What your assistant knows and how it answers the phone.' },
+    { href: '/settings/mailboxes', label: 'Mailboxes', icon: icons.emails, blurb: 'Connect the mailbox you already use, so replies land on the job.' },
     { href: '/team', label: 'Team', icon: icons.team, blurb: 'Who can get in, and what they can reach.' },
     { href: '/settings/demo', label: 'Demo data', icon: icons.building, blurb: 'Load a worked example, or clear it out.' },
   ];

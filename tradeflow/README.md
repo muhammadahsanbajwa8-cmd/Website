@@ -66,21 +66,17 @@ waiting for instead of failing.
 | `EMAIL_PROVIDER` + `RESEND_API_KEY` or `SMTP_URL` | actually delivering email | mail is composed, recorded in the outbox and logged, but not sent |
 | `TWILIO_AUTH_TOKEN` + a phone number | answering the phone | the voice webhooks refuse every request |
 
-One credential genuinely cannot be created for you: **a phone number** has to
-be bought on an account in your name. Everything either side of it is done —
-the webhook handling, the signature verification, the conversation, the
-after-call processing — but the number itself is yours to obtain.
+| `GOOGLE_OAUTH_*` / `MICROSOFT_OAUTH_*` + `TOKEN_ENCRYPTION_KEY` | connecting an existing Gmail or Outlook mailbox | Settings → Mailboxes says which variable is missing |
+
+Three credentials genuinely cannot be created for you, and it is worth being
+plain about why. **A phone number** has to be bought on an account in your
+name. **An OAuth client secret** is issued by Google and Microsoft to a named
+application that *you* register — they will not issue one to this code. The
+integrations either side of both are complete; the credential itself is yours
+to obtain. (`TOKEN_ENCRYPTION_KEY` is the exception: you generate that one
+yourself, with the command `npm run setup` prints.)
 
 ### Not implemented
-
-**Connecting an existing mailbox.** Outbound email is complete: quotes,
-invoices and reports are composed, sent and recorded against the job, and the
-AI drafts replies. The inbound half — signing in to Gmail or Outlook so
-received messages land on the job they belong to — is not written. The schema,
-the encrypted token columns and the interface are all in place, and the app
-says so plainly on the Emails page rather than pretending otherwise, but the
-OAuth callback and the sync are still to do. `GOOGLE_OAUTH_*` and
-`MICROSOFT_OAUTH_*` in `.env.example` are reserved for it.
 
 **Billing.** The pricing page is real and the plans are on the business row,
 but nothing charges anyone. That was deliberate: the brief said to leave
@@ -105,11 +101,13 @@ materials, suppliers, and job profitability that reconciles against all of it.
 customer portal where a quote can be read, downloaded, accepted, declined or
 queried without an account, and the same for invoices.
 
-**Communication** — email with attachments generated from the live record, an
-AI assistant that summarises, drafts and shortens (and never sends — every
-draft waits for a person to press send), and a phone agent that answers in the
-business's own voice, knows the trade's vocabulary, recognises a returning
-caller, and turns the call into structured follow-up work afterwards.
+**Communication** — email with attachments generated from the live record; a
+connected Gmail or Outlook mailbox whose incoming mail is matched to the
+customer it came from and filed against their current job; an AI assistant that
+summarises, drafts and shortens (and never sends — every draft waits for a
+person to press send); and a phone agent that answers in the business's own
+voice, knows the trade's vocabulary, recognises a returning caller, and turns
+the call into structured follow-up work afterwards.
 
 **Everything else** — five roles, notifications, an audit log, documents, and
 a mobile layout built so a worker can file a site report from a phone in under
@@ -243,6 +241,12 @@ npm run db:push
 Migrations are re-runnable and recorded with a checksum, so applying them twice
 is a no-op and a file edited after being applied is reported rather than
 silently skipped.
+
+For a mailbox, register an OAuth client with Google or Microsoft, add
+`https://your-domain/api/email/google/callback` (or `/microsoft/`) as its
+authorised redirect URI, and set the client id and secret plus
+`TOKEN_ENCRYPTION_KEY`. The scopes requested are read-only: the application
+cannot send, delete or alter anything in a connected mailbox.
 
 For the phone agent, point your number's voice webhook at
 `https://your-domain/api/voice/incoming` and its status callback at

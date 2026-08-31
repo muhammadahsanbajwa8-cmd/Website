@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -116,17 +116,8 @@ describe('every table has a row type', () => {
 describe('the row types carry every column', () => {
   const map = tableMap();
 
-  // Columns deliberately absent from the row types. The encrypted mailbox
-  // tokens are revoked from `select` for `authenticated` in 0003, so no row
-  // type should offer them: only the service role ever reads them.
-  const WITHHELD: Record<string, string[]> = {
-    email_accounts: ['refresh_token_enc', 'access_token_enc'],
-  };
-
   it.each(Object.entries(map))('%s', (table, typeName) => {
-    const columns = columnsOf(table).filter(
-      (column) => !(WITHHELD[table] ?? []).includes(column)
-    );
+    const columns = columnsOf(table);
     const properties = propertiesOf(typeName);
 
     expect(columns.length, `parsed no columns for ${table}`).toBeGreaterThan(2);
@@ -134,6 +125,83 @@ describe('the row types carry every column', () => {
 
     const missing = columns.filter((column) => !properties.has(column));
     expect(missing, `${typeName} is missing: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('keeps the mailbox tokens off the type the application uses', () => {
+    // The two encrypted columns exist on `EmailAccountRow`, which only the
+    // service role ever populates. `EmailAccount` — what every page, action and
+    // component sees — has no mention of a token on it, which is why nothing
+    // outside lib/email can accidentally read one.
+    const appFacing = propertiesOf('EmailAccount');
+    expect(appFacing.has('refresh_token_enc')).toBe(false);
+    expect(appFacing.has('access_token_enc')).toBe(false);
+
+    const serviceRole = propertiesOf('EmailAccountRow');
+    expect(serviceRole.has('refresh_token_enc')).toBe(true);
+    expect(serviceRole.has('access_token_enc')).toBe(true);
+
+    // And the SQL still revokes them, which is the part that actually enforces it.
+    expect(ALL_SQL).toMatch(
+      /revoke select \(refresh_token_enc, access_token_enc\) on email_accounts from authenticated/
+    );
+    expect(ALL_SQL).toMatch(
+      /revoke update \(refresh_token_enc, access_token_enc\) on email_accounts from authenticated/
+    );
+  });
+});
+
+describe('every column the application writes exists', () => {
+  /**
+   * A misspelled column in an insert is invisible until the code runs, and
+   * some of this code is hard to run — the mailbox sync only executes with a
+   * real Google or Microsoft account behind it. So the column names it uses
+   * are checked against the schema here instead.
+   */
+  function walk(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) return walk(full);
+      return /\.tsx?$/.test(full) ? [full] : [];
+    });
+  }
+
+  const SRC = join(ROOT, 'src');
+  const files = walk(SRC);
+
+  it('in every insert and update across the application', () => {
+    const offenders: string[] = [];
+
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+
+      for (const match of source.matchAll(
+        /\.from\('(\w+)'\)\s*\n?\s*\.(insert|update|upsert)\(\s*\{([\s\S]*?)\n(\s*)\}\)/g
+      )) {
+        const [, table, , body] = match;
+        let columns: string[];
+        try {
+          columns = columnsOf(table);
+        } catch {
+          continue; // not one of ours (storage, auth)
+        }
+
+        // Top-level keys only: a nested object is a jsonb value, not a column.
+        let depth = 0;
+        for (const line of body.split('\n')) {
+          const trimmed = line.trim();
+          const key = depth === 0 ? trimmed.match(/^(\w+):/) : null;
+
+          if (key && !columns.includes(key[1])) {
+            offenders.push(`${file.replace(SRC, 'src')} → ${table}.${key[1]}`);
+          }
+
+          depth += (line.match(/[{[(]/g) ?? []).length - (line.match(/[}\])]/g) ?? []).length;
+          depth = Math.max(0, depth);
+        }
+      }
+    }
+
+    expect(offenders, `columns that do not exist:\n${offenders.join('\n')}`).toEqual([]);
   });
 });
 

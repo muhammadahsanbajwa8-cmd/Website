@@ -498,9 +498,24 @@ export type EmailAccount = Timestamps & SoftDelete & {
   last_synced_at: string | null;
   sync_error: string | null;
   is_active: boolean;
-  // refresh_token_enc / access_token_enc are revoked from the `authenticated`
-  // role in migration 0003 and deliberately absent from this type.
 }
+
+/**
+ * The same row, with the sealed tokens.
+ *
+ * `authenticated` has SELECT and UPDATE revoked on these two columns in
+ * migration 0003, so through PostgREST they come back undefined for everyone —
+ * only the service role sees a value, and only `lib/email/oauth.ts` and
+ * `lib/email/sync.ts` read them. They are typed `| null` for that reason:
+ * anything reading them must cope with getting nothing.
+ *
+ * `EmailAccount` is the type the rest of the application uses, and it has no
+ * mention of a token on it.
+ */
+export type EmailAccountRow = EmailAccount & {
+  refresh_token_enc: string | null;
+  access_token_enc: string | null;
+};
 
 export type EmailThread = Timestamps & SoftDelete & {
   id: string;
@@ -787,7 +802,7 @@ type TableRows = {
   job_photos: JobPhoto;
   report_photos: ReportPhoto;
   job_documents: JobDocument;
-  email_accounts: EmailAccount;
+  email_accounts: EmailAccountRow;
   email_threads: EmailThread;
   emails: Email;
   email_attachments: EmailAttachment;
