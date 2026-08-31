@@ -83,11 +83,12 @@ const OPTIONAL = [
     what: 'answering the phone',
     where: 'twilio.com console → Account Info, plus a number pointed at /api/voice/incoming',
   },
-  {
-    key: 'GOOGLE_OAUTH_CLIENT_ID',
-    what: 'connecting a Gmail mailbox',
-    where: 'console.cloud.google.com → Credentials → OAuth client',
-  },
+];
+
+// Reserved, and honest about it: connecting an existing mailbox is not built
+// yet. Sending email works without any of this.
+const NOT_IMPLEMENTED = [
+  ['GOOGLE_OAUTH_CLIENT_ID / MICROSOFT_OAUTH_CLIENT_ID', 'connecting an existing mailbox (inbound)'],
 ];
 
 const missing = [];
@@ -114,6 +115,11 @@ for (const item of OPTIONAL) {
   const set = !placeholder(value) && !(item.key === 'EMAIL_PROVIDER' && value === 'log');
   console.log(`  ${set ? green('set  ') : dim('unset')}   ${item.key} ${dim(`— ${item.what}`)}`);
   if (!set) console.log(`          ${dim(item.where)}`);
+}
+
+console.log(bold('\nNot built yet\n'));
+for (const [key, what] of NOT_IMPLEMENTED) {
+  console.log(`  ${dim('todo ')}   ${key} ${dim(`— ${what}`)}`);
 }
 
 if (missing.length) {

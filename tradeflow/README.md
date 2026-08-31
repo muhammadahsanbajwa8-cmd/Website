@@ -65,14 +65,26 @@ waiting for instead of failing.
 | `ANTHROPIC_API_KEY` | the business assistant, the email helper, the phone agent | the AI panels explain that a key is needed |
 | `EMAIL_PROVIDER` + `RESEND_API_KEY` or `SMTP_URL` | actually delivering email | mail is composed, recorded in the outbox and logged, but not sent |
 | `TWILIO_AUTH_TOKEN` + a phone number | answering the phone | the voice webhooks refuse every request |
-| `GOOGLE_OAUTH_*` / `MICROSOFT_OAUTH_*` | connecting a Gmail or Outlook mailbox | "Connect mailbox" explains which credential is missing |
 
-Two of those genuinely cannot be created for you, and it is worth being plain
-about why: **a phone number** has to be bought on an account in your name, and
-**an OAuth client secret** is issued by Google and Microsoft to a named
-application that you register. The integrations either side of both are
-complete — the webhook handling, the signature verification, the token
-encryption, the sync — but the credential itself is yours to obtain.
+One credential genuinely cannot be created for you: **a phone number** has to
+be bought on an account in your name. Everything either side of it is done —
+the webhook handling, the signature verification, the conversation, the
+after-call processing — but the number itself is yours to obtain.
+
+### Not implemented
+
+**Connecting an existing mailbox.** Outbound email is complete: quotes,
+invoices and reports are composed, sent and recorded against the job, and the
+AI drafts replies. The inbound half — signing in to Gmail or Outlook so
+received messages land on the job they belong to — is not written. The schema,
+the encrypted token columns and the interface are all in place, and the app
+says so plainly on the Emails page rather than pretending otherwise, but the
+OAuth callback and the sync are still to do. `GOOGLE_OAUTH_*` and
+`MICROSOFT_OAUTH_*` in `.env.example` are reserved for it.
+
+**Billing.** The pricing page is real and the plans are on the business row,
+but nothing charges anyone. That was deliberate: the brief said to leave
+billing until the core works.
 
 ---
 
