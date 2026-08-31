@@ -32,6 +32,9 @@ export type ReportStatus = 'draft' | 'final' | 'sent';
 export type EmailDirection = 'inbound' | 'outbound';
 export type EmailState = 'draft' | 'queued' | 'sent' | 'failed' | 'received';
 export type MailboxProvider = 'google' | 'microsoft' | 'imap';
+export type PaymentStatus =
+  | 'pending' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
+export type PaymentProvider = 'manual' | 'stripe';
 export type PaymentMethod = 'bank_transfer' | 'card' | 'cash' | 'cheque' | 'direct_debit' | 'other';
 export type PhotoCategory =
   | 'general' | 'before' | 'during' | 'after' | 'defect' | 'safety' | 'compliance' | 'damage';
@@ -69,6 +72,11 @@ export type Business = Timestamps & SoftDelete & {
   default_quote_terms: string | null;
   default_invoice_terms: string | null;
   default_payment_terms: string | null;
+  stripe_account_id: string | null;
+  stripe_charges_enabled: boolean;
+  stripe_details_submitted: boolean;
+  stripe_connected_at: string | null;
+  platform_fee_bp: number;
   plan: string;
   is_demo: boolean;
   onboarded_at: string | null;
@@ -366,6 +374,16 @@ export type Payment = Timestamps & SoftDelete & {
   paid_on: string;
   notes: string | null;
   created_by: string | null;
+  provider: PaymentProvider;
+  /** Only `succeeded` counts towards an invoice. Set from the provider's own record. */
+  status: PaymentStatus;
+  provider_payment_id: string | null;
+  provider_fee_cents: number;
+  platform_fee_cents: number;
+  refunded_cents: number;
+  receipt_url: string | null;
+  failure_reason: string | null;
+  paid_at: string | null;
 }
 
 export type Expense = Timestamps & SoftDelete & {
@@ -442,6 +460,13 @@ export type Report = Timestamps & SoftDelete & {
   signed_at: string | null;
   sent_at: string | null;
   created_by: string | null;
+  /** Minted when first sent. The customer opens /r/<token> with no account. */
+  share_token: string | null;
+  sent_to: string | null;
+  send_error: string | null;
+  send_count: number;
+  viewed_at: string | null;
+  completed_at: string | null;
 }
 
 export type JobPhoto = Timestamps & SoftDelete & {
@@ -768,6 +793,30 @@ export type AiFeedback = {
   created_at: string;
 }
 
+export type CustomerUser = Timestamps & SoftDelete & {
+  id: string;
+  business_id: string;
+  customer_id: string;
+  user_id: string | null;
+  email: string;
+  invite_token: string | null;
+  invited_at: string | null;
+  accepted_at: string | null;
+  last_seen_at: string | null;
+}
+
+export type PaymentEvent = {
+  id: string;
+  business_id: string | null;
+  provider: string;
+  event_id: string;
+  event_type: string;
+  payload: Json;
+  handled: boolean;
+  error: string | null;
+  created_at: string;
+}
+
 type TableRows = {
   industry_profiles: IndustryProfileRow;
   ai_brain: AiBrain;
@@ -813,6 +862,8 @@ type TableRows = {
   notifications: Notification;
   activities: Activity;
   audit_logs: AuditLog;
+  customer_users: CustomerUser;
+  payment_events: PaymentEvent;
 }
 
 type TableDefinition<Row> = {
@@ -844,6 +895,8 @@ export type Database = {
         Returns: string;
       };
       accept_team_invite: { Args: { p_token: string }; Returns: string };
+      accept_customer_invite: { Args: { p_token: string }; Returns: string };
+      public_report_by_token: { Args: { p_token: string }; Returns: Json };
       next_document_number: { Args: { target: string; doc_kind: string }; Returns: string };
       dashboard_summary: { Args: { target: string }; Returns: Json };
       job_profitability: { Args: { p_job: string }; Returns: Json };

@@ -51,7 +51,7 @@ async function sendViaResend(message: OutboundMessage): Promise<SendResult> {
   }
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch(`${env.resendBaseUrl}/emails`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,

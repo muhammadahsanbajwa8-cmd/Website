@@ -165,11 +165,18 @@ describe('the membership predicate itself', () => {
 });
 
 describe('the customer portal', () => {
-  const functions = sql('0002_functions.sql');
-
   it('is reached by token, never by id', () => {
-    for (const name of ['public_quote_by_token', 'public_invoice_by_token', 'public_quote_respond']) {
-      const signature = functions.slice(functions.indexOf(`function ${name}`)).slice(0, 200);
+    for (const name of [
+      'public_quote_by_token',
+      'public_invoice_by_token',
+      'public_quote_respond',
+      'public_report_by_token',
+    ]) {
+      // Across every migration: these functions are added over time, and a
+      // later one taking an id would be just as much of a hole as an early one.
+      const at = ALL_SQL.indexOf(`function ${name}`);
+      expect(at, `${name} is not defined anywhere`).toBeGreaterThan(-1);
+      const signature = ALL_SQL.slice(at, at + 200);
       expect(signature, `${name} should take a token`).toMatch(/token/i);
       // No argument named like an id: a customer cannot walk the ids.
       expect(signature).not.toMatch(/\bp?_?business_id\b/);
@@ -181,8 +188,15 @@ describe('the customer portal', () => {
       .filter((m) => /anon/.test(m[2]))
       .map((m) => m[1]);
 
+    // Exactly the token-addressed portal functions, and nothing else. A new
+    // name appearing here is a deliberate decision, not an accident.
     expect(new Set(grants)).toEqual(
-      new Set(['public_quote_by_token', 'public_quote_respond', 'public_invoice_by_token'])
+      new Set([
+        'public_quote_by_token',
+        'public_quote_respond',
+        'public_invoice_by_token',
+        'public_report_by_token',
+      ])
     );
   });
 });
@@ -246,7 +260,10 @@ describe('server code never trusts an id from the URL on its own', () => {
       // Files that legitimately have no session: the public portal (token
       // based), the telephony webhooks (signature based), and the libraries
       // those two call.
-      if (/[/\\](q|i)[/\\]\[token\]/.test(file)) continue;
+      // The three token-addressed customer pages: a quote, an invoice and a
+      // report. Each reads through a definer function that does its own token
+      // check, which is why they can have no session and still not be a hole.
+      if (/[/\\](q|i|r)[/\\]\[token\]/.test(file)) continue;
       if (/[/\\]api[/\\]voice[/\\]/.test(file)) continue;
       // The service-role modules. None of them can have a session — a phone
       // caller has no JWT, and a mailbox sync runs on a schedule — so each

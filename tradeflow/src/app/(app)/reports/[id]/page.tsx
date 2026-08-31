@@ -20,6 +20,8 @@ import { EmailReportPanel } from './email';
 import { PhotoUploader } from '@/components/photo-uploader';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { parseSections } from '@/lib/reports';
+import { resolveRecipient } from '@/lib/reports/send';
+import { env } from '@/lib/env';
 import { reportStatus } from '@/lib/domain';
 import type { Json, Report } from '@/lib/database.types';
 
@@ -79,6 +81,10 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         .is('deleted_at', null)
         .order('taken_at'),
     ]);
+
+  // Where this would go, and whether that address is usable — worked out
+  // before the button is offered, so the reason shows next to the field.
+  const recipient = await resolveRecipient(session.business.id, report);
 
   const sections = parseSections((template?.sections ?? []) as Json);
   const answers = report.data as Record<string, unknown>;
@@ -270,7 +276,14 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <EmailReportPanel
               reportId={report.id}
               defaultTo={customer?.email ?? ''}
+              recipientReason={recipient.reason}
               alreadySent={Boolean(report.sent_at)}
+              sentAt={report.sent_at}
+              sentTo={report.sent_to}
+              sendCount={report.send_count}
+              sendError={report.send_error}
+              shareUrl={report.share_token ? `${env.appUrl}/r/${report.share_token}` : null}
+              viewedAt={report.viewed_at}
             />
           ) : null}
 

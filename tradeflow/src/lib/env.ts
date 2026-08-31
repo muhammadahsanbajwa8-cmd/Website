@@ -56,6 +56,15 @@ export const env = {
   get resendKey() {
     return optional('RESEND_API_KEY');
   },
+  /**
+   * Where the Resend API lives. Overridable so the send path can be exercised
+   * end to end against a local stand-in — the request, the base64 attachment,
+   * the success and the failure — without mailing anyone. Production leaves it
+   * unset and talks to Resend.
+   */
+  get resendBaseUrl() {
+    return (process.env.RESEND_BASE_URL || 'https://api.resend.com').replace(/\/$/, '');
+  },
   get smtpUrl() {
     return optional('SMTP_URL');
   },

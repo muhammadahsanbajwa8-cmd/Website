@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { sendReport } from '@/lib/reports/send';
 import { createClient } from '@/lib/supabase/server';
 import { audit, recordActivity, requireCapability } from '@/lib/session';
 import { missingRequired, parseSections, readAnswers, summarise } from '@/lib/reports';
@@ -202,73 +203,53 @@ export async function emailReportAction(
 ): Promise<ActionState> {
   const session = await requireCapability('reports.edit');
   const id = String(formData.get('id') ?? '');
-  const recipient = String(formData.get('to') ?? '').trim();
   if (!id) return fail('That report was not found.');
-  if (!recipient) return fail('Enter an email address.', { to: ['An address is needed'] });
 
-  const loaded = await loadReportForPdf(session.business.id, id);
-  if (!loaded) return fail('That report was not found.');
+  const result = await sendReport(session, id, {
+    recipient: String(formData.get('to') ?? '') || null,
+    message: String(formData.get('message') ?? '') || null,
+    resend: formData.get('resend') !== null,
+  });
 
-  const pdf = await renderReportPdf(loaded);
-  const filename = reportFilename(loaded.report.number, loaded.templateName, loaded.business.name);
+  revalidatePath(`/reports/${id}`);
+  revalidatePath('/reports');
 
-  const message = String(formData.get('message') ?? '').trim();
-  const paragraphs = [
-    'Hello,',
-    message || `Please find attached ${loaded.templateName.toLowerCase()} ${loaded.report.number}.`,
-    loaded.report.summary || '',
-  ].filter(Boolean);
+  // A report is never marked sent on a failure — `sendReport` leaves `sent_at`
+  // alone and returns why, so the person can fix the address and try again.
+  if (!result.ok) return fail(result.error ?? 'The report could not be sent.');
 
-  const { result } = await sendAndRecord(
-    session,
-    {
-      to: [recipient],
-      subject: `${loaded.templateName} ${loaded.report.number} — ${loaded.report.title}`,
-      text: `${paragraphs.join('\n\n')}\n\n${loaded.business.name}`,
-      html: htmlBody(loaded.business.name, paragraphs),
-      replyTo: loaded.business.email ?? undefined,
-      attachments: [{ filename, content: pdf, contentType: 'application/pdf' }],
-    },
-    {
-      customerId: loaded.report.customer_id,
-      jobId: loaded.report.job_id,
-      reportId: loaded.report.id,
-    },
-    [{ kind: 'report', id: loaded.report.id, filename }]
-  );
+  if (result.recordedOnly) {
+    return ok(
+      `Recorded in the outbox for ${result.recipient}, but nothing was delivered: no email ` +
+        'provider is configured. Set EMAIL_PROVIDER and RESEND_API_KEY to send for real. ' +
+        'In the meantime the customer can open it at ' + result.shareUrl,
+      { recipient: result.recipient, shareUrl: result.shareUrl, delivered: false }
+    );
+  }
+
+  return ok(`Sent to ${result.recipient}.`, {
+    recipient: result.recipient,
+    shareUrl: result.shareUrl,
+    delivered: true,
+  });
+}
+
+/** Mark a report finished without sending it, so it stops looking like a draft. */
+export async function completeReportAction(formData: FormData): Promise<void> {
+  const session = await requireCapability('reports.edit');
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
 
   const supabase = await createClient();
   await supabase
     .from('reports')
-    .update({ status: 'sent', sent_at: new Date().toISOString() })
+    .update({ status: 'final', completed_at: new Date().toISOString() })
     .eq('id', id)
     .eq('business_id', session.business.id);
 
-  await recordActivity(session, {
-    verb: 'sent',
-    summary: `Report ${loaded.report.number} emailed to ${recipient}`,
-    entityType: 'report',
-    entityId: id,
-    jobId: loaded.report.job_id,
-    customerId: loaded.report.customer_id,
-  });
-  await audit(session.business.id, {
-    action: 'report.send',
-    entityType: 'report',
-    entityId: id,
-    detail: { to: recipient, delivered: result.delivered },
-  });
-
+  await audit(session.business.id, { action: 'report.complete', entityType: 'report', entityId: id });
   revalidatePath(`/reports/${id}`);
-
-  if (result.error) return { ok: true, message: `Marked as sent, but the email failed: ${result.error}` };
-  if (!result.delivered) {
-    return ok(
-      `Recorded in the outbox. Email delivery is not configured — download the PDF and send it yourself. ` +
-        `(${env.appUrl}/reports/${id}/pdf)`
-    );
-  }
-  return ok(`Report sent to ${recipient}.`);
+  revalidatePath('/reports');
 }
 
 export async function deleteReportAction(formData: FormData): Promise<void> {
