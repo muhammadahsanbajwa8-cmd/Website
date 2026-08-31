@@ -230,7 +230,10 @@ file is for CI only — a real project already has richer versions of all of it.
 
 ## Deploying
 
-Any host that runs Next.js. Set the same environment variables, point
+**[DEPLOY.md](DEPLOY.md) is the step-by-step version** — Supabase and Vercel,
+about fifteen minutes, ending in a URL you can open on your phone.
+
+In short: any host that runs Next.js. Set the same environment variables, point
 `NEXT_PUBLIC_APP_URL` at the real domain (quote share links and auth redirects
 are built from it), and run the migrations against the production database:
 

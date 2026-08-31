@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["syd1"],
+  "functions": {
+    "src/app/api/voice/**": { "maxDuration": 30 },
+    "src/app/(app)/**": { "maxDuration": 30 }
+  }
+}
