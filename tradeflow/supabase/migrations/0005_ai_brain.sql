@@ -265,7 +265,7 @@ as $$
 declare b businesses%rowtype;
 begin
   if not app_is_member(target) then
-    raise exception 'not a member of business %' using errcode = '42501';
+    raise exception 'not a member of business %', target using errcode = '42501';
   end if;
 
   select * into b from businesses where id = target;
@@ -540,6 +540,8 @@ begin
     join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public'
      and c.relkind = 'r'
+     -- The migration runner's own bookkeeping, locked down in 0003.
+     and c.relname <> 'schema_migrations'
      and (not c.relrowsecurity or not exists (select 1 from pg_policy p where p.polrelid = c.oid));
 
   if offenders is not null then

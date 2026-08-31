@@ -1,0 +1,82 @@
+name: TradeFlow
+
+on:
+  pull_request:
+    paths: ['tradeflow/**', '.github/workflows/tradeflow.yml']
+  push:
+    branches-ignore: [main]
+    paths: ['tradeflow/**', '.github/workflows/tradeflow.yml']
+
+defaults:
+  run:
+    working-directory: tradeflow
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tradeflow/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Includes the tenancy suite, which reads the migrations and asserts that
+      # every table has row level security and every policy is scoped to the
+      # caller. A table added without a policy fails here.
+      - name: Test
+        run: npm test
+
+      # A build with placeholder credentials: nothing is contacted, but every
+      # page and server action has to compile and collect.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-time-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: build-time-placeholder
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+  # The end-to-end tenancy test needs a real Postgres. It runs against a plain
+  # container with the parts of Supabase the migrations depend on stubbed, so
+  # "Business A cannot read Business B" is proven against a database on every
+  # push, not only asserted from the SQL.
+  tenancy:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+        ports: ['5432:5432']
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tradeflow/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Stand up the Supabase pieces the migrations expect
+        run: psql "$DATABASE_URL" -f supabase/ci/bootstrap.sql
+
+      - name: Apply migrations
+        run: npm run db:push
+
+      - name: Prove tenant isolation
+        run: npx vitest run tests/tenancy.live.test.ts

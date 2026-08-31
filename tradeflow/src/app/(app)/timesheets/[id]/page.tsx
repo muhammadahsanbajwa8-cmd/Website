@@ -40,6 +40,7 @@ export default async function WorkLogPage({ params }: { params: Promise<{ id: st
     .from('jobs')
     .select('id, number, name')
     .eq('id', log.job_id)
+    .eq('business_id', session.business.id)
     .maybeSingle();
 
   const crewMinutes = log.total_minutes * Math.max(log.worker_count, 1);

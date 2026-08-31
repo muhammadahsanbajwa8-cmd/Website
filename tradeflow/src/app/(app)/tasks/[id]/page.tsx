@@ -52,13 +52,19 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const [{ data: job }, { data: customer }, { data: assignee }, { data: email }] =
     await Promise.all([
       task.job_id
-        ? supabase.from('jobs').select('id, number, name').eq('id', task.job_id).maybeSingle()
+        ? supabase
+            .from('jobs')
+            .select('id, number, name')
+            .eq('id', task.job_id)
+            .eq('business_id', session.business.id)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
       task.customer_id
         ? supabase
             .from('customers')
             .select('id, name, company')
             .eq('id', task.customer_id)
+            .eq('business_id', session.business.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
       task.assigned_to
@@ -66,10 +72,16 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             .from('team_members')
             .select('full_name, email')
             .eq('id', task.assigned_to)
+            .eq('business_id', session.business.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
       task.email_id
-        ? supabase.from('emails').select('id, subject').eq('id', task.email_id).maybeSingle()
+        ? supabase
+            .from('emails')
+            .select('id, subject')
+            .eq('id', task.email_id)
+            .eq('business_id', session.business.id)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
 

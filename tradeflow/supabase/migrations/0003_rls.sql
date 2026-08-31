@@ -362,6 +362,22 @@ begin
   end loop;
 end $$;
 
+-- --- the migration runner's own bookkeeping ---------------------------------
+-- `npm run db:push` records what it has applied in public.schema_migrations,
+-- which is therefore a public table like any other. It holds nothing tenant
+-- specific, but the check below counts it, and an application user has no
+-- business reading it: RLS on with no policy at all means nobody reaches it
+-- through PostgREST. The runner connects directly as the database owner.
+
+do $$
+begin
+  if to_regclass('public.schema_migrations') is not null then
+    execute 'alter table schema_migrations enable row level security';
+    execute 'alter table schema_migrations force row level security';
+    execute 'revoke all on schema_migrations from anon, authenticated';
+  end if;
+end $$;
+
 -- --- the check that makes this file self-enforcing -------------------------
 -- Any table added to the public schema without a policy fails the migration
 -- here rather than shipping open.
@@ -376,6 +392,9 @@ begin
     join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public'
      and c.relkind = 'r'
+     -- Locked down above: RLS on, no policy, no grants. It is the one table
+     -- here that is deliberately unreachable rather than tenant-scoped.
+     and c.relname <> 'schema_migrations'
      and (
        not c.relrowsecurity
        or not exists (select 1 from pg_policy p where p.polrelid = c.oid)

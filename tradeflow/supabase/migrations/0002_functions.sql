@@ -539,7 +539,7 @@ as $$
 declare n integer;
 begin
   if not app_is_member(target) then
-    raise exception 'not a member of business %' using errcode = '42501';
+    raise exception 'not a member of business %', target using errcode = '42501';
   end if;
 
   with updated as (
@@ -803,7 +803,7 @@ declare
   today date := (now() at time zone 'Australia/Sydney')::date;
 begin
   if not app_is_member(target) then
-    raise exception 'not a member of business %' using errcode = '42501';
+    raise exception 'not a member of business %', target using errcode = '42501';
   end if;
 
   return jsonb_build_object(
