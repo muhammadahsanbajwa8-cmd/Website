@@ -80,6 +80,22 @@ export const env = {
       ? { clientId: id, clientSecret: secret, tenant: process.env.MICROSOFT_OAUTH_TENANT || 'common' }
       : null;
   },
+  // --- payments -------------------------------------------------------------
+  // Absent, online payment is simply off: an invoice can still be issued and a
+  // bank transfer recorded against it by hand.
+  get stripeSecretKey() {
+    return optional('STRIPE_SECRET_KEY');
+  },
+  get stripePublishableKey() {
+    return optional('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
+  },
+  get stripeWebhookSecret() {
+    return optional('STRIPE_WEBHOOK_SECRET');
+  },
+  /** Overridable so the payment path can be exercised against a stand-in. */
+  get stripeBaseUrl() {
+    return optional('STRIPE_BASE_URL');
+  },
   get tokenEncryptionKey() {
     return optional('TOKEN_ENCRYPTION_KEY');
   },
@@ -119,6 +135,19 @@ export function featureStatus(): FeatureStatus[] {
         env.emailProvider === 'log'
           ? 'Messages are recorded in full and shown in the outbox, but not delivered.'
           : 'Quotes, invoices and replies are delivered to the recipient.',
+    },
+    {
+      key: 'payments',
+      name: 'Online payments',
+      ready: Boolean(process.env.STRIPE_SECRET_KEY),
+      missing: process.env.STRIPE_SECRET_KEY
+        ? process.env.STRIPE_WEBHOOK_SECRET
+          ? []
+          : ['STRIPE_WEBHOOK_SECRET']
+        : ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+      note: process.env.STRIPE_SECRET_KEY
+        ? 'Customers can pay an invoice by card. The money goes to your own connected account.'
+        : 'Invoices can still be issued and payments recorded by hand; nothing can be paid online.',
     },
     {
       key: 'mailbox_google',

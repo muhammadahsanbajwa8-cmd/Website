@@ -265,6 +265,13 @@ describe('server code never trusts an id from the URL on its own', () => {
       // check, which is why they can have no session and still not be a hole.
       if (/[/\\](q|i|r)[/\\]\[token\]/.test(file)) continue;
       if (/[/\\]api[/\\]voice[/\\]/.test(file)) continue;
+      // The payment routes carry a credential that is not a session: the
+      // checkout route is addressed by an invoice share token and prices from
+      // the row rather than the request; the webhook is addressed by Stripe's
+      // signature, verified before anything is read, and is the only thing
+      // that may declare a payment succeeded. Both are asserted positively in
+      // payments.test.ts rather than merely skipped here.
+      if (/[/\\]api[/\\]payments[/\\]/.test(file)) continue;
       // The service-role modules. None of them can have a session — a phone
       // caller has no JWT, and a mailbox sync runs on a schedule — so each
       // instead binds itself to one business id taken from a row the caller

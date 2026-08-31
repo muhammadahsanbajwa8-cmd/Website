@@ -897,6 +897,7 @@ export type Database = {
       accept_team_invite: { Args: { p_token: string }; Returns: string };
       accept_customer_invite: { Args: { p_token: string }; Returns: string };
       public_report_by_token: { Args: { p_token: string }; Returns: Json };
+      public_invoice_payable: { Args: { p_token: string }; Returns: Json };
       next_document_number: { Args: { target: string; doc_kind: string }; Returns: string };
       dashboard_summary: { Args: { target: string }; Returns: Json };
       job_profitability: { Args: { p_job: string }; Returns: Json };
