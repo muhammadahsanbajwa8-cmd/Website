@@ -44,6 +44,7 @@ export const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { href: '/estimates', label: 'Estimates', icon: icons.estimates, capability: 'estimates.view' },
       { href: '/quotes', label: 'Quotes', icon: icons.quotes, capability: 'quotes.view' },
       { href: '/invoices', label: 'Invoices', icon: icons.invoices, capability: 'invoices.view' },
+      { href: '/payments', label: 'Payments', icon: icons.invoices, capability: 'payments.view' },
       { href: '/expenses', label: 'Expenses', icon: icons.expenses, capability: 'expenses.create' },
       { href: '/materials', label: 'Materials', icon: icons.materials, capability: 'materials.view' },
     ],

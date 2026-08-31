@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { PayNow } from './pay';
+import { stripeConfigured } from '@/lib/payments/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Logo } from '@/components/marketing';
 import { Badge, Icon, icons } from '@/components/ui';
@@ -94,12 +96,23 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
 export default async function PublicInvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ paid?: string; cancelled?: string }>;
 }) {
   const { token } = await params;
+  const { paid, cancelled } = await searchParams;
   const payload = await loadInvoice(token);
   if (!payload) notFound();
+
+  // Whether this business can take a card is on the payable lookup, not the
+  // portal payload — it is the business's own setup, so it is read separately
+  // with the service role rather than published to every viewer.
+  const { data: payableData } = await createAdminClient().rpc('public_invoice_payable', {
+    p_token: token,
+  });
+  const payable = payableData as unknown as { stripe_charges_enabled: boolean } | null;
 
   const { invoice, business, customer, items } = payload;
   const today = todayInAustralia();
@@ -107,6 +120,10 @@ export default async function PublicInvoicePage({
   const overdue =
     invoice.due_date != null && invoice.due_date < today && outstanding > 0;
   const isTaxInvoice = business.gst_registered && invoice.gst_applies;
+
+  // The button only appears when the business has actually finished connecting
+  // an account — offering it otherwise would send the customer to a dead end.
+  const canPayByCard = Boolean(payable?.stripe_charges_enabled) && stripeConfigured();
 
   return (
     <div className="min-h-screen bg-[var(--surface-page)]">
@@ -233,6 +250,18 @@ export default async function PublicInvoicePage({
             </div>
           </div>
         </section>
+
+        {outstanding > 0 && canPayByCard ? (
+          <section className="mt-5">
+            <PayNow
+              token={token}
+              amountCents={outstanding}
+              businessName={business.name}
+              paid={paid === '1'}
+              cancelled={cancelled === '1'}
+            />
+          </section>
+        ) : null}
 
         {business.bank_bsb || business.bank_account_number || invoice.bank_details ? (
           <section className="mt-5 rounded-[var(--radius-card)] border border-[var(--line-subtle)] bg-[var(--surface-card)] p-5">
