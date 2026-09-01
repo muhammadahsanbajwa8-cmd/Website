@@ -416,9 +416,10 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Nine attempts to improve the packer have been made and reverted. They are
-# recorded here because each cost a session to re-derive and each failed for
-# a reason that is not obvious from the code.
+# Ten attempts to improve the packer have been made. Eight were reverted;
+# 7 and the tenth attempt inside 9 now stand and say so where they are
+# recorded. They are kept here because each cost a session to re-derive and
+# each failed, or came good, for a reason that is not obvious from the code.
 #
 # 1. Protecting habitable rows in `_apportion` -- giving bedrooms and living
 #    rooms their floor before anything else got a share. Undersized rooms
@@ -499,6 +500,14 @@ class _Row:
 #    drawn, because stopping the shed at a different point left a WC at
 #    730 mm. Any eighth attempt here should fix where the frontage surplus
 #    goes, not which rooms are allowed to leave.
+#
+#    THIS ONE NOW STANDS, and is in `_shed_extras` above. Re-measured after
+#    the WC was widened to hold a pan -- a room can no longer land at 730 mm
+#    without its own declared minimum catching it -- the same rank costs
+#    nothing: 65 plans drawn and 15 refused either way, thin rooms 296 to
+#    290, code findings unchanged at 132 with one violation, and every test
+#    passing. What changed is not the rank; it is that the failure mode the
+#    rank used to expose has its own guard now.
 
 # 8. The L: one band brought forward to the street beside the garage, so the
 #    front strip spans only the frontage the garage and the front door need
@@ -566,9 +575,41 @@ class _Row:
 #    That tenth attempt was made and it worked; see `_shape_score`. Reading
 #    the baseline pack's own habitable-room targets, rather than any figure
 #    chosen here, took code warnings from 424 to 413 over the sweep and the
-#    browser's packing losses from 1 to 0. Whether the plan forms should also
-#    be peers is still open: it has not been re-measured against the better
-#    score.
+#    browser's packing losses from 1 to 0.
+
+# 10. Giving the chooser eyes for the surplus, which answers the question
+#    left open at the end of 9. `_try_the_garage_in_a_column` is built and
+#    scored 231 times over the AU-WA lot sweep and kept 6. Nothing in
+#    `_shape_score` can see why it should be kept more often: it counts the
+#    rooms somebody lives in, and the fault the column exists to fix is floor
+#    handed to a porch or a hall. On the plans the column loses, the strip it
+#    loses to has given an entry hall 28 m2 against the 6 it asked for.
+#
+#    So a waste term was added -- the surplus over `_target` on the rooms
+#    with no preferred area to grow into, the porch and the hall and the
+#    store, ranked LAST so it can only break a tie between forms that treat
+#    the habitable rooms equally. It fires: the column is kept 24 times
+#    instead of 6, the garages' total shortfall falls 444 to 398 m2 and the
+#    porches' surplus 345 to 312.
+#
+#    And it is worse. Thin rooms 290 to 304 and two new
+#    `baseline.door.clear_width` failures, because the service rooms have no
+#    measure either and the column narrows them. Adding one -- each room
+#    against its OWN declared width, which `build_to` now sets from the
+#    fittings catalogue -- ahead of the waste term cancels it EXACTLY: the
+#    column goes back to 6, every graded number returns to where it started,
+#    and on a second lot set of sixty-seven plans nothing moves at all
+#    except 22 m2 less porch.
+#
+#    That cancellation is the finding, and it is worth more than the code
+#    was. The column is not being refused out of blindness. On every plan
+#    where it wastes less floor it draws a bathroom or a WC under the width
+#    its own fittings need, and the exchange is a fair one to decline. Both
+#    terms were reverted: measurably neutral code is still code.
+#
+#    A room brought forward to fill the surplus is attempt 4, and it is not
+#    open either -- it strands rooms, and the guard that stops it stranding
+#    them makes it dead.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
