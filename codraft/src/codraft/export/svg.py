@@ -759,8 +759,15 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
                         "elev-sill")
 
         if panel.label:
+            # INSIDE the opening, not above its head. Above it, the mark
+            # landed on the ceiling level line that runs the width of the
+            # sheet -- "W05" and "CL 2434 (28c + PLATE)" drawn over each
+            # other, and on a 1290 mm window the head is exactly where that
+            # line is. An opening is the one rectangle on an elevation with
+            # nothing else in it.
             canvas.text(panel.x + dx + panel.width // 2,
-                        panel.y + dy + panel.height + 250, panel.label, "elev-code")
+                        panel.y + dy + panel.height // 2, panel.label,
+                        "elev-code", dy=60)
 
     if view.ground:
         g = view.ground

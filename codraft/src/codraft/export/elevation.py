@@ -45,6 +45,12 @@ class Panel:
     height: int
     kind: str
     label: str = ""
+    # Head height in courses, which is how a Western Australian sheet calls
+    # one up. Kept beside the label rather than inside it: when the mark is
+    # known the mark is what the elevation should say, and the courses are
+    # the schedule's job -- but on a building with no schedule to point at,
+    # the courses are better than nothing.
+    courses: str = ""
 
 
 @dataclass(slots=True)
@@ -182,8 +188,22 @@ def _roof_lines(
     return lines, ridge
 
 
-def elevation(building: Building, direction: str, number: int = 1) -> ElevationView:
-    """Project the building as seen from one compass point."""
+def elevation(building: Building, direction: str, number: int = 1,
+              marks: dict[str, str] | None = None) -> ElevationView:
+    """Project the building as seen from one compass point.
+
+    `marks` maps opening id to schedule mark. Passing it is what makes the
+    elevation and the schedule one drawing rather than two: the reader sees
+    W02 on the face and finds W02 in the schedule with its size, its head
+    height and whether it needs a lintel. Without it every opening was
+    labelled with its head in courses, which on a house where every head is
+    at 2150 mm means five openings all captioned "25c" -- true, and the same
+    for all of them, so it distinguishes nothing.
+
+    `elevations` below passes it. It is optional here because an elevation
+    can be asked for on its own, and a mark that does not come from the same
+    grouping the schedule uses would be worse than no mark at all.
+    """
     if direction not in DIRECTIONS:
         raise ValueError(f"direction must be one of {', '.join(DIRECTIONS)}")
     if not building.storeys:
@@ -226,13 +246,14 @@ def elevation(building: Building, direction: str, number: int = 1) -> ElevationV
                 x0 = start + step * opening.offset
                 x1 = x0 + step * opening.width
                 sill = base + opening.sill
+                courses = f"{courses_for(opening.sill + opening.height)}c"
                 view.panels.append(
                     Panel(
                         x=min(x0, x1), y=sill,
                         width=abs(x1 - x0), height=opening.height,
                         kind=opening.kind.value,
-                        # Height in courses, the way the sheet calls it up.
-                        label=f"{courses_for(opening.sill + opening.height)}c",
+                        label=(marks or {}).get(opening.id) or courses,
+                        courses=courses,
                     )
                 )
 
@@ -269,8 +290,9 @@ def elevation(building: Building, direction: str, number: int = 1) -> ElevationV
     # it follows from the model, so naming it beats drawing it somewhere
     # plausible and letting the position read as a decision somebody made.
     view.notes += [
-        "Openings are shown at the STRUCTURAL size; the frame within it is "
-        "the window schedule's",
+        "Openings are shown at the STRUCTURAL size and marked with their "
+        "schedule reference; sizes, head heights and lintels are in the "
+        "door and window schedule",
         "Downpipes not shown: how many and where is the roof drainage "
         "design, not a consequence of this plan",
         "Meter box, gutter and roof sheet profiles not shown: supplier and "
@@ -287,4 +309,9 @@ def elevations(building: Building) -> list[ElevationView]:
         "west": ("west", "south", "east", "north"),
         "east": ("east", "north", "west", "south"),
     }[building.plot.road_side]
-    return [elevation(building, d, i + 1) for i, d in enumerate(order)]
+    # Worked out ONCE and shared by all four, so the same window cannot come
+    # out W02 on the street and W03 down the side.
+    from ..schedule import marks as opening_marks
+
+    found = opening_marks(building)
+    return [elevation(building, d, i + 1, found) for i, d in enumerate(order)]
