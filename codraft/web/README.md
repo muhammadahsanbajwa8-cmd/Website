@@ -65,9 +65,18 @@ or the entry. Front rooms are now shed on 148 of the 317 cases instead of
 174, and the portico's total area over the sweep is 3718 m2 against 3788.
 The headline numbers below did not move.
 
-That mean is still 11.7 m2 for a room asking 4, against 9.0 in the Python
-on its own sweep, and the two sweeps are over different lots -- so the gap
-is not established as a divergence yet. It is the next thing to measure.
+The porch mean of 11.7 m2 that reading this against the Python's 9.0
+suggested is not a divergence, and the comparison was not a fair one: the
+two sweeps run different lots, and this one runs four other states. Over
+the SAME six lots at WA R20, the Python draws 67 plans with a porch
+averaging 10.2 m2 and a worst of 28.9, and this engine draws 64 with 11.1
+and 30.2. The remaining gap is three plans one engine draws and the other
+refuses, not a difference in how either sizes a porch.
+
+What both are doing is the same structural thing, and it is not a port
+problem: on a 10.5 m frontage the strip is 13 m by 6.7 m for front rooms
+that want 8 m of it, and the only rooms that can absorb the rest are the
+porch and the hall.
 
 Twenty-four more plans draw than before the WC was widened to hold a pan,
 and thirteen of the 317 have an undersized habitable room against six of
