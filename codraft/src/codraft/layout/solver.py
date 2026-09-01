@@ -1824,9 +1824,27 @@ def _layout_storey_once(
             warnings.extend(aside)
             front_cells: list[Cell] = []
             if strip is not None:
-                passage = next(
-                    (c for c in core_cells
-                     if c.function is Function.CORRIDOR), None
+                # The passage that RUNS BACK from the frontage, not the
+                # first corridor in the list. The service-core form lays a
+                # passage down each side of the core and a short link across
+                # the back joining the two, and the link is a corridor cell
+                # like the others -- so `next` picked it, and the front door
+                # was set out over a "passage" 4965 mm wide sitting at the
+                # far end of the plan. The entry then landed over the robe
+                # and the ensuite, touching neither real passage along
+                # anything but a corner.
+                #
+                # Nothing caught it because the portico beside the entry
+                # happened to land over the left-hand passage and carried
+                # the whole route out of the house on its own. It is not
+                # something to leave to where the porch falls: on the seven
+                # plans in the lot sweep that take this form, the entry hall
+                # was drawn between 24.6 and 28.0 m2 against the 6.0 it asks
+                # for, because it was sized to the width of the wrong thing.
+                passage = max(
+                    (c for c in core_cells if c.function is Function.CORRIDOR),
+                    key=lambda c: c.rect.h if corridor_vertical else c.rect.w,
+                    default=None,
                 )
                 meets = (
                     (passage.rect.x0, passage.rect.x1)
