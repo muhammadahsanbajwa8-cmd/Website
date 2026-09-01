@@ -135,10 +135,49 @@ def _footprint_extent(storey: Storey, direction: str) -> tuple[int, int]:
     return (min(values), max(values)) if values else (0, 0)
 
 
-def _roof_lines(
-    building: Building, roof: Roof, direction: str, plate: int
+def _storey_rect(storey: Storey) -> tuple[int, int, int, int] | None:
+    """The storey's footprint as (x0, y0, x1, y1), or None if it has none."""
+    if not storey.spaces:
+        return None
+    xs = [s.rect.x0 for s in storey.spaces] + [s.rect.x1 for s in storey.spaces]
+    ys = [s.rect.y0 for s in storey.spaces] + [s.rect.y1 for s in storey.spaces]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _outside(
+    outer: tuple[int, int, int, int], inner: tuple[int, int, int, int] | None
+) -> list[tuple[int, int, int, int]]:
+    """The parts of `outer` that `inner` does not cover.
+
+    Up to four rectangles, the usual way one rectangle is subtracted from
+    another: the strip below, the strip above, and what is left either side
+    between them. `inner` is expected to sit within `outer` -- an upper floor
+    stacks on the one below it -- and anything of `inner` that pokes out is
+    simply not subtracted, which leaves the piece drawn rather than dropped.
+    """
+    if inner is None:
+        return [outer]
+    ox0, oy0, ox1, oy1 = outer
+    ix0, iy0, ix1, iy1 = (max(inner[0], ox0), max(inner[1], oy0),
+                          min(inner[2], ox1), min(inner[3], oy1))
+    if ix0 >= ix1 or iy0 >= iy1:
+        return [outer]
+    pieces = []
+    if iy0 > oy0:
+        pieces.append((ox0, oy0, ox1, iy0))
+    if iy1 < oy1:
+        pieces.append((ox0, iy1, ox1, oy1))
+    if ix0 > ox0:
+        pieces.append((ox0, iy0, ix0, iy1))
+    if ix1 < ox1:
+        pieces.append((ix1, iy0, ox1, iy1))
+    return [p for p in pieces if p[2] - p[0] > 0 and p[3] - p[1] > 0]
+
+
+def _mass_roof(
+    mass: tuple[int, int, int, int], plate: int, roof: Roof, direction: str
 ) -> tuple[list[Line], int]:
-    """The roof as it appears from one side, and the ridge height.
+    """The roof over one rectangular mass, seen from one side.
 
     The roof springs from the top of the brickwork rather than from the
     plate above it. That is a 26 mm distinction and it is the difference
@@ -146,12 +185,10 @@ def _roof_lines(
     a plate out: the reference set gives 5134 for a 11,690 span at 25
     degrees off a 28 course wall, and 28 x 86 + 2726 is 5134.
     """
-    ground = building.storeys[0]
-    xs = [s.rect.x0 for s in ground.spaces] + [s.rect.x1 for s in ground.spaces]
-    ys = [s.rect.y0 for s in ground.spaces] + [s.rect.y1 for s in ground.spaces]
-    if not xs:
+    x0, y0, x1, y1 = mass
+    width, depth = x1 - x0, y1 - y0
+    if width <= 0 or depth <= 0:
         return [], plate
-    width, depth = max(xs) - min(xs), max(ys) - min(ys)
 
     # The ridge runs along the longer axis; the roof climbs over the shorter.
     span = min(width, depth)
@@ -160,7 +197,7 @@ def _roof_lines(
     brickwork = courses_for(plate) * COURSE_MM
     ridge = brickwork + rise
 
-    lo, hi = _footprint_extent(ground, direction)
+    lo, hi = (x0, x1) if direction in ("south", "north") else (y0, y1)
     left = lo - roof.overhang_mm
     right = hi + roof.overhang_mm
 
@@ -185,6 +222,52 @@ def _roof_lines(
             Line(left, plate, middle, ridge),
             Line(right, plate, middle, ridge),
         ]
+    return lines, ridge
+
+
+def _roof_lines(
+    building: Building, roof: Roof, direction: str, plate: int
+) -> tuple[list[Line], int]:
+    """The roof over a building whose upper floors do not cover the ground.
+
+    One roof at the top plate across the whole ground floor is right only
+    when the house is the same shape all the way up. A two storey plan with
+    a single storey garage across the front is not: the upper floor starts
+    5.5 m back from the street, and the roof was drawn at the upper plate
+    over the whole footprint anyway -- a roof plane 2.6 m above the garage
+    ceiling with nothing between the two. Thirty-six of the hundred and
+    forty elevations in the AU-WA lot sweep drew one, over as much as
+    6.67 m of ground.
+
+    So the roof follows the shape: each storey's own footprint less the
+    footprint of the storey above it is a mass, and each mass is roofed at
+    its own plate with the SAME roof -- the pitch, the kind and the overhang
+    the model carries. Nothing is chosen here that the plan does not already
+    say. What form a builder actually uses where a lower roof abuts a two
+    storey wall -- run the main roof down over it, hip it separately, break
+    it with a box gutter -- is a roof design, and the note below says so.
+    """
+    masses: list[tuple[tuple[int, int, int, int], int]] = []
+    highest = plate
+    for index, storey in enumerate(building.storeys):
+        rect = _storey_rect(storey)
+        if rect is None:
+            continue
+        above = (_storey_rect(building.storeys[index + 1])
+                 if index + 1 < len(building.storeys) else None)
+        top = storey.elevation + storey.ceiling_height
+        for piece in _outside(rect, above):
+            masses.append((piece, top))
+        if above is None:
+            highest = top
+
+    lines: list[Line] = []
+    ridge = plate
+    for mass, top in masses:
+        drawn, apex = _mass_roof(mass, top, roof, direction)
+        lines += drawn
+        if top == highest:
+            ridge = max(ridge, apex)
     return lines, ridge
 
 
@@ -267,6 +350,12 @@ def elevation(building: Building, direction: str, number: int = 1,
     roof = building.roof or Roof()
     view.roof, ridge = _roof_lines(building, roof, direction, plate)
     view.levels.append(Level(ridge, f"RIDGE {ridge}"))
+    stepped = len({
+        s.elevation + s.ceiling_height for s in building.storeys
+    }) > 1 and any(
+        _storey_rect(s) != _storey_rect(building.storeys[0])
+        for s in building.storeys
+    )
 
     view.ground = Line(lo - 1500, 0, hi + 1500, 0)
     view.width_mm = hi - lo
@@ -298,6 +387,13 @@ def elevation(building: Building, direction: str, number: int = 1,
         "Meter box, gutter and roof sheet profiles not shown: supplier and "
         "utility requirements",
     ]
+    if stepped:
+        view.notes.append(
+            "Part of this house is single storey, so it carries its own roof "
+            "at its own plate. How the lower roof meets the two storey wall "
+            "-- run the main roof down over it, hip it separately, break it "
+            "with a box gutter -- is a roof design and is not decided here"
+        )
     return view
 
 
