@@ -31,6 +31,7 @@ from ..model import (
     Opening,
     OpeningKind,
     Plot,
+    Roof,
     Space,
     Stair,
     Storey,
@@ -876,6 +877,24 @@ def build_building(
         # 230 mm thickness is a guess: 230 is also a rendered blockwork wall
         # and 200 is a framed one with thick cladding.
         metadata={"construction": system} if system else {},
+        # Set HERE, from the design the caller already handed over, because
+        # a set with no roof is a set with no elevations and no section: the
+        # PDF writer's page list is guarded on `building.roof is not None`,
+        # and so is the cut marker on the floor plan. Until now only `cli.py`
+        # remembered to attach one, so a plan produced through the library --
+        # which is how the tests, the sweeps and every other caller build one
+        # -- came out as a site plan, floor plans and schedules, and nothing
+        # else, without saying anything was missing.
+        #
+        # This is the same fault `SpaceProgram.build_to` was written to end,
+        # and its docstring says why: a correction only some callers remember
+        # is how the ceiling height came to be wrong for Lahore. The design
+        # dict carrying the pitch is already a parameter of this function.
+        roof=Roof(
+            pitch_degrees=float(design.get("roof_pitch_degrees", 25.0)),
+            overhang_mm=int(design.get("roof_overhang_mm", 600)),
+            kind=str(design.get("roof_kind", "hip")),
+        ),
     )
     warnings = layout.warnings
 

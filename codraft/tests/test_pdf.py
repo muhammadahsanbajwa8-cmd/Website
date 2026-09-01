@@ -29,8 +29,10 @@ def _building(storeys=2, width=15000, depth=30000, roof=True):
     plot = Plot(rect=Rect(0, 0, width, depth), setback_front=6000,
                 setback_rear=6000, setback_left=1000, setback_right=1000)
     building = build_building(program, plot, solve(program, plot))
-    if roof:
-        building.roof = Roof(pitch_degrees=25.0, overhang_mm=600, kind="hip")
+    # `build_building` gives every building a roof now, so a roofless one has
+    # to be made roofless on purpose rather than by omission.
+    building.roof = (Roof(pitch_degrees=25.0, overhang_mm=600, kind="hip")
+                     if roof else None)
     return building
 
 

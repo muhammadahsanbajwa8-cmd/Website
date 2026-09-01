@@ -192,12 +192,27 @@ def section_marker(building: Building, mark: str = "A") -> tuple[str, int, int, 
     A section without a marker showing where it was cut is not a section, it
     is a picture. The line runs past the building at both ends, which is how
     a sheet draws it.
+
+    It runs past by the distance the plan already stands its first dimension
+    chain off, and not the 2500 mm it used to. That is not a nicer-looking
+    number: the marker is an annotation, and an annotation that changes the
+    SCALE of the drawing it annotates has cost more than it is worth. At
+    2500 mm the line pushed a four bedroom plan's content box from 26165 to
+    28370 mm against the 27700 an A3 holds at 1:100, and ten of the hundred
+    floor plan sheets in the AU-WA lot sweep dropped to 1:200 for it.
+    Measured over the same hundred, every overrun up to 2000 mm is free.
+
+    `FIRST_OFFSET` is inside that with room to spare, and it is the figure
+    this drawing already uses for "clear of the building", so the cut line
+    lands level with the chain a reader is already looking at.
     """
+    from ..annotate import FIRST_OFFSET
+
     axis, position = _best_cut(building)
     bounds = _bounds(building.storeys[0])
     if bounds is None:
         return axis, position, 0, 0
     x0, y0, x1, y1 = bounds
     if axis == "x":
-        return axis, position, x0 - 2500, x1 + 2500
-    return axis, position, y0 - 2500, y1 + 2500
+        return axis, position, x0 - FIRST_OFFSET, x1 + FIRST_OFFSET
+    return axis, position, y0 - FIRST_OFFSET, y1 + FIRST_OFFSET
