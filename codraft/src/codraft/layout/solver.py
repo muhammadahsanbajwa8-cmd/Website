@@ -2015,8 +2015,23 @@ def _shed_extras(
             ]
             if not candidates:
                 break
+            # A room across the street frontage is shed LAST, because
+            # shedding it frees no floor. The front strip is a reserved
+            # rectangle as deep as the garage, and whatever the front rooms
+            # do not fill is handed to the portico or the entry: on a 15 x 30
+            # m lot the theatre was dropped to save 4.5 m2 and the portico
+            # was then drawn at 31.7 m2 against the 4.0 it asked for, beside
+            # a "double" garage 5553 mm clear that holds one car. The floor
+            # was no less over-subscribed for having lost the theatre; the
+            # 27.7 m2 simply moved to the porch.
+            #
+            # Rank, not exemption. Where the extras behind the frontage are
+            # gone and the floor still does not fit, a front room is dropped
+            # exactly as before.
             i, req = max(
-                candidates, key=lambda ir: (ir[1].priority, _target(ir[1]) or 0)
+                candidates,
+                key=lambda ir: (_is_front(ir[1]) is False,
+                                ir[1].priority, _target(ir[1]) or 0),
             )
             kept.pop(i)
             if omitted is not None:
