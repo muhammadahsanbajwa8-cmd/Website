@@ -224,21 +224,31 @@ def _section_canvas(building: Building):
     _draw_section(canvas, view)
     canvas.text(view.width_mm // 2, -2400, view.title, "title")
 
-    # Wrap the notes to the width of the drawing itself. Left at a fixed
-    # character count they ran far wider than the section, and since the sheet
-    # scales to whatever the canvas covers, the notes were deciding the scale
-    # -- the drawing came out at 1:200 to make room for its own footnotes.
-    columns = max(40, min(110, view.width_mm // 150))
-    top = -4200
-    for note in view.notes:
-        for piece in _wrap(note, columns):
-            canvas.text(view.width_mm // 2, top, piece, "elev-note")
-            top -= 700
-    content_w = int(canvas.maxx - canvas.minx) + 7000
-    content_h = int(canvas.maxy - canvas.miny) + 7000
+    # The notes go in the TITLE BLOCK, not under the drawing -- the same
+    # decision `_elevation_canvas` makes, for the same reason, and this sheet
+    # was the one place still making the other one.
+    #
+    # Wrapping them to the drawing's width kept them from running wider than
+    # the section, but it did not make them free: they are still deducted
+    # from the paper before a scale is chosen, and they were still costing
+    # five of the sixty-five section sheets in the AU-WA lot sweep a step.
+    # Twenty of the sixty-five were at 1:200 while their own floor plans were
+    # at 1:100, which is a set drawn at two scales.
+    canvas.sheet_notes.extend(view.notes)
+
+    # The same 1500 the elevation sheet settled on, and for the same reason:
+    # every millimetre of it is deducted from the paper before a scale is
+    # chosen. At 3500 a side the box came out 31160 mm wide against the 30800
+    # an A3 holds at 1:100 -- over by 360 mm of white, on a drawing using less
+    # than 60 per cent of the sheet's height. Fifteen of the sixty-five
+    # sections in the AU-WA lot sweep were at 1:200 while their own floor
+    # plans were at 1:100.
+    margin = 1500
+    content_w = int(canvas.maxx - canvas.minx) + margin * 2
+    content_h = int(canvas.maxy - canvas.miny) + margin * 2
     return (
         canvas,
-        (int(-canvas.minx) + 3500, int(canvas.maxy) + 3500),
+        (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
         content_w, content_h, "Section",
     )
 
