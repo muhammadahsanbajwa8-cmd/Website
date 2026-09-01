@@ -951,7 +951,17 @@ function shedExtras(placedRooms, foot, storeys, notes) {
       const candidates = kept.filter(r => r.at === s
         && (r.priority ?? 5) >= EXTRA_PRIORITY && !wanted.has(r.key));
       if (!candidates.length) break;
-      candidates.sort((x, y) => (y.priority ?? 5) - (x.priority ?? 5)
+      // A room across the street frontage goes LAST, because shedding it
+      // frees no floor. The front strip is a reserved rectangle as deep as
+      // the garage, and whatever the front rooms do not fill is handed to the
+      // portico or the entry: on a 15 x 30 m lot the Python dropped the
+      // theatre to save 4.5 m² and then drew a portico of 31.7 m² against the
+      // 4.0 it asks for, beside a "double" garage that holds one car. Rank,
+      // not exemption -- once the extras behind the frontage are gone, a
+      // front room is dropped exactly as before.
+      candidates.sort((x, y) =>
+        ((x.zone === "front") - (y.zone === "front"))
+        || (y.priority ?? 5) - (x.priority ?? 5)
         || (target(y) || 0) - (target(x) || 0));
       const gone = candidates[0];
       kept = kept.filter(r => r !== gone);

@@ -58,6 +58,17 @@ the `/* ---- drawing the plan ---- */` marker.
     undersized where the area was there and the PACKING lost it: 0
     cases over their own site-cover cap: 0
 
+A room across the street frontage is now shed LAST, matching the Python.
+Shedding one frees no floor: the front strip is a reserved rectangle as deep
+as the garage, and what the front rooms do not fill is handed to the portico
+or the entry. Front rooms are now shed on 148 of the 317 cases instead of
+174, and the portico's total area over the sweep is 3718 m2 against 3788.
+The headline numbers below did not move.
+
+That mean is still 11.7 m2 for a room asking 4, against 9.0 in the Python
+on its own sweep, and the two sweeps are over different lots -- so the gap
+is not established as a divergence yet. It is the next thing to measure.
+
 Twenty-four more plans draw than before the WC was widened to hold a pan,
 and thirteen of the 317 have an undersized habitable room against six of
 293 -- which is what drawing more marginal plans looks like, not a
