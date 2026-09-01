@@ -162,7 +162,12 @@ def section(building: Building, mark: str = "A") -> SectionView:
 
     roof = building.roof or Roof()
     direction = "south" if axis == "x" else "west"
-    view.roof, ridge = _roof_lines(building, roof, direction, plate)
+    # Only the masses the plane actually passes through. A house whose
+    # garage is single storey has a second, lower roof, and it belongs on
+    # the elevations -- from outside you see it -- but not on a section cut
+    # 20 m behind it.
+    view.roof, ridge = _roof_lines(building, roof, direction, plate,
+                                   through=position)
     view.levels.append(Level(ridge, f"RIDGE {ridge}"))
 
     view.ground = Line(lo - GROUND_RUN, 0, hi + GROUND_RUN, 0)

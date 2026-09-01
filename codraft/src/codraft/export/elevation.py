@@ -226,7 +226,8 @@ def _mass_roof(
 
 
 def _roof_lines(
-    building: Building, roof: Roof, direction: str, plate: int
+    building: Building, roof: Roof, direction: str, plate: int,
+    through: int | None = None,
 ) -> tuple[list[Line], int]:
     """The roof over a building whose upper floors do not cover the ground.
 
@@ -246,6 +247,13 @@ def _roof_lines(
     say. What form a builder actually uses where a lower roof abuts a two
     storey wall -- run the main roof down over it, hip it separately, break
     it with a box gutter -- is a roof design, and the note below says so.
+
+    `through` is for a SECTION rather than an elevation. From outside you see
+    every mass; a cutting plane only passes through the ones it crosses, and
+    passing the plane's position keeps the others off the drawing. Without it
+    a section cut through the two storey part came back with the garage's
+    roof drawn across it -- a trapezoid at 2434 spanning the whole section,
+    over rooms 20 m from the garage.
     """
     masses: list[tuple[tuple[int, int, int, int], int]] = []
     highest = plate
@@ -257,6 +265,14 @@ def _roof_lines(
                  if index + 1 < len(building.storeys) else None)
         top = storey.elevation + storey.ceiling_height
         for piece in _outside(rect, above):
+            if through is not None:
+                # The plane runs along the axis being viewed, so it is
+                # positioned on the OTHER one.
+                lo, hi = ((piece[1], piece[3])
+                          if direction in ("south", "north")
+                          else (piece[0], piece[2]))
+                if not lo <= through <= hi:
+                    continue
             masses.append((piece, top))
         if above is None:
             highest = top

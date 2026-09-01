@@ -96,3 +96,36 @@ class RoofFollowsTheShape(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SectionRoofsOnlyWhatItCuts(unittest.TestCase):
+    """From outside you see every mass; a cutting plane crosses some of them."""
+
+    def setUp(self):
+        self.building = _building(15000, 30000, 2)
+
+    def test_the_section_does_not_carry_the_garage_roof(self):
+        from codraft.export.section import section
+
+        view = section(self.building)
+        ground = self.building.storeys[0]
+        lower_plate = ground.elevation + ground.ceiling_height
+        eaves = {line.y0 for line in view.roof if line.y0 == line.y1}
+        # The cut is taken through the two storey part, 20 m from the garage.
+        # Its roof springs from the ground plate and has no business here.
+        self.assertNotIn(lower_plate, eaves)
+
+    def test_the_cut_really_does_miss_the_single_storey_part(self):
+        from codraft.export.section import section
+        from codraft.export.elevation import _storey_rect
+
+        view = section(self.building)
+        top = _storey_rect(self.building.storeys[-1])
+        low, high = (top[1], top[3]) if view.axis == "x" else (top[0], top[2])
+        self.assertTrue(low <= view.position <= high)
+
+    def test_the_section_and_the_elevations_agree_on_the_ridge(self):
+        from codraft.export.section import section
+
+        view = section(self.building)
+        self.assertEqual(view.height_mm, elevations(self.building)[0].height_mm)
