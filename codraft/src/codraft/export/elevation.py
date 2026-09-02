@@ -440,6 +440,29 @@ def elevation(building: Building, direction: str, number: int = 1,
         "Meter box, gutter and roof sheet profiles not shown: supplier and "
         "utility requirements",
     ]
+    if not view.panels:
+        # A face with nothing in it reads as a drawing somebody forgot to
+        # finish. Two of the two hundred and sixty elevations in the AU-WA lot
+        # sweep are blank, and both are honest: the rooms behind them are the
+        # entry, the porch and the passage, and circulation gets no window --
+        # `walls` skips it deliberately. Saying which rooms they are is the
+        # difference between a wall with nothing on it and a wall nobody drew.
+        behind: list[str] = []
+        for storey in building.storeys:
+            for wall in storey.walls:
+                if not _wall_faces(wall, storey, direction):
+                    continue
+                for space_id in wall.separates:
+                    space = storey.space(space_id)
+                    if space is not None and space.name not in behind:
+                        behind.append(space.name)
+        view.notes.append(
+            "No openings on this elevation. The rooms behind it are "
+            + (", ".join(behind) if behind else "none this model can name")
+            + " -- circulation and roofed outdoor space get no window, so "
+            "this face is blank by consequence rather than by omission."
+        )
+
     if stepped:
         view.notes.append(
             "Part of this house is single storey, so it carries its own roof "
