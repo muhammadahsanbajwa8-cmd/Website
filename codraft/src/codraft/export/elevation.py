@@ -175,7 +175,8 @@ def _outside(
 
 
 def _mass_roof(
-    mass: tuple[int, int, int, int], plate: int, roof: Roof, direction: str
+    mass: tuple[int, int, int, int], plate: int, roof: Roof, direction: str,
+    at: int | None = None,
 ) -> tuple[list[Line], int]:
     """The roof over one rectangular mass, seen from one side.
 
@@ -184,6 +185,27 @@ def _mass_roof(
     between reproducing a real sheet's overall height exactly and being
     a plate out: the reference set gives 5134 for a 11,690 span at 25
     degrees off a 28 course wall, and 28 x 86 + 2726 is 5134.
+
+    `at` is where a SECTION's cutting plane sits, and it changes what the
+    roof is. An elevation sees the mass's outline: the eaves at the bottom
+    and the ridge at the top, however far behind the face that ridge stands.
+    A section sees the roof where the plane cuts it, and that is only as high
+    as the roof has climbed by then.
+
+    It matters where the plane runs PARALLEL to the ridge. Cut across the
+    ridge the drawing is already the true cross-section -- the roof climbs
+    from the eaves to the apex in the plane of the cut, which is the triangle
+    below. Cut ALONG it, the outline puts the ridge over the rooms whatever
+    the plane is doing: on a 15 x 30 m two storey house the section drew the
+    roof reaching 7607 mm at a cut where it has climbed to 5621, two metres
+    of roof over rooms that do not have it, on the one drawing a surveyor
+    reads heights off.
+
+    The correction is that the outline IS the cut, taken at the ridge. Every
+    other plane is the same shape lower down: the roof has climbed by the
+    distance from the nearer eaves rather than by the half span, and a hip
+    cuts in by that same distance because it rises at the same pitch. Pass
+    the plane and both fall out; pass nothing and it is the outline again.
     """
     x0, y0, x1, y1 = mass
     width, depth = x1 - x0, y1 - y0
@@ -207,12 +229,23 @@ def _mass_roof(
     if looking_along_ridge:
         # A face parallel to the ridge: eaves below, ridge above, hips
         # sloping in at each end -- a trapezoid.
-        inset = span // 2 if roof.kind == "hip" else 0
+        #
+        # `climb` is how far the roof has risen where it is being looked at:
+        # half the span at the ridge, which is the outline, and the distance
+        # from the nearer eaves at a cutting plane anywhere else. The plane's
+        # position is always on the axis the roof climbs over, because that is
+        # what puts us in this branch at all.
+        climb = span // 2
+        if at is not None:
+            near, far = (y0, y1) if ridge_along_x else (x0, x1)
+            climb = max(0, min(climb, min(at - near, far - at)))
+        top = brickwork + roof.rise_over(climb * 2)
+        inset = climb if roof.kind == "hip" else 0
         lines += [
             Line(left, plate, right, plate),                      # eaves
-            Line(left + inset, ridge, right - inset, ridge),      # ridge
-            Line(left, plate, left + inset, ridge),               # hip / verge
-            Line(right, plate, right - inset, ridge),
+            Line(left + inset, top, right - inset, top),          # ridge
+            Line(left, plate, left + inset, top),                 # hip / verge
+            Line(right, plate, right - inset, top),
         ]
     else:
         # An end face: a triangle, whether it is hipped or gabled.
@@ -280,8 +313,12 @@ def _roof_lines(
     lines: list[Line] = []
     ridge = plate
     for mass, top in masses:
-        drawn, apex = _mass_roof(mass, top, roof, direction)
+        drawn, apex = _mass_roof(mass, top, roof, direction, through)
         lines += drawn
+        # The RIDGE level called up the side is the building's, not the cut's:
+        # it is the overall height a planning scheme asks for, and it is the
+        # same number whichever plane the section was taken on. `_mass_roof`
+        # returns it whatever it drew.
         if top == highest:
             ridge = max(ridge, apex)
     return lines, ridge

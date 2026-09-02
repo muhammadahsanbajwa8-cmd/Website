@@ -183,6 +183,19 @@ def section(building: Building, mark: str = "A") -> SectionView:
         "over each opening, none of which this model carries. An engineer "
         "designs them.",
     ]
+    # The roof is drawn where the PLANE cuts it, which on a cut taken along
+    # the ridge is lower than the ridge itself. Without saying so, the RIDGE
+    # level called up the side stands two metres clear of the roof under it
+    # and reads as a drafting error rather than as the two different heights
+    # they are.
+    top = max((max(line.y0, line.y1) for line in view.roof), default=ridge)
+    if ridge - top > COURSE_MM:
+        view.notes.insert(
+            2,
+            f"The roof is drawn where this plane cuts it, {top} mm. RIDGE "
+            f"{ridge} is the building's overall height, reached at the ridge "
+            "itself and shown on the elevations.",
+        )
     return view
 
 
