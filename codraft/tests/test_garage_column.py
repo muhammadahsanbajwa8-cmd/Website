@@ -77,10 +77,20 @@ class TestTheGarageColumn(unittest.TestCase):
                                 over_x > 0 and over_y > 0,
                                 f"{a.name} overlaps {b.name}",
                             )
+                    # Against the floor's OWN rectangle, not the ground
+                    # footprint. An upper storey stops where the storey below
+                    # it stops carrying two floors -- over a deep garage
+                    # column that is well short of the footprint -- and
+                    # measuring it against the footprint calls eleven honest
+                    # floors a hole.
+                    x0 = min(c.rect.x0 for c in cells)
+                    x1 = max(c.rect.x1 for c in cells)
+                    y0 = min(c.rect.y0 for c in cells)
+                    y1 = max(c.rect.y1 for c in cells)
                     self.assertEqual(
                         sum(c.rect.area for c in cells),
-                        layout.envelope.area,
-                        "the floor does not cover the footprint",
+                        (x1 - x0) * (y1 - y0),
+                        "the floor does not tile the rectangle it occupies",
                     )
 
     def test_it_never_leaves_a_sliver(self):
@@ -95,3 +105,47 @@ class TestTheGarageColumn(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheColumnRescuesAGarageTheStripCannotHold(unittest.TestCase):
+    """`_front_zone` sizes the strip to what a car needs and then caps it at
+    a third of the floor's depth, and the cap wins on 55 of the 65 plans in
+    the AU-WA lot sweep. Letting the strip through the cap takes the rooms
+    behind under their own minimums (packing attempt 11). The column is the
+    other way to the same place, so it is kept where it is the only way --
+    even when it does not score better."""
+
+    def test_a_lot_the_strip_cannot_serve_gets_the_column(self):
+        from codraft.geom import Rect
+        from codraft.layout import build_building, solve
+        from codraft.model import Function, Plot
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=3, bathrooms=2, storeys=2)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        building = build_building(program, plot, layout)
+        garage = next(s for s in building.all_spaces()
+                      if s.function is Function.GARAGE)
+        self.assertGreaterEqual(garage.rect.w, 5400)
+        self.assertGreaterEqual(garage.rect.h, 6000)
+        self.assertTrue(
+            any("column of its own" in w for w in layout.warnings),
+            "the garage holds two cars but the sheet does not say how",
+        )
+
+    def test_the_sheet_says_the_column_is_what_made_it_fit(self):
+        from codraft.geom import Rect
+        from codraft.layout import solve
+        from codraft.model import Plot
+        from codraft.program import template
+
+        program = template("au-house", bedrooms=3, bathrooms=2, storeys=2)
+        plot = Plot(rect=Rect(0, 0, 15000, 30000), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        said = next(w for w in layout.warnings if "column of its own" in w)
+        self.assertIn("hold two cars", said)

@@ -888,8 +888,21 @@ function layoutStorey(rooms, env, storeyIndex, below = null, stairRun = null) {
       // applies later, asked here where there is still a strip to fall back
       // on.
       const sliver = mine.some(c => Math.min(c.rect.w, c.rect.h) < MIN_TILE);
-      if (!sliver && better(shapeScore(mine),
-                            shapeScore(placed.concat(plainFront)))) {
+      // Keep the column where the STRIP cannot give the garage the depth a
+      // car parks along, even when it does not score better. `frontZone`
+      // sizes the strip to what a car needs and then caps it at a third of
+      // the floor's depth, and the cap wins; letting the strip through the
+      // cap takes the rooms behind under their own minimums. This is a
+      // fallback for the one thing the strip cannot do, not a preference for
+      // the column. See packing attempts 11 and 12 in the Python solver.
+      const parksAlong = (group) => {
+        const car = group.find(c => c.r.fn === "garage");
+        return car ? car.rect.h - WALL_ALLOW : 0;
+      };
+      const rescues = parksAlong(placed.concat(plainFront)) < DOUBLE_GARAGE_DEPTH
+                   && parksAlong(mine) >= DOUBLE_GARAGE_DEPTH;
+      if (!sliver && (rescues || better(shapeScore(mine),
+                                        shapeScore(placed.concat(plainFront))))) {
         packWarn("The garage runs back from the street in a column of its own "
           + "rather than sitting in a strip across the whole frontage. A strip "
           + "has to be as deep as a car, and everything beside the garage — "

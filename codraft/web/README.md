@@ -50,13 +50,26 @@ the `/* ---- drawing the plan ---- */` marker.
 ## Where the sweeps stand
 
     cases drawn 317 | refused 43
-    cases with an undersized habitable room: 13
-      of those, every undersized room named in the notes: 13
+    cases with an undersized habitable room: 31
+      of those, every undersized room named in the notes: 31
       cases with at least one UNDECLARED undersized room: 0
     with a room that has no route to circulation: 0
-    undersized where the floor is genuinely SHORT of area: 13
+    undersized where the floor is genuinely SHORT of area: 31
     undersized where the area was there and the PACKING lost it: 0
     cases over their own site-cover cap: 0
+    garages that hold two cars: 174 of 317
+
+The garage column is now kept where the strip across the frontage CANNOT
+give the garage the depth a car parks along, even when it does not score
+better -- `frontZone` sizes the strip to what a car needs and then caps it
+at a third of the floor's depth, and the cap wins. That took garages
+holding two cars from 42 of 317 to 174, too narrow 144 -> 103, too shallow
+187 -> 59.
+
+It cost undersized habitable rooms 13 -> 31. Every one is named in the
+notes, and `feasible.mjs` puts all 31 on floors GENUINELY SHORT of area
+rather than floors the packing lost -- which is the kind the plan is right
+to report. Packing losses are still 0 and no room lost its route.
 
 A room across the street frontage is now shed LAST, matching the Python.
 Shedding one frees no floor: the front strip is a reserved rectangle as deep

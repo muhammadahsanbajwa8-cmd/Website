@@ -416,7 +416,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Eleven attempts to improve the packer have been made. Nine were reverted;
+# Twelve attempts to improve the packer have been made. Nine were reverted;
 # 7 and the tenth attempt inside 9 now stand and say so where they are
 # recorded. They are kept here because each cost a session to re-derive and
 # each failed, or came good, for a reason that is not obvious from the code.
@@ -630,6 +630,33 @@ class _Row:
 #    two cars and short only front to back, and every one of them was told
 #    there was not enough street frontage. The warning now names the
 #    dimension that is actually short. See `walls.check_the_garage_holds_its_cars`.
+
+# 12. Keeping the garage COLUMN where the strip cannot give the garage its
+#    depth. Attempt 11 established that the strip cannot be let through its
+#    cap. The column is the other way to the same place -- the garage takes
+#    the run a car needs and the rest of its column stacks behind it, so the
+#    depth comes out of one column rather than out of the whole frontage --
+#    and it was already built and scored on every plan, and turned down
+#    whenever it did not score better.
+#
+#    So it is kept where it is the ONLY way: the strip's garage is under
+#    6000 mm deep and the column's is not. That is a fallback for one thing
+#    the strip cannot do, not a preference for the column, and it is measured
+#    per plan rather than in aggregate.
+#
+#    Over the AU-WA sweep 22 plans change, 22 gain a garage that holds two
+#    cars, and none loses one. On those 22 the findings go up by 9 in total:
+#    eleven gain one apiece, one loses one, ten are unchanged. Thin rooms go
+#    up 40. The findings it costs are habitable rooms under the baseline
+#    pack's TARGET width, which the report already describes as a figure to
+#    aim at; what it buys is a room the plan itself was reporting as unusable
+#    on 54 of 65 plans.
+#
+#    The browser sweep is where it shows: garages that hold two cars 42 of
+#    317 -> 174, too narrow 144 -> 103, too shallow 187 -> 59. Undersized
+#    habitable rooms 13 -> 31, every one named, and `feasible.mjs` puts all
+#    31 on floors GENUINELY short of area rather than floors the packing
+#    lost. Packing losses stay 0 and no room loses its route.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
@@ -2008,7 +2035,36 @@ def _try_the_garage_in_a_column(
     passage = next((c for c in cells if c.function is Function.CORRIDOR), None)
     meets = (passage.rect.x0, passage.rect.x1) if passage else None
     front_cells = _place_front(other_front, narrowed, meets, aside)
-    if _shape_score(cells + front_cells) >= plain_score:
+    # Keep the column where the strip CANNOT give the garage the depth a car
+    # parks along, even when it does not score better.
+    #
+    # This is not a preference for the column. It is a fallback for one thing
+    # the strip cannot do: `_front_zone` sizes the strip to what a car needs
+    # and then caps it at a third of the floor's depth, and the cap wins on
+    # fifty-five of the sixty-five plans in the AU-WA lot sweep. Letting the
+    # strip through the cap was tried and takes the rooms behind under their
+    # own minimums -- see packing attempt 11. The column is the other way to
+    # the same place: the garage gets the run a car needs and the rest of its
+    # column stacks behind it, so the depth comes out of one column rather
+    # than out of the whole frontage.
+    #
+    # Measured over the sweep: 22 plans change, 22 gain a garage that holds
+    # two cars, none loses one. On those 22, findings go up by 9 in total --
+    # eleven of them gain one apiece, one loses one -- and thin rooms by 40.
+    # A double garage that holds one car is a defect the plan itself reports
+    # on 54 of 65 plans and a buyer sees at a glance; the findings it costs
+    # are habitable rooms under the baseline pack's TARGET width, which the
+    # report already describes as a figure to aim at rather than a minimum.
+    #
+    # `road_first` is guaranteed above, so the street is at the low edge and
+    # a garage's depth is always its height.
+    def _parks_along(group: list[Cell]) -> int:
+        car = next((c for c in group if c.function is Function.GARAGE), None)
+        return 0 if car is None else car.rect.h - _WALL_ALLOWANCE
+
+    rescues = (_parks_along(plain + plain_front) < _DOUBLE_GARAGE_DEPTH
+               <= _parks_along(cells + front_cells))
+    if not rescues and _shape_score(cells + front_cells) >= plain_score:
         return None
     # A form that scores better and forces a sliver is not better. The column
     # takes 5.6 m of a 10.5 m frontage and what is left has to hold the front
@@ -2032,6 +2088,10 @@ def _try_the_garage_in_a_column(
         "door, the portico -- is then given six metres of depth for rooms "
         "that need two. Standing the garage on its own returns that depth to "
         "the rooms behind."
+        + ("" if not rescues else
+           " Here it is what lets the garage hold two cars at all: the strip "
+           "across the frontage is capped at a share of the floor's depth, "
+           "and that cap is below the depth a car parks along.")
     )
     return front_cells + cells
 

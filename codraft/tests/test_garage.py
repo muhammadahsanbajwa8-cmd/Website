@@ -159,7 +159,10 @@ class TheWarningNamesTheDimensionThatIsShort(unittest.TestCase):
         return _bays(garage), said
 
     def test_a_garage_short_only_front_to_back_says_so(self):
-        (wide, deep), said = self._warning(15000, 30000, beds=3, storeys=2)
+        # 15 x 30 m used to be this case and no longer is: the garage column
+        # rescues it now (packing attempt 12). 16 x 24 m still cannot be
+        # rescued -- the floor is only 12 m deep.
+        (wide, deep), said = self._warning(16000, 24000, beds=3, storeys=2)
         self.assertGreaterEqual(wide, 5400, "this one is meant to be wide enough")
         self.assertLess(deep, 6000)
         self.assertIn("FRONT TO BACK", said)
@@ -173,5 +176,5 @@ class TheWarningNamesTheDimensionThatIsShort(unittest.TestCase):
         self.assertNotIn("FRONT TO BACK", said)
 
     def test_it_quotes_the_size_the_plan_is_drawn_at(self):
-        (wide, deep), said = self._warning(15000, 30000, beds=3, storeys=2)
+        (wide, deep), said = self._warning(16000, 24000, beds=3, storeys=2)
         self.assertIn(f"{wide} x {deep} mm clear", said)
