@@ -688,6 +688,29 @@ class _Row:
 #    garage is width on a narrow frontage, and that is a fact about the
 #    block: the front door has to meet the passage behind it.
 
+# WHERE THE NARROW HABITABLE ROOMS ARE, measured rather than assumed, because
+# `baseline.habitable.width` is the largest remaining group of findings and it
+# would be easy to go looking for a packing fault that is not there.
+#
+# By plan form over the AU-WA sweep:
+#
+#      form    plans   width fails   per plan   over-subscribed floors
+#      spine      30            17       0.57                       15
+#      core        7             0       0.00                        0
+#      column     28            22       0.79                        6
+#
+# The core draws none at all. The spine's are mostly floors that are
+# over-subscribed and say so. And every one of the column's 22 is on a plan
+# the garage RESCUE kept -- attempt 12 -- which is the trade that attempt
+# measured and accepted: 22 plans gained a garage that holds two cars for
+# nine findings net.
+#
+# So none of them is the "area was there and the packing lost it" kind. The
+# browser's `feasible.mjs` says the same thing from the other side: 0 packing
+# losses, and all 31 undersized habitable rooms on floors genuinely short of
+# area. Anyone hunting this group should start by re-running that split
+# rather than by changing the packer.
+
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
 
