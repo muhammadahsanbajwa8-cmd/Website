@@ -880,11 +880,19 @@ def check_the_garage_holds_its_cars(
     by 5386 deep, and the old test compared 5386 against the width limit and
     5504 against the depth.
 
-    Raising the declared minimum to 5.4 m was tried and made the plans worse
-    without making a single garage wider. The frontage is split around the
-    entry, which has to sit over the passage behind it, and the garage takes
-    whichever side is left -- so its width is decided by where the passage
-    landed, not by what it asked for.
+    Raising the declared minimum to 5.4 m was tried and makes no garage
+    wider. The frontage is split around the entry, which has to sit over the
+    passage behind it, and the garage takes whichever side is left -- so its
+    width is decided by where the passage landed, not by what it asked for.
+
+    Re-measured after the garage column started rescuing the shallow ones,
+    in case that had changed the answer: it has not. The AU-WA sweep comes
+    out with exactly the same garages -- 33 holding two cars, 15 too narrow,
+    12 too shallow, 5 both -- so the declared width still decides nothing.
+    What did change is the rest of the plan, and in the other direction from
+    what this note used to claim: thin rooms 330 -> 317 and awkward rooms
+    55 -> 50, against code findings 141 -> 143. Not kept, because the thing
+    it was tried for fails cleanly and the side effect is not understood.
     """
     across_x = building.plot.road_side in ("south", "north")
     for storey in building.storeys:

@@ -416,7 +416,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Twelve attempts to improve the packer have been made. Nine were reverted;
+# Thirteen attempts to improve the packer have been made. Ten were reverted;
 # 7 and the tenth attempt inside 9 now stand and say so where they are
 # recorded. They are kept here because each cost a session to re-derive and
 # each failed, or came good, for a reason that is not obvious from the code.
@@ -657,6 +657,36 @@ class _Row:
 #    habitable rooms 13 -> 31, every one named, and `feasible.mjs` puts all
 #    31 on floors GENUINELY short of area rather than floors the packing
 #    lost. Packing losses stay 0 and no room loses its route.
+
+# 13. The L-shaped band, which notes 4 and 8 both point at as the only route
+#    left. SPIKED BEFORE BUILDING, and the spike says do not build it.
+#
+#    Note 8 was written when the strip across the frontage was the normal
+#    form. Attempt 12 changed that: the garage column is now kept wherever it
+#    is the only way to give the garage its depth, and 53 of the 65 plans in
+#    the AU-WA sweep no longer have a strip to shorten at all. The L's
+#    premise has largely been overtaken by the thing it was competing with.
+#
+#    Of the 12 plans that still lay a true strip, every one has depth going
+#    spare -- 1884 mm on average, 2557 at worst -- and the band that would be
+#    recovered is never a sliver. So the L is buildable. It just does not buy
+#    a garage: 5 of the 12 have a garage too NARROW, which no amount of depth
+#    fixes, and the other 7 are on floors where the service core wins and the
+#    column is never even built.
+#
+#    That last group looked like a cheap win, so it was tried: reach the same
+#    rescue into the core branch. Garages holding two cars 33 -> 40 and too
+#    shallow 12 -> 5, at code findings 141 -> 174, VIOLATIONS 1 -> 5,
+#    habitable width findings 34 -> 63, and two new daylight and ventilation
+#    failures. Reverted. The core form is chosen because it treats the rooms
+#    well on a wide frontage, and replacing it with a column undoes exactly
+#    that -- which is note 9's ordering earning its place rather than
+#    contradicting it.
+#
+#    So the column rescue is worth it against the strip and not against the
+#    core, and the L is worth building for neither. What is left for the
+#    garage is width on a narrow frontage, and that is a fact about the
+#    block: the front door has to meet the passage behind it.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
