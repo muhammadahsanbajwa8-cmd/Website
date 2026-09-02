@@ -36,7 +36,7 @@ from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, place_pool, solve
 from .layout.site import place_driveway
-from .model import Function, OpeningKind, Plot, Roof
+from .model import Function, OpeningKind, Plot
 from .program import (
     PROGRAM_JSON_SCHEMA,
     template,
@@ -370,11 +370,9 @@ def cmd_plan(args) -> int:
             print("Pool         : will not fit -- see the notes below")
         print()
 
-    building.roof = Roof(
-        pitch_degrees=float(design.get("roof_pitch_degrees", 25.0)),
-        overhang_mm=int(design.get("roof_overhang_mm", 600)),
-        kind=str(design.get("roof_kind", "hip")),
-    )
+    # The roof is `build_building`'s, from the same `design` this would have
+    # read. Setting it again here is two places that have to agree about the
+    # default pitch, which is how it came to be set in only one of them.
 
     if plot.boundary:
         print(f"Lot          : {fmt_area(plot.area)} surveyed "

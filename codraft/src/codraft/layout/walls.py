@@ -846,6 +846,61 @@ def _stairs_for_storey(
     return stairs
 
 
+# Two cars side by side, and the room to open a door beside each.
+DOUBLE_GARAGE_WIDTH = 5400
+DOUBLE_GARAGE_DEPTH = 6000
+
+
+def check_the_garage_holds_its_cars(
+    building: Building, warnings: list[str]
+) -> None:
+    """A room called a Double Garage that only fits one car must say so.
+
+    Measured HERE rather than in the solver, on the room the drawing shows.
+    In the solver the walls do not exist yet, so the same check measured the
+    tile less a flat allowance and reported a garage 130 mm narrower and
+    106 mm deeper than the plan: one report carried both figures, four lines
+    apart, for the same room.
+
+    And across the door, not across the short side. A garage's width is the
+    dimension parallel to the street -- that is what two cars stand side by
+    side in and what the vehicle opening spans -- and its depth is the one
+    they park along. Reading the short side as the width is only right for a
+    garage deeper than it is wide, and a strip across a wide frontage makes
+    plenty that are not: on a 15 x 30 m lot the garage comes out 5504 across
+    by 5386 deep, and the old test compared 5386 against the width limit and
+    5504 against the depth.
+
+    Raising the declared minimum to 5.4 m was tried and made the plans worse
+    without making a single garage wider. The frontage is split around the
+    entry, which has to sit over the passage behind it, and the garage takes
+    whichever side is left -- so its width is decided by where the passage
+    landed, not by what it asked for.
+    """
+    across_x = building.plot.road_side in ("south", "north")
+    for storey in building.storeys:
+        for space in storey.spaces:
+            if space.function is not Function.GARAGE:
+                continue
+            if "double" not in space.name.lower():
+                continue
+            rect = space.rect
+            wide, deep = ((rect.w, rect.h) if across_x else (rect.h, rect.w))
+            if wide >= DOUBLE_GARAGE_WIDTH and deep >= DOUBLE_GARAGE_DEPTH:
+                continue
+            warnings.append(
+                f"The {space.name} came out {wide} x {deep} mm clear, "
+                f"measured across the door and back. Two cars side by side "
+                f"need about {DOUBLE_GARAGE_WIDTH} x {DOUBLE_GARAGE_DEPTH} "
+                "mm, so this holds one car and a narrow space beside it. The "
+                "frontage is set out around the front door, which has to line "
+                "up with the passage behind it, and what is left over is what "
+                "the garage gets -- on a narrow block there is not enough "
+                "street frontage for a double garage, a front door and a "
+                "portico at once. A single garage, or a wider block."
+            )
+
+
 def build_building(
     program: SpaceProgram,
     plot: Plot,
@@ -936,6 +991,8 @@ def build_building(
             stairs=stairs,
         )
         building.storeys.append(storey)
+
+    check_the_garage_holds_its_cars(building, warnings)
 
     # The driveway, for the same reason the roof is set above: a garage with
     # no driveway is an oversight, not a design decision, and only `cli.py`

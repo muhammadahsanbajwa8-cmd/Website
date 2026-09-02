@@ -36,12 +36,28 @@ def _said(layout) -> bool:
     return any("Two cars side by side" in w for w in layout.warnings)
 
 
+def _bays(garage, road_side: str = "south") -> tuple[int, int]:
+    """The garage's clear size ACROSS THE DOOR and back, in that order.
+
+    Not the short side and the long side. A garage's width is the dimension
+    parallel to the street -- what two cars stand side by side in and what
+    the vehicle opening spans -- and its depth is the one they park along.
+    Reading the short side as the width is only right for a garage deeper
+    than it is wide, and a strip across a wide frontage makes plenty that are
+    not: on a 20 x 32 m lot the garage comes out 6961 across and 5761 deep,
+    and both this test and the check it was testing called that 5761 x 6961
+    and passed a garage 239 mm too shallow to park in.
+    """
+    rect = garage.rect
+    return (rect.w, rect.h) if road_side in ("south", "north") else (rect.h, rect.w)
+
+
 class ADoubleGarageHoldsTwoCarsOrSaysSo(unittest.TestCase):
     def test_a_narrow_block_is_told_the_garage_only_holds_one(self):
         layout, building = _plan(12000, 32000, beds=3)
         garage = next(s for s in building.all_spaces()
                       if s.function is Function.GARAGE)
-        self.assertLess(garage.rect.short_side, 5400,
+        self.assertLess(_bays(garage)[0], 5400,
                         "this block is meant to be too narrow for two bays")
         self.assertTrue(_said(layout),
                         "a Double Garage 3.7 m across was drawn without a word")
@@ -53,13 +69,13 @@ class ADoubleGarageHoldsTwoCarsOrSaysSo(unittest.TestCase):
             layout, building = _plan(width, depth)
             garage = next(s for s in building.all_spaces()
                           if s.function is Function.GARAGE)
-            if garage.rect.short_side >= 5400 and garage.rect.long_side >= 6000:
+            wide, deep = _bays(garage)
+            if wide >= 5400 and deep >= 6000:
                 quiet += 1
                 self.assertFalse(
                     _said(layout),
-                    f"{width}x{depth}: the garage is "
-                    f"{garage.rect.short_side} x {garage.rect.long_side} and "
-                    "the plan complained about it anyway")
+                    f"{width}x{depth}: the garage is {wide} x {deep} across "
+                    "the door and the plan complained about it anyway")
         self.assertGreater(quiet, 0, "no block in the sweep fits two bays, so "
                                      "this test proved nothing")
 
