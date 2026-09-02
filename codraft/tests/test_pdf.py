@@ -142,17 +142,20 @@ class TestItIsTheSameDrawing(unittest.TestCase):
         # the comment here has claimed that since it was written and the test
         # counted anyway, so every added sheet has cost a round of debugging
         # an off-by-one instead of reading a name that was missing.
-        joined = "\n".join(_streams(_write()))
-        for expected in ("SITE PLAN", "Ground floor", "Floor 1",
-                         "Elevation", "Section A-A", "WINDOW SCHEDULE"):
+        # Case-insensitively: which floor a sheet is now comes from the
+        # title block, which sets a sheet name in capitals, and the test
+        # should not fail over a styling choice.
+        joined = "\n".join(_streams(_write())).lower()
+        for expected in ("site plan", "ground floor", "floor 1",
+                         "elevation", "section a-a", "window schedule"):
             self.assertIn(expected, joined, f"the set has no {expected}")
 
         # One storey means one floor plan, and no "Floor 1".
-        single = "\n".join(_streams(_write(building=_building(storeys=1))))
-        for expected in ("SITE PLAN", "Ground floor", "Elevation",
-                         "Section A-A", "WINDOW SCHEDULE"):
+        single = "\n".join(_streams(_write(building=_building(storeys=1)))).lower()
+        for expected in ("site plan", "ground floor", "elevation",
+                         "section a-a", "window schedule"):
             self.assertIn(expected, single, f"the set has no {expected}")
-        self.assertNotIn("Floor 1", single,
+        self.assertNotIn("floor 1", single,
                          "a single-storey set has an upper floor plan")
 
     def test_a_building_with_no_roof_gets_no_elevation_or_section(self):

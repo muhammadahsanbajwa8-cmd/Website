@@ -163,23 +163,40 @@ class TestItReachesTheDrawing(unittest.TestCase):
 
     def test_the_sheet_title_clears_the_paving(self):
         # The title used to be positioned from the plan's bottom edge, which
-        # put it straight through the driveway the moment there was one.
+        # put it straight through the driveway the moment there was one. It
+        # was then moved off the drawing altogether -- a sheet with one
+        # drawing on it is named by its title block, and the space the
+        # caption stood in was coming off the scale. So there is nothing left
+        # to collide, and this asserts both halves of that: no caption in the
+        # body, and the sheet still says which floor it is.
         from codraft.export.svg import build_sheet
 
         plot, layout, building, garage = _built()
         building.driveway = place_driveway(
             plot, layout.envelope, garage.rect, 4000
         )[0]
-        canvas, *_ = build_sheet(building, storey_index=0, sheet="site")
+        canvas, _, _, _, name = build_sheet(building, storey_index=0,
+                                            sheet="site")
         titles = [op for op in canvas.ops
                   if op[0] == "text" and op[1] == "title"]
-        self.assertTrue(titles)
+        self.assertEqual(titles, [], "the caption is back on the drawing")
+        # The site plan keeps its own name: it shows the ground storey
+        # because that is what sits on the lot, but it is not a floor plan.
+        self.assertEqual(name, "Site plan")
+        _, _, _, _, floor = build_sheet(building, storey_index=0,
+                                        sheet="architectural")
+        self.assertIn("Ground floor", floor)
+
+        # Two storeys still caption their columns, and those still have to
+        # clear the paving.
+        both, *_ = build_sheet(building, sheet="architectural")
         drive_bottom = building.driveway.rect.y0
-        for op in titles:
-            self.assertLess(
-                op[3], drive_bottom,
-                "the sheet title sits over the driveway",
-            )
+        for op in both.ops:
+            if op[0] == "text" and op[1] == "title":
+                self.assertLess(
+                    op[3], drive_bottom,
+                    "the sheet title sits over the driveway",
+                )
 
 
 if __name__ == "__main__":

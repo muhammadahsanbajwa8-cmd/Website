@@ -1322,6 +1322,28 @@ def build_sheet(
         titles.append((reference.centre.x + dx,
                        f"{storey.name} — {sheet.title()}"))
 
+    # One storey to a sheet: the caption goes in the TITLE BLOCK, where the
+    # identity of a sheet belongs, and the drawing keeps the height.
+    #
+    # It is the same call the section sheet's notes just went through, and it
+    # buys the same thing. The caption sits 1400 mm clear below everything
+    # else drawn, and that space is deducted from the paper before a scale is
+    # chosen: on a 10.5 x 32 m block -- a narrow deep survey-strata lot, and
+    # an ordinary one in Perth -- the box came out 28825 mm tall against the
+    # 27700 an A3 holds at 1:100, over by 1125 mm, while using half the
+    # sheet's width. All fifteen floor plan sheets in the AU-WA lot sweep
+    # that missed 1:100 were that lot.
+    #
+    # It also says more than it did. Both floors of a two storey set were
+    # headed "Architectural plan"; now the sheet itself says which floor.
+    # By how many drawings are on the sheet, not by how it was asked for.
+    # The site sheet takes the ground storey whether or not an index was
+    # passed, and keying on the index gave it a caption one way and not the
+    # other.
+    single = len(storeys) == 1
+    if single:
+        titles = []
+
     # The titles go on last, below everything actually drawn. Positioning them
     # from the PLAN's bottom edge put them through the driveway the moment
     # there was one -- paving runs from the garage to the street boundary,
@@ -1357,10 +1379,22 @@ def build_sheet(
 
     content_w = int(canvas.maxx - canvas.minx) + margin * 2
     content_h = int(canvas.maxy - canvas.miny) + margin * 2
+    # A sheet with one drawing on it is named by that drawing. Short, because
+    # the title block holds about 84 mm of capitals at this size and
+    # "GROUND FLOOR - ARCHITECTURAL PLAN" wants 110: it ran off the edge of
+    # the block and the sheet read "GROUND FLOOR - ARCHITECTUR".
+    #
+    # The site plan keeps its own name. It shows the ground storey because
+    # that is what sits on the lot, but it is not a floor plan and calling it
+    # one would be the drawing telling a lie about what it is.
+    name = f"{sheet.title()} plan"
+    if single and sheet != "site":
+        name = (f"{storeys[0].name} plan" if sheet == "architectural"
+                else f"{storeys[0].name} {sheet}")
     return (
         canvas,
         (int(-canvas.minx) + margin, int(canvas.maxy) + margin),
-        content_w, content_h, f"{sheet.title()} plan",
+        content_w, content_h, name,
     )
 
 
