@@ -137,3 +137,41 @@ class ADoubleGarageHoldsTwoCarsOrSaysSo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheWarningNamesTheDimensionThatIsShort(unittest.TestCase):
+    """Telling a builder the block is too narrow when it is too shallow
+    sends them to buy the wrong lot. Twenty-nine of the sixty-five plans in
+    the AU-WA lot sweep were wide enough for two cars and short front to
+    back, and every one of them was told about the frontage."""
+
+    def _warning(self, width, depth, beds=4, storeys=1):
+        program = template("au-house", bedrooms=beds, bathrooms=2,
+                           storeys=storeys)
+        plot = Plot(rect=Rect(0, 0, width, depth), road_side="south",
+                    setback_front=6000, setback_rear=6000,
+                    setback_left=1000, setback_right=1000)
+        layout = solve(program, plot)
+        building = build_building(program, plot, layout)
+        garage = next(s for s in building.all_spaces()
+                      if s.function is Function.GARAGE)
+        said = next((w for w in layout.warnings if "Two cars" in w), "")
+        return _bays(garage), said
+
+    def test_a_garage_short_only_front_to_back_says_so(self):
+        (wide, deep), said = self._warning(15000, 30000, beds=3, storeys=2)
+        self.assertGreaterEqual(wide, 5400, "this one is meant to be wide enough")
+        self.assertLess(deep, 6000)
+        self.assertIn("FRONT TO BACK", said)
+        self.assertNotIn("ACROSS THE DOOR", said)
+
+    def test_a_garage_short_only_across_the_door_says_so(self):
+        (wide, deep), said = self._warning(12000, 32000, beds=3)
+        self.assertLess(wide, 5400)
+        self.assertGreaterEqual(deep, 6000, "this one is meant to be deep enough")
+        self.assertIn("ACROSS THE DOOR", said)
+        self.assertNotIn("FRONT TO BACK", said)
+
+    def test_it_quotes_the_size_the_plan_is_drawn_at(self):
+        (wide, deep), said = self._warning(15000, 30000, beds=3, storeys=2)
+        self.assertIn(f"{wide} x {deep} mm clear", said)

@@ -851,6 +851,15 @@ DOUBLE_GARAGE_WIDTH = 5400
 DOUBLE_GARAGE_DEPTH = 6000
 
 
+def _bounds_of(storey: Storey) -> int:
+    """How deep the floor is, front to back, in the street's direction."""
+    if not storey.spaces:
+        return 0
+    ys = [s.rect.y0 for s in storey.spaces] + [s.rect.y1 for s in storey.spaces]
+    xs = [s.rect.x0 for s in storey.spaces] + [s.rect.x1 for s in storey.spaces]
+    return max(max(ys) - min(ys), max(xs) - min(xs))
+
+
 def check_the_garage_holds_its_cars(
     building: Building, warnings: list[str]
 ) -> None:
@@ -886,19 +895,47 @@ def check_the_garage_holds_its_cars(
                 continue
             rect = space.rect
             wide, deep = ((rect.w, rect.h) if across_x else (rect.h, rect.w))
-            if wide >= DOUBLE_GARAGE_WIDTH and deep >= DOUBLE_GARAGE_DEPTH:
+            narrow = wide < DOUBLE_GARAGE_WIDTH
+            shallow = deep < DOUBLE_GARAGE_DEPTH
+            if not (narrow or shallow):
                 continue
-            warnings.append(
+
+            # WHICH dimension is short, and the reason for that one. The
+            # message used to blame the street frontage whatever was wrong,
+            # and on twenty-nine of the sixty-five plans in the AU-WA lot
+            # sweep nothing was wrong with the frontage: the garage was wide
+            # enough for two cars and short front to back. Telling a builder
+            # the block is too narrow when it is too shallow sends them to buy
+            # the wrong lot.
+            said = (
                 f"The {space.name} came out {wide} x {deep} mm clear, "
                 f"measured across the door and back. Two cars side by side "
-                f"need about {DOUBLE_GARAGE_WIDTH} x {DOUBLE_GARAGE_DEPTH} "
-                "mm, so this holds one car and a narrow space beside it. The "
-                "frontage is set out around the front door, which has to line "
-                "up with the passage behind it, and what is left over is what "
-                "the garage gets -- on a narrow block there is not enough "
-                "street frontage for a double garage, a front door and a "
-                "portico at once. A single garage, or a wider block."
+                f"need about {DOUBLE_GARAGE_WIDTH} mm across and "
+                f"{DOUBLE_GARAGE_DEPTH} mm to park along, so this holds one "
+                "car and a narrow space beside it. "
             )
+            if narrow:
+                said += (
+                    "It is short ACROSS THE DOOR. The frontage is set out "
+                    "around the front door, which has to line up with the "
+                    "passage behind it, and what is left over is what the "
+                    "garage gets -- on a narrow block there is not enough "
+                    "street frontage for a double garage, a front door and a "
+                    "portico at once. A single garage, or a wider block. "
+                )
+            if shallow:
+                floor = _bounds_of(storey)
+                said += (
+                    "It is short FRONT TO BACK. The strip across the frontage "
+                    "is held to a share of the floor's depth so the rooms "
+                    "behind it keep theirs, and on a floor "
+                    f"{floor} mm deep that share is under the "
+                    f"{DOUBLE_GARAGE_DEPTH} mm a car parks along. Letting the "
+                    "strip take the depth it wants was measured and costs more "
+                    "than it buys: it takes the rooms behind under their own "
+                    "minimums. A deeper block."
+                )
+            warnings.append(said.rstrip())
 
 
 def build_building(

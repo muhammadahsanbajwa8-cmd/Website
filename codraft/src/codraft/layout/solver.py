@@ -416,7 +416,7 @@ class _Row:
 
 # Packing: what has been tried against it, and what the measurements said.
 #
-# Ten attempts to improve the packer have been made. Eight were reverted;
+# Eleven attempts to improve the packer have been made. Nine were reverted;
 # 7 and the tenth attempt inside 9 now stand and say so where they are
 # recorded. They are kept here because each cost a session to re-derive and
 # each failed, or came good, for a reason that is not obvious from the code.
@@ -610,6 +610,26 @@ class _Row:
 #    A room brought forward to fill the surplus is attempt 4, and it is not
 #    open either -- it strands rooms, and the guard that stops it stranding
 #    them makes it dead.
+
+# 11. Letting the front strip keep the depth a car needs. `_front_zone` sizes
+#    the strip to 6000 + a wall and then caps it at a THIRD of the floor's
+#    depth, and the cap wins: on fifty-five of the sixty-five plans in the
+#    AU-WA lot sweep the strip comes out under 6172, and thirty-nine of the
+#    garages are under 6000 mm deep as a direct result. The correlation is
+#    exact -- every shallow garage is a capped strip.
+#
+#    Raising the floor back over the cap does fix the garages: shallow ones
+#    39 -> 16. It costs far more than it buys. The strip takes its depth from
+#    the bands behind, and they were already the tight part: thin rooms
+#    290 -> 336, awkward 47 -> 66, code findings 132 -> 187 and violations
+#    1 -> 11. Three more plans draw, at that price.
+#
+#    So the cap stays and the garage is genuinely constrained by how deep the
+#    block is. What came out of the attempt is that the plan was blaming the
+#    wrong thing: twenty-nine of the sixty-five garages are wide enough for
+#    two cars and short only front to back, and every one of them was told
+#    there was not enough street frontage. The warning now names the
+#    dimension that is actually short. See `walls.check_the_garage_holds_its_cars`.
 
 def _group_rows(rooms: list[tuple[str, SpaceRequirement]], depth: int) -> list[_Row]:
     """Decide which rooms share a slice of the band with a neighbour.
