@@ -39,6 +39,7 @@ from ..model import (
     WallKind,
 )
 from ..program import SpaceProgram
+from .site import place_driveway
 from .solver import Cell, Layout
 
 EXTERIOR_THICKNESS = 230   # one brick, rendered both faces
@@ -935,5 +936,24 @@ def build_building(
             stairs=stairs,
         )
         building.storeys.append(storey)
+
+    # The driveway, for the same reason the roof is set above: a garage with
+    # no driveway is an oversight, not a design decision, and only `cli.py`
+    # remembered to place one. A site plan built through the library showed a
+    # double garage on a lot with no way to drive to it.
+    #
+    # Everything it needs is already here -- the plot, the footprint and the
+    # garage's own rectangle, which is where its width comes from. A crossover
+    # is a separate ask (it is the council's part of the verge, not the
+    # owner's) and stays with the caller that knows whether one was requested.
+    garage_rect = next(
+        (space.rect for storey in building.storeys for space in storey.spaces
+         if space.function is Function.GARAGE),
+        None,
+    )
+    if garage_rect is not None:
+        drive, drive_notes = place_driveway(plot, layout.envelope, garage_rect)
+        building.driveway = drive
+        warnings.extend(n for n in drive_notes if n not in warnings)
 
     return building

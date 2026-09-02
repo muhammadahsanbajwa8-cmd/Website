@@ -320,11 +320,18 @@ def cmd_plan(args) -> int:
         program, plot, layout, name=program.name,
         jurisdiction=jurisdiction.key, design=design,
     )
-    # A garage with no driveway is an oversight, not a design decision, so the
-    # driveway is drawn wherever there is a garage rather than waiting to be
-    # asked for. --no-driveway suppresses it for a lot served off a rear
-    # laneway, where the frontage genuinely has no crossing.
-    if not args.no_driveway:
+    # A garage with no driveway is an oversight, not a design decision, so
+    # `build_building` places one wherever there is a garage rather than
+    # waiting to be asked. Two things are still this caller's:
+    #
+    #   --no-driveway, for a lot served off a rear laneway where the frontage
+    #   genuinely has no crossing; and
+    #
+    #   --crossover, the council's part of the verge, which is asked for
+    #   rather than assumed.
+    if args.no_driveway:
+        building.driveway = None
+    elif args.crossover and building.driveway is not None:
         garage = next(
             (sp for sp in building.storeys[0].spaces
              if sp.function is Function.GARAGE),
@@ -333,14 +340,17 @@ def cmd_plan(args) -> int:
         drive, drive_notes = place_driveway(
             plot, layout.envelope,
             garage.rect if garage is not None else None,
-            crossover_width_mm=args.crossover or 0,
+            crossover_width_mm=args.crossover,
         )
         building.driveway = drive
-        layout.warnings.extend(drive_notes)
-        if drive is not None:
-            print(f"Driveway     : {drive.width_mm} x {drive.length_mm} mm from "
-                  f"the {plot.road_side} boundary to the garage, "
-                  f"{drive.area / 1e6:.0f} m2 of paving")
+        layout.warnings.extend(
+            n for n in drive_notes if n not in layout.warnings
+        )
+    if building.driveway is not None:
+        drive = building.driveway
+        print(f"Driveway     : {drive.width_mm} x {drive.length_mm} mm from "
+              f"the {plot.road_side} boundary to the garage, "
+              f"{drive.area / 1e6:.0f} m2 of paving")
 
     if args.pool or (brief is not None and brief.pool):
         size = (args.pool_size or "8mx4m").lower().replace("×", "x")
