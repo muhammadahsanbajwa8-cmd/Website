@@ -58,6 +58,27 @@ class FactSet:
         )
 
 
+# Which SITE CONTROL supplies each fact a rule may ask for. One table, read
+# in both places that populate them, and read again by the report so an
+# unchecked rule can name the CHECKLIST ID a person has to go and find --
+# "the model carries no fact called 'max_height_mm'" is true and useless to
+# anybody who has not read this file.
+#
+# The names differ on purpose: a control is what a planning instrument
+# supplies, a fact is what a rule expression reads, and they are written by
+# different people. What must not differ is the number of places the
+# correspondence is recorded.
+FROM_SITE_CONTROLS = {
+    "min_setback_front_mm": "setback_front_mm",
+    "min_setback_rear_mm": "setback_rear_mm",
+    "max_coverage_ratio": "max_coverage_ratio",
+    "max_floor_area_ratio": "max_floor_area_ratio",
+    "max_height_mm": "max_height_mm",
+    "min_outdoor_living_m2": "min_outdoor_living_m2",
+    "min_outdoor_living_dim_mm": "min_outdoor_living_dimension_mm",
+}
+
+
 def _load_factor(function: Function, factors: dict[str, float]) -> float:
     """Square metres of floor per person, from the pack's own table.
 
@@ -406,13 +427,9 @@ def derive(building: Building, parameters: dict | None = None,
     #
     # Left OUT where nothing was supplied, so the rule reports unchecked with
     # a reason naming the missing control rather than passing on a default.
-    for fact, key in (
-        ("min_setback_front_mm", "setback_front_mm"),
-        ("min_setback_rear_mm", "setback_rear_mm"),
-        ("max_coverage_ratio", "max_coverage_ratio"),
-        ("max_floor_area_ratio", "max_floor_area_ratio"),
-        ("max_height_mm", "max_height_mm"),
-    ):
+    for fact, key in FROM_SITE_CONTROLS.items():
+        if fact in ("min_outdoor_living_m2", "min_outdoor_living_dim_mm"):
+            continue      # supplied with the outdoor living measurement below
         value = (site or {}).get(key)
         if value is not None:
             facts.building[fact] = value
@@ -495,9 +512,9 @@ def outdoor_living(building, site: dict | None = None) -> dict:
     # comparison raise. Absent is the honest encoding of "nobody told us",
     # and it is the one the engine already knows how to report.
     limits = {
-        "min_outdoor_living_m2": (site or {}).get("min_outdoor_living_m2"),
-        "min_outdoor_living_dim_mm": (site or {}).get(
-            "min_outdoor_living_dimension_mm"),
+        fact: (site or {}).get(key)
+        for fact, key in FROM_SITE_CONTROLS.items()
+        if fact in ("min_outdoor_living_m2", "min_outdoor_living_dim_mm")
     }
     facts.update({k: v for k, v in limits.items() if v is not None})
     return facts

@@ -269,6 +269,12 @@ def check(
     but is not the answer anybody wanted.
     """
     packs: list[RulePack] = []
+    # Passed down so an unchecked rule can say whether the figure it wanted
+    # is genuinely outstanding for this jurisdiction or was merely not handed
+    # to this call. Both are honest reasons to report unchecked and they need
+    # different actions from the reader.
+    state = getattr(jurisdiction, "key", "") or ""
+
     for name in jurisdiction.rule_packs:
         try:
             pack = load_pack(name)
@@ -306,12 +312,45 @@ def check(
                 continue
 
             for item in items:
-                report.findings.append(_apply(rule, pack, item))
+                report.findings.append(_apply(rule, pack, item, state))
 
     return report
 
 
-def _apply(rule: Rule, pack: RulePack, item: dict) -> Finding:
+def _where_to_find(fact: str, state_key: str = "") -> str:
+    """Which figure a person has to supply to turn this rule into an answer.
+
+    "the model carries no fact called 'max_height_mm'" is true and useless to
+    anybody who has not read `codes/facts.py`. The same gap has a name in
+    `rules/CHECKLIST.md`, which is the file a builder is pointed at, and the
+    correspondence between the two is already recorded -- in
+    `facts.FROM_SITE_CONTROLS` and `states._SITE_KEYS`. This walks the two
+    hops rather than writing the answer down a third time.
+
+    Where the state is known, it also says whether the figure is genuinely
+    outstanding there or merely was not passed to this call. Those are
+    different problems and the reader cannot tell them apart otherwise.
+    """
+    from .facts import FROM_SITE_CONTROLS
+    from .states import _SITE_KEYS, missing_controls
+
+    control = FROM_SITE_CONTROLS.get(fact)
+    if control is None:
+        return ""
+    checklist_id = next(
+        (k for k, v in _SITE_KEYS.items() if v == control), None
+    )
+    if checklist_id is None:
+        return ""
+    if state_key and checklist_id in missing_controls(state_key):
+        return (f". That figure is `{checklist_id}`, and nobody has supplied "
+                "it for this jurisdiction -- see rules/CHECKLIST.md")
+    return (f". That figure is `{checklist_id}`; a value exists for this "
+            "jurisdiction but was not passed to the check")
+
+
+def _apply(rule: Rule, pack: RulePack, item: dict,
+           state: str = "") -> Finding:
     """Decide one rule against one thing."""
     subject = _subject(rule.scope, item)
     base = dict(
@@ -326,7 +365,7 @@ def _apply(rule: Rule, pack: RulePack, item: dict) -> Finding:
         return Finding(
             **base, status=STATUS_UNCHECKED, message="",
             reason=f"the model carries no fact called {missing.name!r}, which the "
-                   "rule's condition needs",
+                   "rule's condition needs" + _where_to_find(missing.name, state),
         )
     except RuleError as exc:
         return Finding(**base, status=STATUS_UNCHECKED, message="", reason=str(exc))
@@ -340,7 +379,8 @@ def _apply(rule: Rule, pack: RulePack, item: dict) -> Finding:
         return Finding(
             **base, status=STATUS_UNCHECKED, message="",
             reason=f"the model carries no fact called {missing.name!r}, so this "
-                   "rule was not decided either way",
+                   "rule was not decided either way"
+                   + _where_to_find(missing.name, state),
         )
     except ZeroDivisionError:
         return Finding(
