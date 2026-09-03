@@ -267,3 +267,83 @@ class TestTheTwoEnginesDrawTheSameHouse(unittest.TestCase):
                         f"{who} put nothing but circulation on storey "
                         f"{storey} of a three-storey house",
                     )
+
+
+# Briefs on and around the line where one engine or the other starts saying
+# no. Deliberately includes blocks too small for the brief: what is being
+# asserted is the DIRECTION of a disagreement, so the set has to contain
+# some.
+MARGINAL = [
+    dict(state="WA", lotW=10000, lotD=28000, storeys=1, bedrooms=2),
+    dict(state="WA", lotW=10000, lotD=28000, storeys=1, bedrooms=4),
+    dict(state="WA", lotW=10000, lotD=28000, storeys=2, bedrooms=4),
+    dict(state="WA", lotW=12000, lotD=32000, storeys=1, bedrooms=5),
+    dict(state="WA", lotW=15000, lotD=30000, storeys=1, bedrooms=4),
+    dict(state="WA", lotW=15000, lotD=30000, storeys=2, bedrooms=5),
+    dict(state="VIC", lotW=10000, lotD=28000, storeys=1, bedrooms=3),
+    dict(state="VIC", lotW=15000, lotD=30000, storeys=2, bedrooms=4),
+    dict(state="NSW", lotW=10000, lotD=28000, storeys=1, bedrooms=2),
+    dict(state="NSW", lotW=18000, lotD=35000, storeys=2, bedrooms=4),
+]
+
+
+class TestThePageNeverPromisesMoreThanTheDrawingSet(unittest.TestCase):
+    """Where the two disagree about whether a brief can be drawn at all.
+
+    They do disagree, and only in one direction. engine.js refuses a brief
+    whose rooms come to more than about 1.4 times what the block can carry,
+    with the two figures in the message; the solver has no such test and
+    draws it, naming every squeezed room instead. Over a 360-brief sweep the
+    page turned away 20 the solver drew, and the solver turned away none the
+    page drew.
+
+    Which threshold is right is NOT settled here, and the attempt to settle
+    it by measurement failed in a way worth recording. Neither instrument
+    separates the two populations. By area ratio the worst brief the tests
+    insist a builder sells sits at 0.67 and the worst the page rejects at
+    0.64. By the narrowest habitable room, a case both engines draw happily
+    -- 12 x 32 m, five bedrooms -- comes out at 1678 mm, and one the page
+    refuses at 1670. Three millimetres apart is not a line, it is two
+    samples. So no threshold was moved on a guess.
+
+    What IS assertable is the direction, and it is the half that matters to
+    a customer: the page can be more cautious than the drawing set, never
+    more permissive. A page that draws a plan the CLI would then refuse has
+    promised a house that does not exist.
+    """
+
+    @staticmethod
+    def _drawn(brief, engine):
+        """The plan, or the refusal as text. Never a skip: a brief either
+        engine turns away is the case this test exists to look at."""
+        try:
+            return engine(brief)
+        except unittest.SkipTest as refused:
+            return str(refused)
+
+    def test_the_solver_never_refuses_a_brief_the_page_drew(self):
+        disagreed = 0
+        for base in MARGINAL:
+            brief = dict(base, zone="R20", bathrooms=2, garage=2,
+                         theatre=True, study=False, alfresco=True, pool=False)
+            label = (f'{brief["state"]} {brief["lotW"]}x{brief["lotD"]} '
+                     f'{brief["storeys"]} storey {brief["bedrooms"]} bed')
+            theirs = self._drawn(brief, _js_plan)
+            ours = self._drawn(brief, _py_plan)
+            page_drew = not isinstance(theirs, str)
+            solver_drew = not isinstance(ours, str)
+            if page_drew != solver_drew:
+                disagreed += 1
+            with self.subTest(brief=label):
+                if page_drew and not solver_drew:
+                    self.fail(
+                        f"{label}: the page drew a house the solver refuses "
+                        f"-- {ours}"
+                    )
+        # If the set stops containing a disagreement the assertion above has
+        # become vacuous, and a vacuous invariant reads like a guarantee.
+        self.assertGreater(
+            disagreed, 0,
+            "no brief in the marginal set disagrees any more, so this "
+            "asserts nothing; add one or delete the test",
+        )
