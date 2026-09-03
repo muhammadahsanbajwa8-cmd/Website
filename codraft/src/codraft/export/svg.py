@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import math
+import re
 from pathlib import Path
 
 from ..courses import COURSE_MM
@@ -539,25 +540,9 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
             canvas.text(centre.x + dx, centre.y,
                         f"{pool.rect.w} x {pool.rect.h}", "area", dy=260)
 
-    # Where the section was cut. A section without this on the plan is a
-    # picture of a building, not a drawing of this one.
-    if not ghost and not site and building.roof is not None:
-        from .section import section_marker
-
-        axis, position, run_from, run_to = section_marker(building)
-        if run_to > run_from:
-            if axis == "x":
-                canvas.line(run_from + dx, position, run_to + dx, position,
-                            "mark-line")
-                for end, label in ((run_from, "A"), (run_to, "A")):
-                    canvas.text(end + dx, position, label, "mark-text",
-                                dy=-620)
-            else:
-                canvas.line(position + dx, run_from, position + dx, run_to,
-                            "mark-line")
-                for end, label in ((run_from, "A"), (run_to, "A")):
-                    canvas.text(position + dx, end, label, "mark-text",
-                                dy=-150)
+    # The cut marker used to go here and now goes on LAST, in
+    # `_draw_section_marker`, because where its letter can stand depends on
+    # what else is already on the sheet.
 
     for space in storey.spaces:
         canvas.rect(space.rect, "ghost-room" if ghost else _fill(space.function), dx)
@@ -807,6 +792,92 @@ def _draw_dims(canvas: _Canvas, dims, dx: int) -> None:
                         dy=-110, rotate=-90)
         else:
             canvas.text(dim.text_x + dx, dim.text_y, dim.text, cls, dy=-110)
+
+
+def _text_boxes(canvas: _Canvas) -> list[tuple[float, float, float, float]]:
+    """Every piece of text already on the canvas, as a box in real mm.
+
+    The transform each label is drawn under is `translate(x,y) scale(1,-1)
+    rotate(r)`, applied right to left, so a text offset of (0, dy) lands at
+    (x, y - dy) upright and at (x + dy, y) turned. Reading dy as a y shift on
+    a turned label counts a stacked room name as sitting on its own area
+    figure, which is 151 collisions that are not there.
+    """
+    out = []
+    for op in canvas.ops:
+        if op[0] != "text":
+            continue
+        _kind, cls, x, y, dy, rot, value = op
+        size = TEXT_SIZES.get(cls, 250)
+        w = len(value) * size * CHAR_WIDTH
+        h = float(size)
+        if rot:
+            cx, cy, w, h = x + dy, y, h, w
+        else:
+            cx, cy = x, y - dy
+        out.append((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+    return out
+
+
+def _clear_of(box, boxes) -> bool:
+    for other in boxes:
+        if (min(box[2], other[2]) - max(box[0], other[0]) > 0
+                and min(box[3], other[3]) - max(box[1], other[1]) > 0):
+            return False
+    return True
+
+
+# How far out the cut marker may be pushed looking for room, and in what
+# steps. The cap is what an earlier measurement showed a sheet can give away
+# before the drawing drops a scale step.
+MARKER_STEP = 300
+MARKER_REACH = 2100
+
+
+def _draw_section_marker(canvas: _Canvas, building, dx: int) -> None:
+    """The cut line on the plan, with its letter somewhere it can be read.
+
+    Drawn LAST, and its standoff chosen by measuring rather than fixed,
+    because the band outside a floor plan is crowded: the dimension chains
+    sit at 1200 and 2100 mm, the opening marks sit against the wall, and a
+    letter placed at any single one of those offsets lands on something.
+    Fixed offsets were tried across the AU-WA sweep -- 600 mm collided with
+    the opening marks on 13 sheets, 1200 with a dimension figure on 21, 2400
+    cost three sheets a scale step. Only a 75 mm window came out clean, and
+    threading a constant into a 75 mm window is a constant fitted to one
+    sweep rather than a rule.
+
+    So the line is drawn where a cut line goes and the LETTER steps outward
+    until it finds space nothing else has taken. If nothing is clear inside
+    the reach, it takes the last position rather than being dropped: a
+    marker somebody has to look twice at still says where the section was
+    cut, and no marker at all makes the section a picture.
+    """
+    if building.roof is None:
+        return
+    from .section import section_marker
+
+    axis, position, run_from, run_to = section_marker(building)
+    if run_to <= run_from:
+        return
+    if axis == "x":
+        canvas.line(run_from + dx, position, run_to + dx, position, "mark-line")
+    else:
+        canvas.line(position + dx, run_from, position + dx, run_to, "mark-line")
+
+    taken = _text_boxes(canvas)
+    size = TEXT_SIZES.get("mark-text", 420)
+    half_w, half_h = size * CHAR_WIDTH / 2, size / 2
+    for end, outward in ((run_from, -1), (run_to, 1)):
+        spot = None
+        for step in range(0, MARKER_REACH + 1, MARKER_STEP):
+            at = end + outward * step
+            cx, cy = (at + dx, position) if axis == "x" else (position + dx, at)
+            box = (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+            spot = (cx, cy)
+            if _clear_of(box, taken):
+                break
+        canvas.text(spot[0], spot[1], "A", "mark-text", dy=-half_h // 2)
 
 
 def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int,
@@ -1062,6 +1133,17 @@ def _floor_obstacles(storey) -> dict[int, list[Rect]]:
 # printed through a wall.
 CHAR_WIDTH = 0.58
 
+# Text size per class, read out of STYLE rather than written down again.
+# Anything that measures a label -- the cut marker looking for room, a test
+# checking nothing overlaps -- needs these, and a second copy would be a
+# second thing to keep in step with the stylesheet.
+TEXT_SIZES = {
+    name: int(size)
+    for name, size in re.findall(
+        r"\.([a-z-]+)\s*\{[^}]*?font:[^;}]*?(\d+)px", STYLE
+    )
+}
+
 # Clear of the walls, at either end of a label and above and below the block.
 LABEL_MARGIN = 120
 
@@ -1310,6 +1392,9 @@ def build_sheet(
                                    obstacles.get(id(space), ()))
                 if note:
                     canvas.notes.append(note)
+            # Last, so its letter can be placed clear of the dimensions and
+            # the opening marks it would otherwise be printed over.
+            _draw_section_marker(canvas, building, dx)
         else:
             for space in storey.spaces:
                 c = space.rect.centre

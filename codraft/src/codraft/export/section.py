@@ -221,11 +221,22 @@ def section_marker(building: Building, mark: str = "A") -> tuple[str, int, int, 
     """
     from ..annotate import FIRST_OFFSET
 
+    # HALF that standoff, so the line and the letter at its end sit in the
+    # clear band BETWEEN the building and the first dimension chain rather
+    # than on it. At the full offset they were at the chain's own standoff by
+    # construction, and the letter landed on a dimension figure on 35 of the
+    # 360 sheets in the AU-WA sweep -- "A" printed through "1422", which is a
+    # number a builder then cannot read.
+    #
+    # It also still costs the sheet nothing. Every overrun up to 2000 mm was
+    # measured as free when this figure was first chosen; this is smaller.
+    over = FIRST_OFFSET // 2
+
     axis, position = _best_cut(building)
     bounds = _bounds(building.storeys[0])
     if bounds is None:
         return axis, position, 0, 0
     x0, y0, x1, y1 = bounds
     if axis == "x":
-        return axis, position, x0 - FIRST_OFFSET, x1 + FIRST_OFFSET
-    return axis, position, y0 - FIRST_OFFSET, y1 + FIRST_OFFSET
+        return axis, position, x0 - over, x1 + over
+    return axis, position, y0 - over, y1 + over
