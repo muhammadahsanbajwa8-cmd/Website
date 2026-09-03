@@ -129,3 +129,141 @@ class TestTheRoomListIsTheSameRoomList(unittest.TestCase):
                                msg=f"the port asks for {theirs:.1f} m2 of "
                                    f"rooms, the template {raw:.1f}")
         self.assertGreater(ours, raw, "the wall allowance went missing")
+
+
+def _js_plan(brief: dict) -> list[tuple]:
+    """The rooms engine.js lays out, as (storey, name, x, y, w, h)."""
+    node = shutil.which("node")
+    if node is None:
+        raise unittest.SkipTest("node is not installed, so engine.js "
+                                "cannot be asked what it draws")
+    script = """
+const fs = require('fs');
+const design = new Function(fs.readFileSync('engine.js','utf8')
+  + '\\nreturn design;')();
+const out = design(JSON.parse(process.argv[1]));
+if (out.error) { process.stdout.write(JSON.stringify({error: out.error})); }
+else {
+  const cells = [];
+  out.plan.storeys.forEach((st, i) => st.forEach(c => cells.push(
+    [i, c.r.name, c.rect.x, c.rect.y, c.rect.w, c.rect.h])));
+  process.stdout.write(JSON.stringify({cells}));
+}
+"""
+    result = subprocess.run([node, "-e", script, json.dumps(brief)], cwd=WEB,
+                            capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        raise AssertionError(f"engine.js would not run: {result.stderr[:400]}")
+    got = json.loads(result.stdout)
+    if "error" in got:
+        raise unittest.SkipTest(f"engine.js refused the brief: {got['error']}")
+    return sorted(tuple(c) for c in got["cells"])
+
+
+# What `design()` in engine.js applies for these states, which is the same
+# set the page offers. Repeated here rather than imported so that a change
+# to either side has to be made deliberately in both.
+CONTROLS = {
+    "WA": dict(front=6000, rear=1000, side=1000, cover=0.5, place="Perth, WA"),
+    "VIC": dict(front=6000, rear=3000, side=1000, cover=0.6,
+                place="Melbourne, VIC"),
+    "NSW": dict(front=4500, rear=3000, side=900, cover=0.5,
+                place="Sydney, NSW"),
+}
+
+
+def _py_plan(brief: dict) -> list[tuple]:
+    from codraft.codes import design_parameters, resolve
+    from codraft.geom import Rect
+    from codraft.layout import LayoutError, solve
+    from codraft.model import Plot
+
+    control = CONTROLS[brief["state"]]
+    program = template("au-house", bedrooms=brief["bedrooms"],
+                       bathrooms=brief["bathrooms"], storeys=brief["storeys"],
+                       garage_spaces=brief["garage"],
+                       theatre=brief["theatre"], alfresco=brief["alfresco"])
+    program.build_to(design_parameters(resolve(control["place"]), program.use))
+    plot = Plot(rect=Rect(0, 0, brief["lotW"], brief["lotD"]),
+                road_side="south", setback_front=control["front"],
+                setback_rear=control["rear"], setback_left=control["side"],
+                setback_right=control["side"])
+    try:
+        layout = solve(program, plot,
+                       max_footprint=int(plot.area * control["cover"]))
+    except LayoutError as exc:
+        raise unittest.SkipTest(f"the solver refused the brief: {exc}")
+    return sorted((c.storey, c.name, c.rect.x, c.rect.y, c.rect.w, c.rect.h)
+                  for c in layout.cells)
+
+
+BRIEFS = [
+    dict(state="WA", zone="R20", lotW=15000, lotD=30000, storeys=1),
+    dict(state="WA", zone="R20", lotW=15000, lotD=30000, storeys=2),
+    dict(state="WA", zone="R20", lotW=18000, lotD=35000, storeys=1),
+    dict(state="WA", zone="R20", lotW=12000, lotD=32000, storeys=2),
+    dict(state="VIC", zone="R20", lotW=15000, lotD=30000, storeys=2),
+    dict(state="NSW", zone="R20", lotW=18000, lotD=35000, storeys=2),
+]
+
+
+class TestTheTwoEnginesDrawTheSameHouse(unittest.TestCase):
+    """Not the same room list -- the same rectangles, to the millimetre.
+
+    The room-list checks above are necessary and were not sufficient. They
+    passed while the two engines agreed on every area and drew 316 different
+    houses out of 316: the tile side was rounded down here and to nearest
+    there, the footprint was held to one side boundary here and centred
+    there, and the storey balancer offered a flexible room the ground floor
+    here and never there. Each of those is invisible to a comparison of the
+    brief. All three are obvious the moment you compare the drawing.
+    """
+
+    def _brief(self, base):
+        return dict(base, bedrooms=4, bathrooms=2, garage=2,
+                    theatre=True, study=False, alfresco=True, pool=False)
+
+    def test_the_same_brief_lays_out_the_same_rooms_in_the_same_places(self):
+        compared = 0
+        for base in BRIEFS:
+            brief = self._brief(base)
+            label = (f'{brief["state"]} {brief["lotW"]}x{brief["lotD"]} '
+                     f'{brief["storeys"]} storey')
+            with self.subTest(brief=label):
+                theirs = _js_plan(brief)
+                ours = _py_plan(brief)
+                compared += 1
+                # Named rooms are compared, not keys: the two number their
+                # bedrooms differently and always have.
+                strip = lambda rows: sorted(  # noqa: E731
+                    (s, n.rstrip(" 0123456789"), x, y, w, h)
+                    for s, n, x, y, w, h in rows)
+                self.assertEqual(
+                    strip(ours), strip(theirs),
+                    f"{label}: the page and the solver drew different houses",
+                )
+        # A brief either engine refuses is skipped, and a file of skips
+        # passes silently. Say how many were actually drawn by both.
+        self.assertGreaterEqual(
+            compared, len(BRIEFS) - 1,
+            f"only {compared} of {len(BRIEFS)} briefs were drawn by both "
+            "engines, so almost nothing was compared",
+        )
+
+    def test_every_storey_the_brief_asks_for_gets_rooms_on_it(self):
+        # A three-storey brief drew a top floor holding a passage and a
+        # stair and nothing else, in the browser, on every one of the 120
+        # three-storey plans in the sweep. It is worth asserting in both.
+        brief = self._brief(dict(state="WA", zone="R20", lotW=15000,
+                                 lotD=30000, storeys=3))
+        for who, plan in (("engine.js", _js_plan(brief)),
+                          ("the solver", _py_plan(brief))):
+            for storey in range(3):
+                names = [n for s, n, *_ in plan if s == storey]
+                with self.subTest(who=who, storey=storey):
+                    self.assertTrue(
+                        [n for n in names
+                         if not n.startswith(("Passage", "Stair"))],
+                        f"{who} put nothing but circulation on storey "
+                        f"{storey} of a three-storey house",
+                    )

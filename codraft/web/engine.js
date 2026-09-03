@@ -78,7 +78,6 @@ function buildProgram(a) {
     key, name, fn, minArea: area * 1e6, minWidth: width,
     ...opt, preferArea: (opt.prefer || 0) * 1e6 });
   const rooms = [];
-  const upper = a.storeys > 1;
 
   rooms.push(R("portico", "Portico", "entry", 4, 1500, { zone: "front", storey: 0, priority: 4 }));
   rooms.push(R("entry", "Entry", "entry", 6, 1500, { zone: "front", storey: 0, solo: true, priority: 1, adj: ["portico"] }));
@@ -87,17 +86,14 @@ function buildProgram(a) {
   rooms.push(R("dining", "Dining", "dining", 14, 3000, { storey: 0, prefer: 18, priority: 2, adj: ["kitchen"] }));
   rooms.push(R("kitchen", "Kitchen", "kitchen", 12, 3000, { storey: 0, priority: 1 }));
   rooms.push(R("wip", "WIP", "storage", 4, 1400, { storey: 0, priority: 4, adj: ["kitchen"] }));
-  rooms.push(R("master", "Master Suite", "bedroom", 16, 3400,
-               upper ? { storey: 1, prefer: 18, priority: 1 } : { prefer: 18, priority: 1 }));
-  rooms.push(R("wir", "WIR", "storage", 5, 1600, upper ? { storey: 1, priority: 3, adj: ["master"] } : { priority: 3, adj: ["master"] }));
-  rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, upper ? { storey: 1, priority: 2, adj: ["master"] } : { priority: 2, adj: ["master"] }));
+  rooms.push(R("master", "Master Suite", "bedroom", 16, 3400, { prefer: 18, priority: 1 }));
+  rooms.push(R("wir", "WIR", "storage", 5, 1600, { priority: 3, adj: ["master"] }));
+  rooms.push(R("ensuite", "Ensuite", "bathroom", 6, 1800, { priority: 2, adj: ["master"] }));
 
   for (let i = 2; i <= a.bedrooms; i++)
-    rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000,
-                 upper ? { storey: 1, prefer: 12, priority: 1 } : { prefer: 12, priority: 1 }));
+    rooms.push(R("bed" + i, "Bed " + i, "bedroom", 11, 3000, { prefer: 12, priority: 1 }));
   for (let i = 2; i <= a.bathrooms; i++)
-    rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800,
-                 upper ? { storey: 1, priority: 2 } : { priority: 2 }));
+    rooms.push(R("bath" + i, i === 2 ? "Bathroom" : "Bath " + i, "bathroom", 6, 1800, { priority: 2 }));
 
   // 1180, not the 900 the template used to ask for: a pan is 680 deep and
   // wants 500 mm in front of it to stand in, so 900 was 280 mm short of a
@@ -153,21 +149,98 @@ const CIRC = new Set(["corridor","entry","stair","lobby"]);
 const target = r => tileArea(Math.max(r.minArea, r.preferArea || 0));
 
 /* ---- rooms onto storeys ---- */
+// Where that kind of room usually goes when the brief has not said.
+// A port of _GROUND_PREFERRED and _UPPER_PREFERRED in the Python solver.
+const GROUND_PREFERRED = new Set(["entry","living","dining","kitchen","garage",
+                                  "lobby","retail","assembly"]);
+const UPPER_PREFERRED = new Set(["bedroom"]);
+const wants = r => Math.max(r.minArea, r.preferArea || 0);
+
+// A port of _assign_storeys, replacing a cruder balancer that only ever
+// offered a flexible room the floors ABOVE the ground. Nothing in this
+// engine could put a linen press on the ground floor, so the room list
+// compensated by pinning the bedrooms, the ensuite, the robe and the
+// bathrooms to storey 1 -- and on a THREE storey brief that left the top
+// floor holding a passage and a stair and nothing else. Every one of the
+// 120 three-storey plans in the sweep was drawn that way: a floor the
+// customer asked for, paid a roof over, and could not put a bed on.
+//
+// The balance is measured on the room's own asked-for area, not on its
+// tile: the tile allowance is the same proportion for every room, and
+// comparing floors is a comparison of the rooms on them.
 function assignStoreys(rooms, storeys) {
   if (storeys === 1) return rooms.map(r => ({ ...r, at: 0 }));
-  const out = [], load = new Array(storeys).fill(0);
-  const ground = new Set(["entry","living","dining","kitchen","garage","alfresco","utility"]);
+  const at = new Map(), load = new Array(storeys).fill(0);
+  const flexible = [];
   for (const r of rooms) {
-    if (r.storey != null) { out.push({ ...r, at: Math.min(r.storey, storeys - 1) }); continue; }
-    if (CIRC.has(r.fn)) continue;                       // replicated below
-    if (ground.has(r.fn)) { out.push({ ...r, at: 0 }); load[0] += target(r); continue; }
-    let best = 1;
-    for (let i = 1; i < storeys; i++) if (load[i] < load[best]) best = i;
-    out.push({ ...r, at: best }); load[best] += target(r);
+    if (r.storey != null) {
+      const s = Math.min(r.storey, storeys - 1);
+      at.set(r.key, s); load[s] += wants(r);
+    } else if (GROUND_PREFERRED.has(r.fn)) {
+      at.set(r.key, 0); load[0] += wants(r);
+    } else flexible.push(r);
   }
+  // Bedrooms first, then biggest first, so the floor the balance is being
+  // struck over is the one the big rooms have already landed on.
+  flexible.sort((a, b) => (UPPER_PREFERRED.has(a.fn) ? 0 : 1)
+                        - (UPPER_PREFERRED.has(b.fn) ? 0 : 1)
+                        || wants(b) - wants(a));
+
+  // A room that opens off another one goes on that one's floor. Adjacency
+  // was honoured within a storey and ignored between them, which is how the
+  // walk-in robe came to be a floor away from the master suite it opens
+  // off. Run in rounds: an ensuite follows the master, and the master is
+  // itself one of the rooms being placed.
+  const hostFloor = key => {
+    for (const k of at.keys())
+      if (k === key || k.startsWith(key + "_")) return at.get(k);
+    return null;
+  };
+  const leastLoaded = from => {
+    let best = from[0];
+    for (const i of from) if (load[i] < load[best]) best = i;
+    return best;
+  };
+  let pending = flexible;
+  for (let round = 0; round <= flexible.length && pending.length; round++) {
+    const deferred = [];
+    let progressed = false;
+    for (const r of pending) {
+      if (CIRC.has(r.fn)) { at.set(r.key, 0); progressed = true; continue; }
+      let floor = null;
+      for (const t of (r.adj || [])) {
+        const f = hostFloor(t);
+        if (f != null) { floor = f; break; }
+      }
+      if (floor == null && (r.adj || []).some(t =>
+            pending.some(o => o !== r && (o.key === t || o.key.startsWith(t + "_"))))) {
+        deferred.push(r);                    // its host is still to come
+        continue;
+      }
+      if (floor == null) {
+        const from = [];
+        for (let i = UPPER_PREFERRED.has(r.fn) ? 1 : 0; i < storeys; i++) from.push(i);
+        floor = leastLoaded(from);
+      }
+      at.set(r.key, floor); load[floor] += wants(r); progressed = true;
+    }
+    if (!progressed) {                       // adjacencies in a cycle
+      for (const r of deferred) {
+        const floor = leastLoaded([...Array(storeys).keys()]);
+        at.set(r.key, floor); load[floor] += wants(r);
+      }
+      break;
+    }
+    pending = deferred;
+  }
+
+  // Circulation is not distributed -- every floor needs its own, whatever
+  // the room list pinned it to.
+  const out = [];
   for (const r of rooms) {
-    if (!CIRC.has(r.fn) || r.fn === "entry" || r.storey != null) continue;
-    for (let s = 0; s < storeys; s++) out.push({ ...r, key: r.key + "_l" + s, at: s });
+    if (CIRC.has(r.fn) && r.fn !== "entry") {
+      for (let s = 0; s < storeys; s++) out.push({ ...r, key: r.key + "_l" + s, at: s });
+    } else out.push({ ...r, at: at.get(r.key) });
   }
   return out;
 }

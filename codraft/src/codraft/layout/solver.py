@@ -238,10 +238,13 @@ def _assign_storeys(
 ) -> dict[str, int]:
     """Decide which floor each room lands on.
 
-    An explicit `storey` in the program wins outright. Otherwise rooms go
-    where that kind of room usually goes -- living spaces down, bedrooms up
-    -- and the remainder is balanced by area so no floor is left almost
-    empty while another is overfull.
+    An explicit `storey` in the program wins outright. Then a room that
+    opens off another one follows it: an ensuite is part of the bedroom it
+    serves, and balancing it onto the floor with more room left is not a
+    trade the plan is allowed to make. Otherwise rooms go where that kind of
+    room usually goes -- living spaces down, bedrooms up -- and the
+    remainder is balanced by area so no floor is left almost empty while
+    another is overfull.
     """
     storeys = program.storeys
     assignment: dict[str, int] = {}
@@ -267,14 +270,68 @@ def _assign_storeys(
         key=lambda kr: (kr[1].function not in _UPPER_PREFERRED,
                         -max(kr[1].min_area, kr[1].preferred_area)),
     )
-    for key, req in upper_first:
-        if req.function.is_circulation:
-            assignment[key] = 0
-            continue
-        candidates = range(1, storeys) if req.function in _UPPER_PREFERRED else range(storeys)
-        floor = min(candidates, key=lambda i: loads[i])
-        assignment[key] = floor
-        loads[floor] += max(req.min_area, req.preferred_area)
+
+    # A room that opens off another one goes on that one's floor. Adjacency
+    # was honoured within a storey and ignored between them, so the balancer
+    # was free to send the walk-in robe up while the master suite stayed
+    # down: 120 of 240 multi-storey plans in the state sweep put the WIR on
+    # a different floor from the bedroom it opens off, and 60 did it to the
+    # ensuite. Nothing reported it, because on each floor separately the
+    # plan was correct.
+    #
+    # Hosts are resolved after the pass that places them, which is why this
+    # runs in rounds rather than in one loop: the ensuite follows the
+    # master, and the master is itself one of the rooms being placed.
+    def _host(req: SpaceRequirement) -> str | None:
+        for target in req.adjacent_to:
+            if any(k == target or k.startswith(f"{target}_")
+                   for k in assignment):
+                return target
+        return None
+
+    pending = list(upper_first)
+    for _round in range(len(pending) + 1):
+        if not pending:
+            break
+        deferred: list[tuple[str, SpaceRequirement]] = []
+        progressed = False
+        for key, req in pending:
+            if req.function.is_circulation:
+                assignment[key] = 0
+                progressed = True
+                continue
+            host = _host(req)
+            if host is not None:
+                floor = next(assignment[k] for k in assignment
+                             if k == host or k.startswith(f"{host}_"))
+                assignment[key] = floor
+                loads[floor] += max(req.min_area, req.preferred_area)
+                progressed = True
+                continue
+            if req.adjacent_to and any(
+                any(k == t or k.startswith(f"{t}_")
+                    for k, _ in pending if k != key)
+                for t in req.adjacent_to
+            ):
+                deferred.append((key, req))     # its host is still to come
+                continue
+            candidates = (range(1, storeys) if req.function in _UPPER_PREFERRED
+                          else range(storeys))
+            floor = min(candidates, key=lambda i: loads[i])
+            assignment[key] = floor
+            loads[floor] += max(req.min_area, req.preferred_area)
+            progressed = True
+        if not progressed:
+            # A cycle of adjacencies with nothing to anchor it. Place them
+            # rather than loop: a plan with the rooms in the wrong place
+            # beats no plan and no explanation.
+            deferred, pending = [], deferred
+            for key, req in pending:
+                floor = min(range(storeys), key=lambda i: loads[i])
+                assignment[key] = floor
+                loads[floor] += max(req.min_area, req.preferred_area)
+            break
+        pending = deferred
 
     return assignment
 
