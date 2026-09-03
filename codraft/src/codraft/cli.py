@@ -880,7 +880,15 @@ def _generate_for_lot(args, plot, jurisdiction, site) -> int:
     )
     print(f"Designed: {generated.width_mm} x {generated.depth_mm} mm, "
           f"{generated.total_m2:.0f} m², {generated.bedrooms} bed")
-    report = codes.check(building, jurisdiction, layout.warnings)
+    # With the site controls this command already resolved, two lines above.
+    # Without them every rule keyed by the lot's density -- the street
+    # setback, site cover, outdoor living, overall height -- comes back
+    # unchecked rather than checked, and the line printed below understates
+    # what it found: on a 15 x 30 m lot in Perth it read "0 failed of 123"
+    # where the answer is 1 failed of 125. A command that tells a builder a
+    # generated design checks out has to have actually checked it.
+    report = codes.check(building, jurisdiction, layout.warnings,
+                         site=site, unsatisfied=layout.unsatisfied)
     counts = report.counts
     print(f"Checked : {counts['failed']} failed of {counts['checked']} "
           f"({counts['violations']} violations)")
