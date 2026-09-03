@@ -11,6 +11,28 @@ no value is present it says `TODO` and is listed under *missing*.
 - **152** values missing entirely
 - **40** values present from an existing pack, needing verification against the current edition
 
+Not all of them weigh the same. A few STOP A PLAN BEING DRAWN for a
+location: with no setbacks and no coverage cap there is no envelope to
+put a house in, so `codraft plan "... in Adelaide"` refuses and names
+them rather than drawing a house on a lot it cannot bound. (A caller
+that supplies its own setbacks still gets a drawing; what it does not
+get is that state’s controls applied to it.) The rest leave a single
+check unanswered, which the report reports as `unchecked` rather than
+passing it.
+
+## Start here — 20 values across 4 states stop a plan being drawn
+
+| state | figures needed before anything can be drawn |
+|---|---|
+| Australian Capital Territory (`act`) | `setback.front`, `setback.rear`, `setback.side.left`, `setback.side.right`, `site.max_coverage` |
+| Northern Territory (`nt`) | `setback.front`, `setback.rear`, `setback.side.left`, `setback.side.right`, `site.max_coverage` |
+| South Australia (`sa`) | `setback.front`, `setback.rear`, `setback.side.left`, `setback.side.right`, `site.max_coverage` |
+| Tasmania (`tas`) | `setback.front`, `setback.rear`, `setback.side.left`, `setback.side.right`, `site.max_coverage` |
+
+Every other state in this file plans for a location today.
+Supplying these figures for one of the states above is the
+difference between codraft refusing there and codraft working.
+
 Set `last_checked` to the date you checked it and `status: confirmed`
 once a figure has been read off the instrument itself.
 

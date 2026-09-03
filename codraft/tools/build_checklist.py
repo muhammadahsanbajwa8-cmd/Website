@@ -35,6 +35,24 @@ def main() -> None:
     total_missing = sum(len(v) for v in missing.values())
     total_confirm = sum(len(v) for v in confirm.values())
 
+    # Which of these stop a plan being drawn at all, rather than leaving one
+    # check unanswered. Read from the solver's own definition rather than
+    # listed again here, so the two cannot drift apart.
+    #
+    # Without this the checklist is 152 rows in alphabetical order and says
+    # nothing about which matter. Four states cannot draw at all and each is
+    # held up by the same five figures; a builder in South Australia reading
+    # a flat list of twenty-two has no way to see that.
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from codraft.codes.states import missing_essential   # noqa: E402
+
+    blocked: dict[str, list[str]] = {}
+    for code in sorted(missing):
+        stops = sorted(missing_essential(f"AU-{code.upper()}"))
+        if stops:
+            blocked[code] = stops
+
     lines = [
         "# Rule values to supply",
         "",
@@ -50,6 +68,36 @@ def main() -> None:
         f"- **{total_confirm}** values present from an existing pack, needing"
         " verification against the current edition",
         "",
+        "Not all of them weigh the same. A few STOP A PLAN BEING DRAWN for a",
+        "location: with no setbacks and no coverage cap there is no envelope to",
+        "put a house in, so `codraft plan \"... in Adelaide\"` refuses and names",
+        "them rather than drawing a house on a lot it cannot bound. (A caller",
+        "that supplies its own setbacks still gets a drawing; what it does not",
+        "get is that state\u2019s controls applied to it.) The rest leave a single",
+        "check unanswered, which the report reports as `unchecked` rather than",
+        "passing it.",
+        "",]
+    if blocked:
+        lines += [
+            f"## Start here — {sum(len(v) for v in blocked.values())} values"
+            f" across {len(blocked)} states stop a plan being drawn",
+            "",
+            "| state | figures needed before anything can be drawn |",
+            "|---|---|",
+        ]
+        for code, stops in blocked.items():
+            lines.append(
+                f"| {names[code]} (`{code}`) | "
+                + ", ".join(f"`{k}`" for k in stops) + " |"
+            )
+        lines += [
+            "",
+            "Every other state in this file plans for a location today.",
+            "Supplying these figures for one of the states above is the",
+            "difference between codraft refusing there and codraft working.",
+            "",
+        ]
+    lines += [
         "Set `last_checked` to the date you checked it and `status: confirmed`",
         "once a figure has been read off the instrument itself.",
         "",
