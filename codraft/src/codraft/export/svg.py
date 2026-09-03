@@ -19,6 +19,7 @@ from pathlib import Path
 
 from ..courses import COURSE_MM
 from ..annotate import (
+    MIN_CHAIN_STEP,
     dimension_site, dimension_storey, room_dimension_text,
 )
 from .elevation import elevations as build_elevations
@@ -883,6 +884,47 @@ def _draw_section_marker(canvas: _Canvas, building, dx: int) -> None:
 def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int,
                      system: str) -> None:
     _draw_dims(canvas, dimension_storey(storey, footprint, system), dx)
+
+    # A chain keeps its figures legible by dropping the ordinates that fall
+    # too close together, which is the right trade -- a figure nobody can
+    # read helps nobody -- and it leaves those walls with no dimension. Over
+    # the AU-WA lot sweep that is 222 of 1240 wall positions, 18 per cent,
+    # and up to 4 of the 11 on a single floor.
+    #
+    # The room sizes do not reliably recover them: 464 of 809 rooms print
+    # theirs, so 43 per cent do not, and saying "take it off the room" would
+    # be true of a bit over half the drawing. What the sheet can do honestly
+    # is say the figures are missing and that they are not on this sheet.
+    left_out = _undimensioned(storey, footprint)
+    if left_out:
+        canvas.notes.append(
+            f"{left_out} wall position{'s' if left_out > 1 else ''} on "
+            f"{storey.name.lower()} carr{'y' if left_out > 1 else 'ies'} no "
+            f"figure in the dimension chains. They fall within "
+            f"{MIN_CHAIN_STEP} mm of the next ordinate, where a figure "
+            "cannot be printed legibly, so the chain measures past them. "
+            "Set those walls out from the model or from a larger-scale "
+            "detail -- this sheet does not give a figure for them."
+        )
+
+
+def _undimensioned(storey, footprint) -> int:
+    """Wall positions the chains had to leave out to stay readable."""
+    from ..annotate import _collapse
+
+    missing = 0
+    for vertical in (True, False):
+        lo, hi = ((footprint.x0, footprint.x1) if vertical
+                  else (footprint.y0, footprint.y1))
+        offered = sorted({
+            wall.start.x if vertical else wall.start.y
+            for wall in storey.walls
+            if wall.vertical == vertical
+            and lo < (wall.start.x if vertical else wall.start.y) < hi
+        })
+        kept = set(_collapse(offered, lo, hi))
+        missing += sum(1 for position in offered if position not in kept)
+    return missing
 
 
 def _draw_site_dimensions(canvas: _Canvas, plot, footprint, dx: int,
