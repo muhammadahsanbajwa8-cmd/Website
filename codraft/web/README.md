@@ -50,14 +50,43 @@ the `/* ---- drawing the plan ---- */` marker.
 ## Where the sweeps stand
 
     cases drawn 317 | refused 43
-    cases with an undersized habitable room: 31
-      of those, every undersized room named in the notes: 31
+    cases with an undersized habitable room: 17
+      of those, every undersized room named in the notes: 17
       cases with at least one UNDECLARED undersized room: 0
     with a room that has no route to circulation: 0
-    undersized where the floor is genuinely SHORT of area: 31
+    undersized where the floor is genuinely SHORT of area: 17
     undersized where the area was there and the PACKING lost it: 0
     cases over their own site-cover cap: 0
     garages that hold two cars: 174 of 317
+
+The site-cover line above USED to be wrong. Sixteen of the 317 were over
+their own cap by up to 1.83 percentage points and reported the figure to
+the customer as though it complied, and this file said zero. The cause was
+not the cover arithmetic, which is right: the packer laid the entry outside
+the footprint the cap had been trimmed against. On a 10 x 28 m block the
+footprint fills the envelope exactly, so 316 mm outside the footprint is
+also 316 mm over the side setback. Fixed in `placeFront` and in the
+Python's `_place_front` together, and it took undersized habitable rooms
+from 25 to 17 as well.
+
+The two engines now draw the same rectangles from the same brief on 313 of
+the 317 both draw, and the same footprint on all 317. Before this round it
+was 0 of 316. The four that differ choose a different plan form -- the
+service core against the corridor spine -- on a tie the scorer does not
+break the same way in both. `tests/test_engines_agree.py` compares the
+laid-out plans and is the thing that would catch a drift, which the room
+list comparison there never could.
+
+They still disagree about REFUSING: this engine turns away a brief whose
+rooms come to more than about 1.4 times what the block can carry, and the
+Python has no such test and draws it with every squeezed room named. Over
+the sweep that is 20 briefs the page refuses and the solver draws, and none
+the other way. Which threshold is right is not settled -- by area ratio the
+worst brief the Python tests insist a builder sells is 0.67 and the worst
+this refuses is 0.64, and by narrowest habitable room the two populations
+are three millimetres apart. So neither was moved, and the direction is
+asserted instead: the page may be more cautious than the drawing set and
+never more permissive.
 
 The garage column is now kept where the strip across the frontage CANNOT
 give the garage the depth a car parks along, even when it does not score

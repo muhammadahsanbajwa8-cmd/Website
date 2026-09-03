@@ -607,6 +607,16 @@ function placeFront(front, strip, over) {
   const leftMin = others.length ? MIN_DIM + WALL_ALLOW : 0;
   let slotX = Math.floor((lo + hi) / 2) - Math.floor(slotW / 2);
   slotX = Math.max(strip.x + leftMin, Math.min(strip.x + strip.w - slotW, slotX));
+  // The far edge is not one of the things that can give. On a narrow strip --
+  // the 2428 mm left beside a garage column, say -- the room reserved for a
+  // neighbour on the left is wider than what is left on the right, and the
+  // max() above then wins with a slot ending PAST the strip. The entry came
+  // out 316 mm outside the footprint it was sized to on 16 plans in the
+  // sweep, and outside the footprint is outside the side setback and over
+  // the cover cap: one reported 51.8% against a 50% cap and called it
+  // compliant. A neighbour with nowhere to go is a packing problem; a room
+  // over the boundary is a refused permit.
+  if (slotX + slotW > strip.x + strip.w) slotX = strip.x + strip.w - slotW;
   if (slotX < strip.x) { slotX = strip.x; slotW = Math.min(slotW, strip.w); }
 
   let leftW = slotX - strip.x;

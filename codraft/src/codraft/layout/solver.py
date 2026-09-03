@@ -1289,6 +1289,17 @@ def _place_front(
     slot_x = (lo + hi) // 2 - slot_w // 2
     left_min = _ABSOLUTE_MIN_DIM + _WALL_ALLOWANCE if others else 0
     slot_x = max(strip.x + left_min, min(strip.x1 - slot_w, slot_x))
+    # The far edge is not one of the things that can give. On a narrow strip
+    # -- the 2428 mm left beside a garage column, say -- the room reserved
+    # for a neighbour on the left is wider than what is left on the right,
+    # and the max() above then wins with a slot that ends PAST the strip.
+    # The entry came out 316 mm outside the footprint it was sized to on 18
+    # plans in the state sweep, and outside the footprint is outside the
+    # side setback and over the site-cover cap: one plan reported 51.8%
+    # against a 50% cap and called it compliant. A neighbour with nowhere to
+    # go is a packing problem; a room over the boundary is a refused permit.
+    if slot_x + slot_w > strip.x1:
+        slot_x = strip.x1 - slot_w
     if slot_x < strip.x:
         slot_x, slot_w = strip.x, min(slot_w, strip.w)
 
