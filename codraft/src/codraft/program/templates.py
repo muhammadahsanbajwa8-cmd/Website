@@ -117,7 +117,14 @@ def au_house(
            area="11m2", width="3.0m", prefer="12m2", priority=1),
         _r("bathroom", Function.BATHROOM, name="Bathroom",
            count=max(1, bathrooms - 1), area="6m2", width="1.8m", priority=2),
-        _r("wc", Function.WC, name="WC", area="1.8m2", width="0.9m", priority=3),
+        # Pinned to the ground floor. Left free, the balancer put it
+        # wherever the floor areas needed it, and on a two-storey house that
+        # is upstairs with the bathrooms -- 240 of 240 multi-storey plans in
+        # the sweep had no toilet anywhere on the ground floor, which is the
+        # one thing a powder room exists to be. The width comes from the
+        # fittings catalogue in `build_to`, not from here.
+        _r("wc", Function.WC, name="WC", area="1.8m2", width="0.9m", priority=3,
+           storey=0),
         _r("laundry", Function.UTILITY, name="Laundry", area="7m2", width="1.8m",
            priority=3, storey=0),
         _r("linen", Function.STORAGE, name="Linen", area="1.5m2", width="0.6m",

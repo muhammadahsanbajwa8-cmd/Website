@@ -130,15 +130,33 @@ def _parse_boundary(text: str) -> list[Point]:
     return points
 
 
+def _pair_of_lengths(text: str) -> tuple[int, int]:
+    """Read "15x32m", "15mx32m" or "15x32" as two lengths in millimetres.
+
+    The unit is declared once and applies to BOTH halves. Reading it off one
+    half and letting the other fall back to the library default is how
+    `--lot 15x30` came out as a lot 15 m wide and 30 MILLIMETRES deep --
+    which the setbacks then consumed entirely, so the command reported that
+    the block was too small to build on rather than that it had not
+    understood the size. The documented form carries the unit on the depth,
+    which is why this survived: `15mx32m` reads correctly, `15x32` did not.
+
+    Metres are the default because these are lot and pool sizes, and nobody
+    gives those in millimetres.
+    """
+    text = text.strip().lower().replace("×", "x")
+    width, _, depth = text.partition("x")
+    if not depth:
+        raise UnitError(f"{text!r} is not two lengths; write it as 15mx32m")
+    unit = ("".join(c for c in depth if c.isalpha())
+            or "".join(c for c in width if c.isalpha()) or "m")
+    return mm(width.strip(), unit), mm(depth.strip(), unit)
+
+
 def _plot_from(args, brief) -> tuple[int, int] | None:
     if args.plot:
         try:
-            text = args.plot.lower().replace("×", "x")
-            width, _, depth = text.partition("x")
-            if not depth:
-                return None
-            unit = "".join(c for c in depth if c.isalpha()) or "m"
-            return mm(width.strip(), unit), mm(depth.strip())
+            return _pair_of_lengths(args.plot)
         except UnitError:
             return None
     return brief.plot_size if brief else None
@@ -353,10 +371,8 @@ def cmd_plan(args) -> int:
               f"{drive.area / 1e6:.0f} m2 of paving")
 
     if args.pool or (brief is not None and brief.pool):
-        size = (args.pool_size or "8mx4m").lower().replace("×", "x")
-        pl, _, pw = size.partition("x")
         try:
-            pool_l, pool_w = mm(pl.strip()), mm(pw.strip())
+            pool_l, pool_w = _pair_of_lengths(args.pool_size or "8mx4m")
         except UnitError:
             return _fail("pool size looks like --pool-size 8mx4m")
         pool, pool_warnings = place_pool(plot, layout.envelope, pool_l, pool_w)
@@ -647,19 +663,17 @@ def _resolve_plot(args, program_use: str = "residential"):
         if not k.startswith("$")
     }
 
-    text = (args.lot or "").lower().replace("×", "x")
-    width, _, depth = text.partition("x")
-    if not depth:
+    text = args.lot or ""
+    if "x" not in text.lower().replace("×", "x"):
         if getattr(args, "boundary", None):
-            width, depth = "1m", "1m"   # unused; the boundary decides
+            text = "1mx1m"              # unused; the boundary decides
         else:
             return None, None, None, (
                 "give the lot size as --lot 15mx32m, or the surveyed corners "
                 "as --boundary"
             )
     try:
-        unit = "".join(c for c in depth if c.isalpha()) or "m"
-        size = (mm(width.strip(), unit), mm(depth.strip()))
+        size = _pair_of_lengths(text)
     except UnitError as exc:
         return None, None, None, str(exc)
 

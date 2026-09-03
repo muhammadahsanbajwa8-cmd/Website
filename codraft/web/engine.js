@@ -60,7 +60,13 @@ const PLANNING = {
 
 const ceilingAt = c => c * COURSE + PLATE;
 const coursesFor = mm => Math.max(0, Math.ceil((mm - PLATE) / COURSE));
-const tileArea = a => a <= 0 ? 0 : Math.pow(Math.round(Math.sqrt(a)) + WALL_ALLOW, 2);
+// The side is rounded UP, not to nearest: `a` is a minimum, and a side
+// rounded down gives back a tile whose clear square is under what the
+// room asked for. Matches `_tile_area` in the Python, which rounded DOWN
+// where this rounded to nearest -- a disagreement of a millimetre a room
+// that accumulated into a footprint a few millimetres deeper here than
+// there, and from there into every rectangle on the plan.
+const tileArea = a => a <= 0 ? 0 : Math.pow(Math.ceil(Math.sqrt(a)) + WALL_ALLOW, 2);
 const tileW = w => w ? w + WALL_ALLOW : 0;
 
 /* ---- the brief becomes rooms ---- */

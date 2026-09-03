@@ -190,10 +190,23 @@ def _tile_width(req: SpaceRequirement) -> int:
 
 
 def _tile_area(area: int) -> int:
-    """The tile area that leaves `area` clear inside the walls."""
+    """The tile area that leaves `area` clear inside the walls.
+
+    The side is rounded UP. `area` is a minimum -- what the room may not go
+    under -- so a side rounded down hands back a tile whose clear square is
+    smaller than the room asked for. It is under a millimetre on the side
+    and a few hundred mm2 on the room, which is why it survived: nothing
+    reports a bedroom 0.02% short. It matters because it is the wrong
+    direction, and because `engine.js` rounded to nearest here where this
+    rounded down, which is most of why the two never sized a house the same
+    -- the gap accumulates over twenty rooms into a few millimetres of
+    footprint depth and from there into every rectangle on the sheet.
+    """
     if area <= 0:
         return 0
     side = math.isqrt(area)
+    if side * side < area:
+        side += 1
     return (side + _WALL_ALLOWANCE) ** 2
 
 
@@ -2333,11 +2346,23 @@ def _footprint(
     # Push the building up against the road frontage; the slack falls behind.
     # Done after the trim, so that whichever edge the building is held to, it
     # is still held to it once the depth has come off.
+    #
+    # Across the frontage the slack is SPLIT, not dumped on one boundary.
+    # The depth left over is a rear garden and belongs at the back, which is
+    # what holding the building to the road does. The width left over is not
+    # a garden -- it is side setback, and a house sitting 1 m off one
+    # boundary and 3 m off the other on an 18 m block is a house nobody set
+    # out. The frontage cap is what creates the slack in the first place: at
+    # 14 m of house on 16 m of envelope, two metres had to go somewhere and
+    # nothing here had said where. `engine.js` centred it and this did not,
+    # which is why the two engines drew the same house in different places
+    # on 117 of 317 blocks.
+    across = envelope.x + (envelope.w - width) // 2
     if plot.road_side == "north":
-        return Rect(envelope.x, envelope.y1 - depth, width, depth)
+        return Rect(across, envelope.y1 - depth, width, depth)
     if plot.road_side == "east":
         return Rect(envelope.x1 - width, envelope.y, width, depth)
-    return Rect(envelope.x, envelope.y, width, depth)
+    return Rect(across, envelope.y, width, depth)
 
 
 def _depth_within_the_cap(
