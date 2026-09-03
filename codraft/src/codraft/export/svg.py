@@ -473,9 +473,18 @@ class _Canvas:
         )
         self.ops.append(("text", cls, float(x), float(y), float(dy),
                          float(rotate), value))
-        # Text is centred, so allow for roughly half its run either side --
-        # but only a line's height above and below it.
-        self.saw(x, y - dy, max(600, len(value) * 90), pad_y=400)
+        # Text is centred, so allow for half its run either side -- and half
+        # its height above and below. MEASURED at the class's own size rather
+        # than at a flat 90 units a character: that figure over-measures a
+        # 210px note by half and under-measures a 420px marker letter by a
+        # third, so the box a sheet is scaled from was never the box the
+        # drawing occupies.
+        size = TEXT_SIZES.get(cls, 250)
+        half = len(value) * size * CHAR_WIDTH / 2
+        if rotate:
+            self.saw(x + dy, y, size / 2, pad_y=half)
+        else:
+            self.saw(x, y - dy, half, pad_y=size / 2)
 
 
 def _draw_symbol(canvas: _Canvas, kind: str, x: int, y: int, rotation: int,

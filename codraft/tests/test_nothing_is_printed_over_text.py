@@ -77,5 +77,35 @@ class NoLabelSitsOnAnother(unittest.TestCase):
         self.assertLess(first[2], second[0] + 1)
 
 
+class NoLabelReachesPastTheBoxTheSheetWasSizedFor(unittest.TestCase):
+    """`_Canvas.saw` records what the drawing covers and the scale is chosen
+    from it. It used to measure text at a flat 90 units either side per
+    character, which over-measures a 210px note by half and under-measures a
+    420px marker letter by a third -- so the box a sheet was scaled from was
+    never quite the box the drawing occupies. It measures at the class's own
+    size now, and this asserts the two agree."""
+
+    def test_across_every_sheet_of_a_lot_sweep(self):
+        seen = 0
+        for label, canvas in _sheets():
+            seen += 1
+            for box in _text_boxes(canvas):
+                with self.subTest(sheet=label):
+                    self.assertGreaterEqual(box[0], canvas.minx - 1)
+                    self.assertGreaterEqual(box[1], canvas.miny - 1)
+                    self.assertLessEqual(box[2], canvas.maxx + 1)
+                    self.assertLessEqual(box[3], canvas.maxy + 1)
+        self.assertGreater(seen, 40)
+
+    def test_a_big_face_is_measured_bigger_than_a_small_one(self):
+        # The flat figure did not, which is the whole reason for the change.
+        from codraft.export.svg import _Canvas
+
+        big, small = _Canvas(), _Canvas()
+        big.text(0, 0, "AAAA", "mark-text")
+        small.text(0, 0, "AAAA", "elev-note")
+        self.assertGreater(big.maxx - big.minx, small.maxx - small.minx)
+
+
 if __name__ == "__main__":
     unittest.main()
