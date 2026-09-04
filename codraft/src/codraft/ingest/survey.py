@@ -191,6 +191,20 @@ def _nearest_segment(text: TextRun, segments: list[Segment]) -> Segment | None:
     return best[1] if best else None
 
 
+# A sheet that says NTS has stated something, and what it has stated is
+# that there is no scale on it. Reporting that as "no stated scale was
+# found" reads as a gap in the drawing rather than a decision by whoever
+# drew it -- and it is the right decision on a schedule, which is a table:
+# printing a ratio on one invites somebody to scale a size off a column of
+# type.
+_NOT_TO_SCALE = re.compile(r"(?<![A-Za-z])(NTS|N\.T\.S\.?|NOT TO SCALE)(?![A-Za-z])",
+                           re.IGNORECASE)
+
+
+def _says_not_to_scale(page: Page) -> bool:
+    return any(_NOT_TO_SCALE.search(text.text) for text in page.texts)
+
+
 def _stated_scales(page: Page) -> list[int]:
     """Scales printed on the sheet, most-repeated first."""
     found: Counter = Counter()
@@ -294,6 +308,14 @@ def _establish_scale(page: Page, warnings: list[str]) -> tuple[list[Dimension], 
             f"{len(usable)} strings look like dimensions, but the sheet "
             "states no scale and none of them could be tied to a line of "
             "matching length. Nothing here can be measured."
+        )
+    if _says_not_to_scale(page):
+        return candidates, 0.0, 0.0, (
+            "The sheet says NOT TO SCALE, so there is no scale to establish "
+            "and nothing on it is meant to be measured. That is the right "
+            "thing for a schedule or a notes sheet to say: the sizes are in "
+            "the table, and a ratio printed on one invites somebody to scale "
+            "a size off a column of type."
         )
     return candidates, 0.0, 0.0, (
         "No dimension strings and no stated scale were found on this page. "

@@ -866,9 +866,13 @@ def cmd_library(args) -> int:
           f"{'STOREYS':>8} {'TOTAL':>8}")
     print("-" * 72)
     for design in sorted(library.designs, key=lambda d: d.name):
+        # A design imported from a spreadsheet with no area column has no
+        # total, and `0m²` is a measurement of a house rather than the
+        # absence of one. `library import` already says "area not given";
+        # this table said nought square metres for the same design.
+        total = f"{design.total_m2:.0f}m²" if design.total_m2 else "--"
         print(f"{design.id:<26} {design.width_mm:>9} {design.depth_mm:>8} "
-              f"{design.bedrooms:>5} {design.storeys:>8} "
-              f"{design.total_m2:>7.0f}m²")
+              f"{design.bedrooms:>5} {design.storeys:>8} {total:>8}")
     for problem in library.problems:
         print(f"  ! {problem}")
     return 0
@@ -1040,7 +1044,14 @@ def cmd_survey(args) -> int:
                   f"{survey.scale_agreement:.0%} agreement")
             print(f"              {survey.scale_note}")
         else:
-            print("  scale     : NOT ESTABLISHED")
+            # A sheet that says NOT TO SCALE has not failed to establish a
+            # scale: it has said there is not one, which is the right thing
+            # for a schedule to say. Reporting the two the same way makes a
+            # decision look like a gap.
+            declared = "NOT TO SCALE" in survey.scale_note
+            print("  scale     : "
+                  + ("NONE -- the sheet says so" if declared
+                     else "NOT ESTABLISHED"))
             print(f"              {survey.scale_note}")
 
         read = [d for d in survey.dimensions if d.scale_mm_per_pt]
