@@ -208,13 +208,9 @@ def _draw_section(canvas: _Canvas, view, dx: int = 0, dy: int = 0) -> None:
                     piece.floor + (piece.ceiling - piece.floor) // 2 + dy,
                     piece.name, "sect-name", dy=-60)
 
-    left = min((l.x0 for l in view.cut), default=0) + dx
-    right = max((l.x1 for l in view.cut), default=0) + dx
-    for true_y, label_y, label in _level_labels(view.levels):
-        canvas.line(left - 2600, true_y + dy, right + 400, true_y + dy,
-                    "elev-level")
-        canvas.text(left - 2500, label_y + dy, label, "elev-level-text", dy=-120)
-        canvas.saw(left - 2600, true_y + dy, 400)
+    span = _drawn_extent(view.cut, view.roof)
+    left, right = span[0] + dx, span[1] + dx
+    _draw_levels(canvas, view.levels, left, right, dy)
 
 
 def _section_canvas(building: Building):
@@ -663,25 +659,120 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
 
 
 def _level_labels(levels, min_gap: int = 520):
-    """Level lines at their true heights, with labels nudged apart.
+    """Level lines at their true heights, with their labels placed clear.
 
     A storey's ceiling and the floor above it are 200 mm apart -- the floor
-    structure -- and at 1:100 that is 2 mm on paper, so the two labels print
-    on top of each other and neither can be read. The LINE stays where the
-    level actually is, because that is what a surveyor measures to; only the
-    text moves, which is what a draughtsman does by hand.
+    structure -- and at 1:100 that is 2 mm on paper, so labels drawn above
+    both lines print on top of each other. The LINE never moves, because
+    that is what a surveyor measures to; the label does, which is what a
+    draughtsman does by hand.
+
+    For a close pair the lower label is dropped BELOW its own line rather
+    than nudged up. Nudging was what this did, and it does separate the two
+    labels -- but it walks the lower one up to sit beside the upper level's
+    LINE, at the exact height of the type, so the line comes out of the
+    label's last character and runs the width of the elevation. That reads
+    as a level struck out rather than called up. Sending one label down and
+    the other up puts each between the two lines instead of across one.
+
+    Yields (true_y, label_y, label, below) with `below` saying the text goes
+    under its line rather than over it.
     """
+    rows = []
+    for level in sorted(levels, key=lambda l: l.y):
+        if rows and level.y == rows[-1][0]:
+            continue
+        rows.append((level.y, level.label))
+
     out = []
     previous = None
-    for level in sorted(levels, key=lambda l: l.y):
-        if out and level.y == out[-1][0]:
-            continue
-        label_y = level.y
-        if previous is not None and label_y - previous < min_gap:
+    for index, (y, label) in enumerate(rows):
+        crowded = (index + 1 < len(rows)
+                   and rows[index + 1][0] - y < min_gap)
+        label_y = y
+        if not crowded and previous is not None and label_y - previous < min_gap:
+            # Still too close to the one below even sitting on its own line,
+            # and there is no neighbour above to make room by going down.
             label_y = previous + min_gap
-        out.append((level.y, label_y, level.label))
+        out.append((y, label_y, label, crowded))
         previous = label_y
     return out
+
+
+# How far a level line stays clear of a level label it would otherwise
+# strike through.
+LEVEL_LABEL_GAP = 160
+
+# How far a label sits off its own level line, measured to the middle of
+# the type. Half a line of 210 type is 105, so anything under about 165
+# puts the nominal em within 60 mm of the line -- 0.6 mm on a 1:100 sheet --
+# and the glyph tails of "(28c + PLATE)" hang into it. This was 120, which
+# left 15 mm.
+LEVEL_LABEL_RISE = 200
+
+
+def _clear_spans(start: float, end: float,
+                 holes: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """`start`..`end` with `holes` cut out of it."""
+    spans = [(start, end)]
+    for hx0, hx1 in holes:
+        out: list[tuple[float, float]] = []
+        for x0, x1 in spans:
+            if hx1 <= x0 or hx0 >= x1:
+                out.append((x0, x1))
+                continue
+            if hx0 > x0:
+                out.append((x0, hx0))
+            if hx1 < x1:
+                out.append((hx1, x1))
+        spans = out
+    return [(a, b) for a, b in spans if b - a > 1]
+
+
+def _drawn_extent(*groups) -> tuple[int, int]:
+    """The leftmost and rightmost x of everything drawn, roof included.
+
+    Taken over the walls alone, the left edge is the WALL, and the eaves
+    hang past it. A level label set out from the wall then had its last
+    characters crossed by the roof line coming down over the overhang --
+    "CL 5068 (28c + PLATE)" with the rafter through the closing bracket. A
+    label is set out from the drawing, and the drawing includes its roof.
+    """
+    xs = [x for group in groups for line in group
+          for x in (line.x0, line.x1)]
+    return (min(xs, default=0), max(xs, default=0))
+
+
+def _draw_levels(canvas: _Canvas, levels, left: float, right: float,
+                 dy: int) -> None:
+    """Levels called up the side of an elevation or a section.
+
+    `_level_labels` keeps each label off every level line by choosing which
+    side of its own line to sit on. The line is broken as well, for the
+    cases that choice cannot reach -- a roof that lands on a plate, say,
+    which is a line at a level with a label beside it and is not something
+    to be moved. Breaking a line around a label is what `_course_lines`
+    already does for brickwork behind a window.
+    """
+    placed = list(_level_labels(levels))
+    size = TEXT_SIZES.get("elev-level-text", 210)
+    boxes = []
+    for _true_y, label_y, label, below in placed:
+        half = len(label) * size * CHAR_WIDTH / 2
+        rise = -LEVEL_LABEL_RISE if below else LEVEL_LABEL_RISE
+        centre_y = label_y + dy + rise
+        boxes.append((left - 2500 - half, centre_y - size / 2,
+                      left - 2500 + half, centre_y + size / 2))
+    for (true_y, label_y, label, below), box in zip(placed, boxes):
+        y = true_y + dy
+        holes = [(bx0 - LEVEL_LABEL_GAP, bx1 + LEVEL_LABEL_GAP)
+                 for bx0, by0, bx1, by1 in boxes
+                 if by0 - LEVEL_LABEL_GAP <= y <= by1 + LEVEL_LABEL_GAP]
+        for x0, x1 in _clear_spans(left - 2600, right + 400, holes):
+            canvas.line(x0, y, x1, y, "elev-level")
+        canvas.text(left - 2500, label_y + dy, label, "elev-level-text",
+                    dy=LEVEL_LABEL_RISE if below else -LEVEL_LABEL_RISE)
+        canvas.saw(left - 2600, y, 400)
 
 
 # The frame sightline drawn inside a structural opening.
@@ -779,12 +870,9 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
         canvas.line(g.x0 + dx, g.y0 + dy, g.x1 + dx, g.y1 + dy, "elev-ground")
 
     # Levels run off to the left of the drawing, as a sheet sets them out.
-    left = min((l.x0 for l in view.outline), default=0) + dx
-    right = max((l.x1 for l in view.outline), default=0) + dx
-    for true_y, label_y, label in _level_labels(view.levels):
-        canvas.line(left - 2600, true_y + dy, right + 400, true_y + dy, "elev-level")
-        canvas.text(left - 2500, label_y + dy, label, "elev-level-text", dy=-120)
-        canvas.saw(left - 2600, true_y + dy, 400)
+    span = _drawn_extent(view.outline, view.roof)
+    left, right = span[0] + dx, span[1] + dx
+    _draw_levels(canvas, view.levels, left, right, dy)
 
 
 def _draw_dims(canvas: _Canvas, dims, dx: int) -> None:

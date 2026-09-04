@@ -109,3 +109,78 @@ class NoLabelReachesPastTheBoxTheSheetWasSizedFor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _crosses(segment, box) -> bool:
+    """Does the segment pass through the box's interior? (Liang-Barsky.)"""
+    x0, y0, x1, y1 = segment
+    bx0, by0, bx1, by1 = box
+    dx, dy = x1 - x0, y1 - y0
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x0 - bx0), (dx, bx1 - x0), (-dy, y0 - by0), (dy, by1 - y0)):
+        if p == 0:
+            if q < 0:
+                return False
+            continue
+        r = q / p
+        if p < 0:
+            if r > t1:
+                return False
+            t0 = max(t0, r)
+        else:
+            if r < t0:
+                return False
+            t1 = min(t1, r)
+    return t1 > t0
+
+
+class NoLevelIsCalledUpThroughItsOwnLabel(unittest.TestCase):
+    """A level label with a line ruled through it reads as struck out.
+
+    The label-on-label sweep above could not see this: the line is not text.
+    Fifty of the four hundred level labels in the sweep had the level line
+    ruled through them, because `_level_labels` nudges a label off its own
+    height when the level over it is close -- a ceiling and the floor above
+    it are 200 mm apart -- and the line does not move, so the nudge walks
+    the label onto a neighbour's line. Every label was ALSO grazed along its
+    bottom by the line at its own height, which sat 15 mm under the type,
+    and a ceiling label whose plate carries an eaves was grazed by the roof
+    as well.
+
+    Three things fix it and all three are needed: the label is lifted a full
+    line of type clear, the level line is broken where a label sits on it,
+    and the levels are set out from the whole drawing rather than from the
+    walls, so a long label does not run back under the overhang.
+    """
+
+    # How close a line may come to a level label. Not zero: the box a label
+    # is measured by is the nominal em, and glyphs with descenders -- every
+    # one of these labels has brackets in it -- hang below it. A line 15 mm
+    # under the box is 0.15 mm under the type on a 1:100 sheet, which prints
+    # as an underline through the tails. Asserting zero OVERLAP passed that
+    # case; asserting a clearance does not.
+    CLEARANCE = 60
+
+    def test_no_line_anywhere_crosses_a_level_label(self):
+        checked = 0
+        for label, canvas in _sheets():
+            ops = [op for op in canvas.ops if op[0] == "text"]
+            boxes = _text_boxes(canvas)
+            lines = [op for op in canvas.ops if op[0] == "line"]
+            for box, op in zip(boxes, ops):
+                if op[1] != "elev-level-text":
+                    continue
+                checked += 1
+                near = (box[0] - self.CLEARANCE, box[1] - self.CLEARANCE,
+                        box[2] + self.CLEARANCE, box[3] + self.CLEARANCE)
+                struck = [ln[1] for ln in lines
+                          if _crosses((ln[2], ln[3], ln[4], ln[5]), near)]
+                with self.subTest(sheet=label, level=op[6]):
+                    self.assertEqual(
+                        struck, [],
+                        f"{label}: the level {op[6]!r} has "
+                        f"{sorted(set(struck))} ruled through it or "
+                        f"within {self.CLEARANCE} mm of it",
+                    )
+        self.assertGreater(checked, 100,
+                           "almost no level labels were checked")

@@ -142,17 +142,31 @@ class TestLevelsAreReadable(unittest.TestCase):
 
     def test_two_levels_close_together_get_separated_labels(self):
         # A ceiling and the floor above it are 200 mm apart, which is 2 mm at
-        # 1:100 -- the labels print over each other unless they are nudged.
-        from codraft.export.svg import _level_labels
+        # 1:100 -- the labels print over each other if both sit above their
+        # own line. The lower one goes BELOW its line instead, so the two
+        # end up either side of the pair rather than stacked over it.
+        from codraft.export.svg import (LEVEL_LABEL_RISE, TEXT_SIZES,
+                                        _level_labels)
         from codraft.export.elevation import Level
 
         placed = _level_labels([Level(0, "FL 0"), Level(2434, "CL"),
                                 Level(2634, "FL")])
-        label_ys = [label_y for _, label_y, _ in placed]
-        for a, b in zip(label_ys, label_ys[1:]):
-            self.assertGreaterEqual(b - a, 500)
+        size = TEXT_SIZES.get("elev-level-text", 210)
+        centres = [label_y - LEVEL_LABEL_RISE if below
+                   else label_y + LEVEL_LABEL_RISE
+                   for _, label_y, _, below in placed]
+        for a, b in zip(centres, centres[1:]):
+            self.assertGreaterEqual(b - a, size,
+                                    "two level labels overlap")
+        # And no label sits on a level line, its own included.
+        for centre in centres:
+            for level in (0, 2434, 2634):
+                self.assertGreaterEqual(
+                    abs(centre - level), size / 2 + 60,
+                    f"a label centred at {centre} sits on the {level} line")
         # The lines themselves stay at their true heights.
-        self.assertEqual([true_y for true_y, _, _ in placed], [0, 2434, 2634])
+        self.assertEqual([true_y for true_y, _, _, _ in placed],
+                         [0, 2434, 2634])
 
 
 if __name__ == "__main__":
