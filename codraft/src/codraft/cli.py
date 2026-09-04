@@ -36,6 +36,7 @@ from .library.catalogue import read_catalogue
 from .library import DesignLibrary, design_from_building, fit_library
 from .ingest.survey import survey_pdf
 from .layout import LayoutError, build_building, place_pool, solve
+from .layout.solver import _ABSOLUTE_MIN_DIM
 from .layout.site import place_driveway
 from .model import Function, OpeningKind, Plot
 from .program import (
@@ -63,6 +64,10 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
+
+# Below this a rectangle will not take rooms either side of a passage,
+# which is the solver's own floor rather than a second opinion about it.
+_ABSOLUTE_MIN_DEPTH = _ABSOLUTE_MIN_DIM * 2
 
 
 def _sheets_a_format_draws(name: str) -> tuple[str, ...]:
@@ -210,9 +215,15 @@ def cmd_plan(args) -> int:
             print("Read from the brief:")
             for item in brief.understood:
                 print(f"  - {item}")
-        if brief.unclear:
+        # A surveyed boundary IS the plot size, and a better one than a
+        # rectangle: reading "no plot size found" off the brief and printing
+        # it beside a lot given corner by corner reads as a fault in what
+        # the user typed.
+        unclear = [item for item in brief.unclear
+                   if not (args.boundary and "plot size" in item.lower())]
+        if unclear:
             print("Not stated, so assumed or skipped:")
-            for item in brief.unclear:
+            for item in unclear:
                 print(f"  - {item}")
         print()
 
@@ -300,10 +311,17 @@ def cmd_plan(args) -> int:
               "study, not a plan.\n")
 
     size = _plot_from(args, brief)
-    if not size:
+    if not size and not args.boundary:
+        # A boundary IS the plot size, and a more exact one than a rectangle:
+        # it is what --boundary exists for, and the help text says to use it
+        # for anything that is not a rectangle. This asked for the rectangle
+        # anyway and refused the command without it, so a surveyed lot could
+        # not be planned unless you also invented a bounding box for it. The
+        # `fit` command already gets this right.
         return _fail(
             "no plot size was given. Add one to the brief ('40x60 ft', '12m x 18m', "
-            "'5 marla') or pass --plot 12mx18m."
+            "'5 marla'), pass --plot 12mx18m, or give the surveyed corners "
+            "with --boundary."
         )
 
     setbacks = dict(
@@ -318,10 +336,23 @@ def cmd_plan(args) -> int:
             plot = Plot.from_boundary(_parse_boundary(args.boundary), **setbacks)
         except (UnitError, ValueError) as exc:
             return _fail(str(exc))
-        if plot.buildable.area == 0:
+        usable = plot.buildable
+        if usable.area == 0:
             return _fail(
-                "no rectangle of a usable size fits inside that boundary once "
-                "the setbacks are taken off. Check the corners and the zone."
+                "no rectangle at all fits inside that boundary once the "
+                "setbacks are taken off. Check the corners and the zone."
+            )
+        if min(usable.w, usable.h) < _ABSOLUTE_MIN_DEPTH:
+            # Say the figure. A refusal that names the rectangle it found
+            # lets somebody argue with the setbacks or the corners; one that
+            # says "no rectangle of a usable size" tells them nothing they
+            # can act on, and this used to be the same message for a lot
+            # with 2750 mm of depth and a lot with none.
+            return _fail(
+                f"the largest rectangle inside that boundary clear of the "
+                f"setbacks is {usable.w} x {usable.h} mm, which is too "
+                f"narrow to put rooms either side of a passage. Check the "
+                f"corners and the zone, or ask for a smaller front setback."
             )
     else:
         plot = Plot(rect=Rect(0, 0, size[0], size[1]), **setbacks)

@@ -251,9 +251,16 @@ def largest_inscribed_rect(
     polygon: list[Point],
     clearances: list[int],
     cell: int = 250,
-    min_side: int = 3000,
+    min_side: int = 0,
 ) -> Rect | None:
     """The biggest axis-aligned rectangle that fits inside the setbacks.
+
+    `min_side` is a floor on the LOT's bounding box, not on the answer. It
+    used to be 3000 and applied to both, so a surveyed lot whose buildable
+    rectangle came out 19500 x 2750 was reported as having no buildable area
+    at all -- the measurement thrown away and replaced with nothing. What is
+    usable is a judgement for the caller, which can say 2750 mm and let
+    somebody decide; this returns what it found.
 
     Offsetting a polygon inwards exactly is fiddly and goes wrong on
     reflex corners, which is exactly where battle-axe lots live. Rasterising
