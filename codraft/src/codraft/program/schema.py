@@ -48,10 +48,20 @@ class SpaceRequirement:
             raise ProgramError(
                 f"{self.key}: preferred area is below the minimum area"
             )
-        if self.needs_exterior_wall is False and self.function.is_habitable:
+        if self.needs_exterior_wall is False and (
+            self.function.is_habitable or self.function.is_outdoor
+        ):
             # A habitable room without an exterior wall fails a daylight rule
             # in most of the world. Default it on rather than let the brief
             # produce a plan that is dead on arrival.
+            #
+            # An OUTDOOR room needs one for a different and more basic
+            # reason: it is the outside. An alfresco is roofed space open to
+            # the yard, and ten of the fourteen in the lot sweep were placed
+            # with no external wall at all -- buried in the middle of the
+            # plan, drawn as a sealed room, and counted in the area box as
+            # outdoor space. Nothing said so, because the daylight warning
+            # this shares a code path with only fires for habitable rooms.
             self.needs_exterior_wall = True
 
     @property

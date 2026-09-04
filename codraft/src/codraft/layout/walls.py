@@ -98,6 +98,10 @@ NON_RESIDENTIAL_MIN_DOOR = 965
 # the trade a decision it should not have to make.
 WINDOW_HEAD = course_level(WINDOW_HEAD_COURSES)      # 25c = 2150
 WINDOW_SILL = course_level(WINDOW_SILL_COURSES)      # 10c = 860
+# The narrowest gap worth calling an open side. Under this an alfresco is
+# a recess rather than a room open to the yard, and saying so beats
+# drawing an opening nobody would build.
+_ABSOLUTE_MIN_OPENING = 1500
 WET_WINDOW_WIDTH = 600
 WET_WINDOW_SILL = course_level(WET_SILL_COURSES)     # 18c = 1548
 WET_WINDOW_HEIGHT = WINDOW_HEAD - WET_WINDOW_SILL    #  7c =  602
@@ -636,7 +640,43 @@ def _openings_for_storey(
         if cell.function.is_circulation and cell.function is not Function.STAIR:
             continue
         if cell.function.is_outdoor:
-            continue   # roofed but open on at least one side
+            # Roofed but open on at least one side -- and that side has to be
+            # DRAWN, not just asserted in a comment here. It was not: every
+            # alfresco in the lot sweep came out with a door from the house
+            # and not one opening in any of its exterior walls, so the plan
+            # showed a sealed room labelled "Alfresco 21.7 m2" and the
+            # elevation showed unbroken brickwork across the back of the
+            # house. The schedule called it outdoor area at the same time,
+            # which is a drawing contradicting its own area box.
+            #
+            # The open side is the longest exterior wall, which for an
+            # alfresco under the main roof is the one facing the yard. A
+            # return is left at each end for the corner pier: the wall's own
+            # thickness, because that is a dimension the model already has
+            # and any other figure would be invented here. The head is the
+            # head every other opening on the storey uses; the beam over it
+            # is an engineer's item, which the sheet already says of every
+            # lintel on it.
+            wall = max(exterior, key=lambda w: w.length)
+            width = wall.length - wall.thickness * 2
+            if width >= _ABSOLUTE_MIN_OPENING:
+                openings.append(
+                    Opening(
+                        id=opening_id(),
+                        wall=wall.id,
+                        kind=OpeningKind.OPENING,
+                        offset=_centre_opening(wall, width),
+                        width=width,
+                        height=WINDOW_HEAD,
+                    )
+                )
+            else:
+                warnings.append(
+                    f"{cell.name} is roofed outdoor space and should be open "
+                    f"on one side, but its longest external wall is only "
+                    f"{wall.length} mm. It is drawn enclosed."
+                )
+            continue
 
         wall = max(exterior, key=lambda w: w.length)
         # Order matters: a kitchen is both wet and habitable, and it is the

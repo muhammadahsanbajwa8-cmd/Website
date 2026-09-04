@@ -18,7 +18,7 @@ import unittest
 from codraft import codes
 from codraft.geom import Rect
 from codraft.layout import build_building, solve
-from codraft.layout.solver import _awkward
+from codraft.layout.solver import _MAX_ASPECT, _awkward
 from codraft.model import Function, Plot
 from codraft.program import template
 
@@ -67,9 +67,45 @@ class TestItFiresOnlyWhereItWins(unittest.TestCase):
         self.assertTrue(_used_core(wide))
         self.assertFalse(_used_core(other))
 
-    def test_the_wide_lot_stops_producing_passages(self):
+    def test_the_wide_lot_stops_producing_passage_shaped_bedrooms(self):
+        # The fault this form exists for: on an 18 m frontage a bedroom came
+        # out 7161 x 2127, which has the right area and is a passage.
+        #
+        # This asserted that NO room on the floor was over the aspect limit,
+        # and that stopped being true when an outdoor room was made to need
+        # an external wall like every other room that is not in the middle of
+        # the house. The alfresco used to sit in the unlit core -- a sealed
+        # room in the centre of the plan, labelled as outdoor space. Out on
+        # the wall it takes a slice of the live band, and the dining, the
+        # kitchen and the alfresco come out at aspect 2.7 against a limit of
+        # 2.2. Over the whole lot sweep that trade is 11 more awkward rooms
+        # in 1621, against 25 of 33 alfrescos that were buried.
+        #
+        # So the assertion is the one the file is actually about: the SLEEP
+        # wing is what the core protects, and no bedroom is a passage.
         _p, _l, layout = _solve(WIDE)
-        self.assertEqual(_awkward(layout.for_storey(0))[0], 0)
+        for cell in layout.for_storey(0):
+            if cell.function is not Function.BEDROOM:
+                continue
+            long_side = max(cell.rect.w, cell.rect.h)
+            short = max(1, min(cell.rect.w, cell.rect.h))
+            with self.subTest(room=cell.name):
+                self.assertLessEqual(
+                    long_side / short, _MAX_ASPECT,
+                    f"{cell.name} is {cell.rect.w} x {cell.rect.h}, which is "
+                    "a passage with a bed in it",
+                )
+
+    def test_the_core_still_beats_the_spine_on_shape(self):
+        # And the count is still worth having: the whole floor is measured,
+        # not just its bedrooms, so a regression that made every room
+        # awkward would not hide behind the assertion above.
+        _p, _l, layout = _solve(WIDE)
+        self.assertLessEqual(
+            _awkward(layout.for_storey(0))[0], 4,
+            "more rooms on the wide lot read like passages than the "
+            "alfresco's move to the external wall accounts for",
+        )
 
 
 class TestNothingIsStrandedInTheMiddle(unittest.TestCase):

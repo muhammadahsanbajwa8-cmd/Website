@@ -123,10 +123,19 @@ function buildProgram(a) {
 
 const HABITABLE = new Set(["bedroom","living","dining","kitchen","office"]);
 
+// Roofed but not enclosed: an alfresco, a balcony, a courtyard.
+const OUTDOOR = new Set(["alfresco","balcony","courtyard"]);
+
 // A room that needs daylight needs an external wall. Only one room in a
 // shared slice of a band touches the outside, so this decides both what may
 // be paired and which half of a pair goes against the wall.
-const needsLight = r => HABITABLE.has(r.fn);
+//
+// An outdoor room needs one for a more basic reason than daylight: it IS
+// the outside. Without this, ten of the fourteen alfrescos in the Python's
+// lot sweep were laid in the middle of the plan with no external wall at
+// all -- a sealed room in the drawing, counted as outdoor space in the area
+// box. Matches SpaceRequirement.__post_init__ in the Python.
+const needsLight = r => HABITABLE.has(r.fn) || OUTDOOR.has(r.fn);
 
 // Which wing of the house a room belongs to. A project home is planned in
 // zones, not by area: garage and entry across the frontage, living through
