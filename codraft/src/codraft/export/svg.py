@@ -1091,6 +1091,23 @@ def _draw_services(canvas: _Canvas, plan, dx: int) -> None:
         _draw_symbol(canvas, fixture.kind, fixture.x, fixture.y, fixture.rotation, dx)
 
 
+LEGEND_WIDTH = 13000
+# Between the drawing and the legend beside or under it. Was 3500, which is
+# 3.5 m of paper spent on a gap.
+LEGEND_GAP = 1500
+
+
+def _legend_height(entries: list[tuple[str, str]], notes: list[str]) -> int:
+    """How tall the block will be, before anything is drawn.
+
+    Needed before the drawing, not after: where the legend goes decides the
+    sheet's content box and so its scale, and that has to be settled while
+    there is still a choice.
+    """
+    return (700 + 620 * len(entries) + 260
+            + 340 * sum(len(_wrap(n, 44)) for n in notes) + 400)
+
+
 def _legend(canvas: _Canvas, x: int, y: int, width: int, title: str,
             entries: list[tuple[str, str]], notes: list[str]) -> int:
     """A legend and notes block. Returns the height it used."""
@@ -1098,12 +1115,9 @@ def _legend(canvas: _Canvas, x: int, y: int, width: int, title: str,
     # right there and unusable in a legend column. Each entry is scaled to
     # a common height instead.
     line_height = 620
-    header = 700
     note_height = 340
     legend_size = 420
-    height = header + line_height * len(entries) + 260 + note_height * (
-        sum(len(_wrap(n, 44)) for n in notes)
-    ) + 400
+    height = _legend_height(entries, notes)
 
     canvas.box(x, y - height, width, height, "legend-box")
     cursor = y - 520
@@ -1507,6 +1521,7 @@ def build_sheet(
     services: dict[int, object] | None = None,
     footprint=None,
     system: str = "metric",
+    sheet_size: str = "A3",
 ) -> tuple["_Canvas", tuple[int, int], int, int, str]:
     """Draw one sheet onto a canvas, without deciding what it is written to.
 
@@ -1648,13 +1663,64 @@ def build_sheet(
             for note in plan.notes + plan.warnings:
                 if note not in notes:
                     notes.append(note)
+        entries = sorted(entries, key=lambda e: e[1])
+        # BESIDE the drawing or UNDER it, chosen by measuring which keeps
+        # the sheet at the scale the drawing alone would get.
+        #
+        # It was always beside, 3.5 m out, 13 m wide -- so a 13 x 17 m plan
+        # came to a content box 32.7 m across against the 30.8 m an A3 holds
+        # at 1:100, and every electrical and plumbing sheet in the set came
+        # out at 1:200 beside its own architectural sheet at 1:100. The
+        # legend cost the drawing it is a key to a scale step, which is the
+        # same trade the elevation and section notes were moved out of the
+        # drawing to avoid.
+        # The NOTES go to the title block, where the elevation and section
+        # sheets already send theirs and for the same reason: they are
+        # general notes rather than a key to the drawing, and twenty wrapped
+        # lines of them is seven metres of paper deducted before a scale is
+        # chosen. What stays beside the drawing is the symbol key, which is
+        # the part a reader looks back and forth at.
+        canvas.sheet_notes.extend(n for n in notes
+                                  if n not in canvas.sheet_notes)
+        notes = []
+        height = _legend_height(entries, notes)
+        plan_w = canvas.maxx - canvas.minx
+        plan_h = canvas.maxy - canvas.miny
+        alone = fit_scale(int(plan_w) + margin * 2, int(plan_h) + margin * 2,
+                          size=sheet_size).scale
+        beside = fit_scale(
+            int(plan_w + LEGEND_GAP + LEGEND_WIDTH) + margin * 2,
+            int(max(plan_h, height)) + margin * 2, size=sheet_size).scale
+        under = fit_scale(
+            int(max(plan_w, LEGEND_WIDTH)) + margin * 2,
+            int(plan_h + LEGEND_GAP + height) + margin * 2,
+            size=sheet_size).scale
+        if beside <= alone or beside <= under:
+            spot = (canvas.maxx + LEGEND_GAP, canvas.maxy)
+        else:
+            spot = (canvas.minx, canvas.miny - LEGEND_GAP)
+        if min(beside, under) > alone:
+            # Neither placement holds it at the plan's own scale. On a 20 x
+            # 35 m lot the drawing and its key come to about a metre more
+            # than an A3 holds at 1:100, and the sheet quietly halved. Say
+            # so: a services sheet at half the scale of the architectural
+            # sheet beside it is a set somebody measures the wrong one off,
+            # and the answer is a bigger sheet rather than a smaller
+            # drawing.
+            canvas.sheet_notes.append(
+                f"This sheet is at 1:{min(beside, under)} where the "
+                f"architectural sheet for the same floor is at 1:{alone}. "
+                f"The drawing and its legend together need more than "
+                f"{sheet_size} holds at 1:{alone}. Issue the services "
+                f"sheets on a larger sheet to match."
+            )
         _legend(
             canvas,
-            x=canvas.maxx + 3500,
-            y=canvas.maxy,
-            width=13000,
+            x=int(spot[0]),
+            y=int(spot[1]),
+            width=LEGEND_WIDTH,
             title=f"{sheet.title()} legend",
-            entries=sorted(entries, key=lambda e: e[1]),
+            entries=entries,
             notes=notes,
         )
 
@@ -1728,7 +1794,7 @@ def write_svg(
     the drawing does not know about.
     """
     canvas, origin, content_w, content_h, name = build_sheet(
-        building, storey_index, sheet, services, footprint, system
+        building, storey_index, sheet, services, footprint, system, sheet_size
     )
     for note in notes or ():
         if note not in canvas.sheet_notes:

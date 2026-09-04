@@ -507,7 +507,7 @@ def write_pdf(
     for number, (sheet, storey_index) in enumerate(pages, start=1):
         canvas, origin, content_w, content_h, name = build_sheet(
             building, storey_index, sheet,
-            (services or {}).get(sheet), footprint, system,
+            (services or {}).get(sheet), footprint, system, sheet_size,
         )
         frame = fit_scale(content_w, content_h, size=sheet_size)
         stream, skipped = _page_stream(
