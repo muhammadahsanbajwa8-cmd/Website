@@ -215,12 +215,13 @@ def cmd_plan(args) -> int:
             print("Read from the brief:")
             for item in brief.understood:
                 print(f"  - {item}")
-        # A surveyed boundary IS the plot size, and a better one than a
-        # rectangle: reading "no plot size found" off the brief and printing
-        # it beside a lot given corner by corner reads as a fault in what
-        # the user typed.
+        # The lot was given on the command line: as a rectangle with --plot,
+        # or corner by corner with --boundary, which is a better size than a
+        # rectangle. Reading "no plot size found" off the BRIEF and printing
+        # it beside either reads as a fault in what the user typed.
+        given = args.boundary or args.plot
         unclear = [item for item in brief.unclear
-                   if not (args.boundary and "plot size" in item.lower())]
+                   if not (given and "plot size" in item.lower())]
         if unclear:
             print("Not stated, so assumed or skipped:")
             for item in unclear:
@@ -448,21 +449,21 @@ def cmd_plan(args) -> int:
     # default pitch, which is how it came to be set in only one of them.
 
     if plot.boundary:
-        print(f"Lot          : {fmt_area(plot.area)} surveyed "
+        print(f"Lot          : {fmt_area(plot.area, args.units)} surveyed "
               f"({len(plot.boundary)} corners); its bounding box is "
-              f"{fmt_area(plot.rect.area)}")
+              f"{fmt_area(plot.rect.area, args.units)}")
         print(f"Buildable    : {plot.buildable.w} x {plot.buildable.h} mm, the "
               "largest rectangle clearing every boundary by its setback")
-    print(f"Plot         : {fmt_area(plot.area)}")
-    print(f"Footprint    : {fmt_area(building.footprint)} "
+    print(f"Plot         : {fmt_area(plot.area, args.units)}")
+    print(f"Footprint    : {fmt_area(building.footprint, args.units)} "
           f"({building.coverage_ratio * 100:.0f}% coverage)")
-    print(f"Floor area   : {fmt_area(building.gross_floor_area)} "
+    print(f"Floor area   : {fmt_area(building.gross_floor_area, args.units)} "
           f"(FAR {building.floor_area_ratio:.2f})")
     print()
     for storey in building.storeys:
         print(f"{storey.name}:")
         for space in sorted(storey.spaces, key=lambda s: -s.area):
-            print(f"    {space.name:<14} {fmt_area(space.area):>10}  "
+            print(f"    {space.name:<14} {fmt_area(space.area, args.units):>10}  "
                   f"{space.rect.w} x {space.rect.h} mm")
     print()
 
@@ -535,7 +536,8 @@ def cmd_plan(args) -> int:
     # carries them and where they cost the drawing nothing.
     from .annotate import area_schedule
 
-    area_rows, area_note = area_schedule(building, layout.envelope)
+    area_rows, area_note = area_schedule(building, layout.envelope,
+                                        system=args.units)
     title_block = TitleBlock(
         areas=area_rows,
         area_note=area_note,

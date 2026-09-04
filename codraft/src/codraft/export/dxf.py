@@ -360,7 +360,8 @@ def write_dxf(
                    space.name.upper(), "A-AREA-IDEN")
             if architectural:
                 w.text(centre.x + dx, centre.y - text_height * 1.4,
-                       text_height * 0.8, fmt_area(space.area), "A-AREA-IDEN")
+                       text_height * 0.8, fmt_area(space.area, system),
+                       "A-AREA-IDEN")
                 if space.area >= 5_000_000:
                     w.text(centre.x + dx, centre.y - text_height * 2.6,
                            text_height * 0.7, room_dimension_text(space, system),

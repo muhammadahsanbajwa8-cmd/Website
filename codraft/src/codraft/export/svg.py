@@ -1429,8 +1429,13 @@ def _room_label(canvas, space, dx: int, system: str, obstacles) -> str | None:
         return _too_small(space)
     lines = [(space.name, *sizes[0])]
 
-    if _text_width(fmt_area(space.area), AREA_SIZE) <= usable:
-        lines.append((fmt_area(space.area), "area", AREA_SIZE))
+    # In the sheet's own units. Every fmt_area call in the program omitted
+    # the system, so an imperial drawing dimensioned in feet and inches
+    # printed "23.1 m2" inside the room and a title block of square metres
+    # beside it -- one sheet in two systems, and the reader converting.
+    area_text = fmt_area(space.area, system)
+    if _text_width(area_text, AREA_SIZE) <= usable:
+        lines.append((area_text, "area", AREA_SIZE))
     if space.area >= 5_000_000 and not turned:
         text = room_dimension_text(space, system)
         if _text_width(text, DIM_SIZE) <= usable:

@@ -318,7 +318,8 @@ AREA_GROUPS = (
 )
 
 
-def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]:
+def area_schedule(building, footprint=None,
+                  system: str = "metric") -> tuple[list[tuple[str, str]], str]:
     """The areas a builder quotes, and an honest note on how they were got.
 
     Every figure is the CLEAR area inside the wall faces the sheet draws,
@@ -342,9 +343,10 @@ def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]
         else:
             total = sum(sp.area for sp in spaces if test(sp))
         if total:
-            rows.append((label, fmt_area(total)))
+            rows.append((label, fmt_area(total, system)))
 
-    rows.append(("TOTAL INTERNAL", fmt_area(sum(sp.area for sp in spaces))))
+    rows.append(("TOTAL INTERNAL",
+                 fmt_area(sum(sp.area for sp in spaces), system)))
 
     # FOOTPRINT is the ground the building covers, measured over the external
     # walls, and it is the figure somebody prices from -- which is why the
@@ -368,10 +370,11 @@ def area_schedule(building, footprint=None) -> tuple[list[tuple[str, str]], str]
     # the one to price from -- and SITE COVER.
     lot = getattr(getattr(building, "plot", None), "rect", None)
     if lot is not None and lot.area > 0:
-        rows.append(("LOT", fmt_area(lot.area)))
+        rows.append(("LOT", fmt_area(lot.area, system)))
     if len(building.storeys) > 1:
-        rows.append(("GROSS FLOOR AREA", fmt_area(building.gross_floor_area)))
-    rows.append(("FOOTPRINT", fmt_area(building.footprint)))
+        rows.append(("GROSS FLOOR AREA",
+                     fmt_area(building.gross_floor_area, system)))
+    rows.append(("FOOTPRINT", fmt_area(building.footprint, system)))
     if lot is not None and lot.area > 0:
         rows.append(("SITE COVER",
                      f"{building.footprint / lot.area * 100:.0f}%"))
