@@ -159,20 +159,38 @@ class Report:
         if self.failures:
             out.append("FINDINGS")
             out.append("-" * 72)
+            # Grouped by RULE, so a rule's source, confidence and note are
+            # printed once and the messages under them are what differ.
+            #
+            # Printed per finding they were the same paragraph again and
+            # again: on a WA sweep, 70 per cent of the source-and-note text
+            # in this section was a sentence already printed, and 2024
+            # characters of one report -- about a page -- were a note
+            # repeated verbatim eight times because eight upper bedroom
+            # windows failed the same privacy setback. That buries the
+            # findings that DO differ, which on the same sweep were the 32
+            # about room width and area.
+            grouped: dict[str, list[Finding]] = {}
             for f in self.failures:
+                grouped.setdefault(f.rule_id, []).append(f)
+            for rule_id, group in grouped.items():
+                first = group[0]
                 marker = {"violation": "!!", "warning": " !", "advisory": " ~"}.get(
-                    f.severity, "  "
+                    first.severity, "  "
                 )
-                out.append(f"{marker} [{f.severity}] {f.title} -- {f.subject}")
-                out.append(f"     {f.message}")
-                if f.clause:
-                    out.append(f"     Source: {f.clause}")
+                count = (f"  ({len(group)} findings)" if len(group) > 1 else "")
+                head = f"{marker} [{first.severity}] {first.title}{count}"
+                out.append(head)
+                if first.clause:
+                    out.append(f"     Source: {first.clause}")
                 out.append(
-                    f"     Confidence: {f.confidence} "
-                    f"({_CONFIDENCE_LABEL.get(f.confidence, 'unknown')})"
+                    f"     Confidence: {first.confidence} "
+                    f"({_CONFIDENCE_LABEL.get(first.confidence, 'unknown')})"
                 )
-                if f.note:
-                    out.append(f"     Note: {f.note}")
+                for f in group:
+                    out.append(f"     - {f.subject}: {f.message}")
+                if first.note:
+                    out.append(f"     Note: {first.note}")
                 out.append("")
         else:
             out.append("No rule in the applied packs was failed.")
