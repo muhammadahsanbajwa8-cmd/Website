@@ -26,6 +26,27 @@ SHEETS = ("architectural", "electrical", "plumbing", "elevations")
 # Layer name, then an AutoCAD colour index.
 # Layer names follow the AIA/NCS convention, so the file drops into an
 # office standard rather than arriving with layers called "stuff".
+# A DXF R12 file is written as ASCII, and `errors="replace"` turns anything
+# else into a question mark. Every area label in every DXF this program has
+# written reads "12.3 m?" -- sixteen of them on one ground floor -- which is
+# not a smaller version of "12.3 m2", it is a figure with its unit removed.
+#
+# Transliterated at the point the text is recorded rather than at write
+# time, so the file says what the drawing says. Superscript two becomes a
+# plain two, which is how a CAD drawing writes square metres anyway.
+_ASCII = {
+    "\u00b2": "2", "\u00b3": "3", "\u00d7": "x", "\u00b0": " deg",
+    "\u2014": "--", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+    "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u00a0": " ",
+}
+
+
+def _ascii(value: str) -> str:
+    for source, plain in _ASCII.items():
+        value = value.replace(source, plain)
+    return value
+
+
 LAYERS = {
     "A-WALL-EXTR": 7,    # white/black -- exterior walls
     "A-WALL-INTR": 8,    # grey -- interior walls
@@ -33,6 +54,7 @@ LAYERS = {
     "A-GLAZ": 4,         # cyan
     "A-AREA-IDEN": 2,    # yellow -- room names
     "A-ANNO-DIMS": 1,    # red -- dimensions
+    "A-ANNO-NOTE": 7,    # drawing notes: what the plan says about itself
     "A-SITE-BNDY": 5,    # blue -- plot boundary
     "A-SITE-SETB": 6,    # magenta -- setback lines
     "E-LITE": 2,         # lighting points and switches
@@ -112,7 +134,7 @@ class _Writer:
         self.tag(20, float(y))
         self.tag(30, 0.0)
         self.tag(40, float(height))
-        self.tag(1, value)
+        self.tag(1, _ascii(value))
         if rotation:
             self.tag(50, float(rotation))
         if centred:
@@ -202,6 +224,37 @@ def _dimensions(w: _Writer, storey, footprint, dx: int, system: str) -> None:
                    "A-ANNO-DIMS")
 
 
+def _dxf_notes(w, building, notes, below: int) -> None:
+    """What the plan says about itself, under the drawing in model space.
+
+    Wrapped by hand rather than left as one long line: a DXF TEXT entity
+    does not wrap, and a 200-character note runs the length of three houses
+    across the model.
+    """
+    if not notes:
+        return
+    height = 250
+    y = below - height * 4
+    for note in notes:
+        for line in _wrapped(note, 90):
+            w.text(0, y, height, line, "A-ANNO-NOTE", centred=False)
+            y -= height * 1.6
+        y -= height * 0.8
+
+
+def _wrapped(text: str, columns: int) -> list[str]:
+    lines, line = [], ""
+    for word in text.split():
+        if line and len(line) + 1 + len(word) > columns:
+            lines.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    if line:
+        lines.append(line)
+    return lines
+
+
 def write_dxf(
     building: Building,
     path: str | Path,
@@ -214,14 +267,25 @@ def write_dxf(
     sheet_no: int = 1,
     sheet_of: int = 1,
     sheet_size: str = "A3",
+    notes: list[str] | None = None,
 ) -> Path:
     """Write one sheet as a DXF.
 
-    The sheet arguments are accepted and ignored. A DXF carries model-space
+    The PAPER arguments are accepted and ignored. A DXF carries model-space
     geometry at full size -- it has no paper, so it has no scale and no title
     block, and CAD lays those out in its own paper space. Taking the
     arguments keeps one call signature across the writers; pretending to
     honour them would be worse than not having them.
+
+    `notes` is not one of those. It is what the plan has to SAY about itself
+    -- which rooms came out under the size the brief asked for -- and it
+    reaches the other writers. This one did not take the argument at all, so
+    `--formats dxf` raised a TypeError before writing a byte: the format was
+    broken outright, on every invocation, and nothing exercised the CLI's
+    format loop. Dropping the notes instead would have been the other
+    failure: geometry handed over without the caveat that goes with it. They
+    go into model space under the plan, on the notes layer, where a drafter
+    can move them into their own title block.
 
     Storeys are laid out left to right with a gap between them, which is how
     a drawing sheet shows them and means the whole building opens in one
@@ -239,6 +303,7 @@ def write_dxf(
 
     if sheet == "elevations":
         _dxf_elevations(w, building)
+        _dxf_notes(w, building, notes, 0)
         w.tag(0, "ENDSEC")
         w.tag(0, "EOF")
         path.write_text(w.out.getvalue(), encoding="ascii", errors="replace")
@@ -322,6 +387,9 @@ def write_dxf(
 
     if not architectural and services:
         _dxf_legend(w, building, services, sheet, step * len(storeys))
+
+    _dxf_notes(w, building, notes,
+               min((_storey_bounds(st).y0 for st in storeys), default=0) - 7000)
 
     w.tag(0, "ENDSEC")
     w.tag(0, "EOF")

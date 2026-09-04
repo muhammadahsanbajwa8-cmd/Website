@@ -63,8 +63,33 @@ FORMATS = {
 # Which formats can carry a services sheet. IFC and the JSON model describe
 # the building, not a drawing of it, so they are written once.
 SHEET_FORMATS = {"dxf", "svg"}
+
+
+def _sheets_a_format_draws(name: str) -> tuple[str, ...]:
+    """Which sheets a writer actually knows how to draw.
+
+    They differ, and the difference was a traceback: `--formats dxf --sheets
+    site` raised ValueError out of the writer and killed the command, having
+    written whatever sheets came before it. A DXF has no site plan because a
+    DXF is model space at full size -- the plot boundary and the setback line
+    are already on the architectural sheet -- and it has no schedules sheet
+    because a schedule is a table, not geometry. Those are reasonable things
+    for a format not to have. Crashing is not a reasonable way to say so.
+    """
+    if name == "dxf":
+        from .export.dxf import SHEETS as drawn
+        return drawn
+    return SHEETS
 SHEETS = ("site", "architectural", "electrical", "plumbing", "elevations",
           "sections", "schedules")
+
+# Sheets that are not one per floor. A site plan shows what covers the
+# GROUND, a section cuts the whole building, and a schedule is a table of
+# every opening in it -- none of them has a storey to select. Paginated per
+# storey they came out duplicated: a two-storey brief asked for all seven
+# sheets produced two byte-identical sections, two identical schedules and
+# a site plan drawn once with the first floor inside the lot outline.
+STOREYLESS_SHEETS = frozenset({"site", "sections", "schedules"})
 
 SERVICES_WORDS = (
     "electrical", "electric", "wiring", "plumbing", "sanitary", "services",
@@ -468,7 +493,7 @@ def cmd_plan(args) -> int:
                 suffix = stem_part if count == 1 else f"{stem_part}-{page + 1}"
                 pages.append((sheet, page, suffix))
             continue
-        if len(building.storeys) == 1:
+        if sheet in STOREYLESS_SHEETS or len(building.storeys) == 1:
             pages.append((sheet, None, stem_part))
             continue
         for storey in building.storeys:
@@ -529,7 +554,32 @@ def cmd_plan(args) -> int:
             # is one of each however many sheets are drawn.
             written.append(writer(building, out / f"{stem}.{name}"))
             continue
-        for number, (sheet, storey_index, suffix) in enumerate(pages, start=1):
+        drawable = _sheets_a_format_draws(name)
+        format_pages = [page for page in pages if page[0] in drawable]
+        if name == "dxf":
+            # A DXF has no paper, so it has no pagination either: the
+            # elevations sheet is split into pairs to fit an A3, and the DXF
+            # writer draws all four whichever page it is handed. Asking for
+            # two pages of it wrote the same file twice under two names.
+            seen = False
+            collapsed = []
+            for sheet, index, suffix in format_pages:
+                if sheet != "elevations":
+                    collapsed.append((sheet, index, suffix))
+                elif not seen:
+                    seen = True
+                    collapsed.append((sheet, index, "-elevations"))
+            format_pages = collapsed
+        skipped_sheets = [sheet for sheet, _i, _s in pages
+                          if sheet not in drawable]
+        if skipped_sheets:
+            print(f"{name.upper()} has no "
+                  f"{', '.join(sorted(set(skipped_sheets)))} sheet, so "
+                  f"{'those were' if len(set(skipped_sheets)) > 1 else 'that was'} "
+                  f"not written. The other formats carry "
+                  f"{'them' if len(set(skipped_sheets)) > 1 else 'it'}.")
+        for number, (sheet, storey_index, suffix) in enumerate(format_pages,
+                                                               start=1):
             written.append(
                 writer(
                     building,
@@ -541,7 +591,7 @@ def cmd_plan(args) -> int:
                     system=args.units,
                     title=title_block,
                     sheet_no=number,
-                    sheet_of=len(pages),
+                    sheet_of=len(format_pages),
                     sheet_size=args.sheet,
                     notes=layout.shortfall_notes(),
                 )
