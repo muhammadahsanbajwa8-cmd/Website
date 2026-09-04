@@ -93,5 +93,69 @@ class NothingIsDrawnPastTheEdgeOfTheSheet(unittest.TestCase):
                         sum(1 for line in lines if phrase in line), 1)
 
 
+class NoSheetDrawsPastItsPage(unittest.TestCase):
+    """The same check, over every sheet in the set rather than one of them.
+
+    The schedules sheet was the only one that overflowed, and this is what
+    establishes that -- 130 sheets of every kind, and nothing else lands off
+    the paper. Worth keeping rather than throwing away with the fix: a
+    sheet's origin and its content box are computed separately, per sheet
+    type, and they can disagree again in the next one.
+    """
+
+    def test_across_every_sheet_of_a_lot_sweep(self):
+        from codraft.export.svg import elevation_sheets
+
+        design = design_parameters(resolve("AU-WA"))
+        checked = 0
+        for width, depth in LOTS:
+            for storeys in (1, 2):
+                program = template("au-house", bedrooms=4, bathrooms=2,
+                                   storeys=storeys)
+                program.build_to(design)
+                plot = Plot(rect=Rect(0, 0, width, depth), road_side="south",
+                            setback_front=6000, setback_rear=1000,
+                            setback_left=1000, setback_right=1000)
+                try:
+                    layout = solve(program, plot,
+                                   max_footprint=int(plot.area * 0.5))
+                except LayoutError:
+                    continue
+                building = build_building(program, plot, layout, design=design)
+                pages = [("site", None)]
+                pages += [("architectural", s.index) for s in building.storeys]
+                pages += [("elevations", p)
+                          for p in range(elevation_sheets(building))]
+                pages += [("sections", None), ("schedules", None)]
+                for sheet, index in pages:
+                    canvas, origin, content_w, content_h, _n = build_sheet(
+                        building, index, sheet, None, layout.envelope, "metric")
+                    frame = fit_scale(content_w, content_h, size="A3")
+                    ox, oy = origin
+                    pad_x = frame.x + (frame.w - content_w / frame.scale) / 2
+                    pad_y = MARGIN + (frame.h - content_h / frame.scale) / 2
+                    checked += 1
+                    for op in canvas.ops:
+                        if op[0] == "text":
+                            points = [(op[2], op[3])]
+                        elif op[0] == "line":
+                            points = [(op[2], op[3]), (op[4], op[5])]
+                        elif op[0] == "rect":
+                            points = [(op[2], op[3]),
+                                      (op[2] + op[4], op[3] + op[5])]
+                        else:
+                            continue
+                        for x, y in points:
+                            across = pad_x + (ox + x) / frame.scale
+                            down = pad_y + (oy - y) / frame.scale
+                            with self.subTest(lot=f"{width}x{depth}",
+                                              sheet=sheet, kind=op[0]):
+                                self.assertGreaterEqual(down, -0.5)
+                                self.assertLessEqual(down, frame.height + 0.5)
+                                self.assertGreaterEqual(across, -0.5)
+                                self.assertLessEqual(across, frame.width + 0.5)
+        self.assertGreater(checked, 20, "almost no sheets were checked")
+
+
 if __name__ == "__main__":
     unittest.main()
