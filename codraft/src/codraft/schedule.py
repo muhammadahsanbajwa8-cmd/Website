@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .annotate import format_mm
 from .courses import COURSE_MM, courses_for
 from .model import Building, Function, Opening, OpeningKind, WallKind
 
@@ -73,14 +74,37 @@ class ScheduleRow:
     def sill_courses(self) -> int:
         return courses_for(self.sill, plate=0) if self.sill else 0
 
-    def set_out(self) -> str:
-        """How the drawing calls the height up: courses first, mm after."""
+    def set_out(self, system: str = "metric") -> str:
+        """How the drawing calls the height up: courses first, height after.
+
+        The COURSE count is not converted. A course is 86 mm because that is
+        the brick, and the count is an instruction to the bricklayer rather
+        than a length on the drawing -- the same reason the elevation's
+        level labels keep theirs. What follows it in brackets is a height,
+        and a height goes in the sheet's own units.
+        """
+        head = _height(self.head, system)
         if self.kind is OpeningKind.DOOR:
-            return f"head {self.head_courses}c ({self.head} mm)"
+            return f"head {self.head_courses}c ({head})"
         return (
-            f"head {self.head_courses}c ({self.head} mm), "
-            f"sill {self.sill_courses}c ({self.sill} mm)"
+            f"head {self.head_courses}c ({head}), "
+            f"sill {self.sill_courses}c ({_height(self.sill, system)})"
         )
+
+
+def _height(value_mm: int, system: str) -> str:
+    """A height, in the sheet's units, WITH its unit.
+
+    A dimension on a drawing carries no suffix -- the title block states the
+    unit once -- but this one sits inside brackets in a table beside a
+    course count, where "2150" alone is a number of nothing. Metric keeps
+    the millimetres it has always printed.
+    """
+    if system == "imperial":
+        from .annotate import format_mm
+
+        return format_mm(value_mm, system)
+    return f"{value_mm} mm"
 
 
 def _on_a_course(value: int) -> bool:
@@ -289,7 +313,8 @@ def schedule_notes(rows: list[ScheduleRow]) -> list[str]:
 
 
 def format_schedule(rows: list[ScheduleRow], title: str,
-                    notes: bool = True) -> list[str]:
+                    notes: bool = True,
+                    system: str = "metric") -> list[str]:
     """The schedule as drawing-block text.
 
     `notes` off leaves out the explanatory lines, for a caller printing
@@ -297,18 +322,26 @@ def format_schedule(rows: list[ScheduleRow], title: str,
     """
     if not rows:
         return []
+    # The columns are as wide as this schedule's own longest entry, not a
+    # constant. Feet and inches are wider than millimetres -- "head 25c
+    # (7'-1"), sill 10c (2'-10")" is 37 characters against 31 -- so a fixed
+    # 34 pushed NO and LINTEL out of their columns on every imperial row.
+    set_outs = [r.set_out(system) for r in rows]
+    sizes = [f"{format_mm(r.width, system)} x {format_mm(r.height, system)}"
+             for r in rows]
+    set_out_w = max(len("SET OUT"), *(len(t) for t in set_outs))
+    size_w = max(len("SIZE (W x H)"), *(len(t) for t in sizes))
     out = [title, "-" * 72]
     out.append(
-        f"  {'MARK':5} {'CODE':6} {'SIZE (W x H)':16} {'SET OUT':34} "
-        f"{'NO':3} {'LINTEL':7} LOCATION"
+        f"  {'MARK':5} {'CODE':6} {'SIZE (W x H)':{size_w}} "
+        f"{'SET OUT':{set_out_w}} {'NO':3} {'LINTEL':7} LOCATION"
     )
-    for r in rows:
-        size = f"{r.width} x {r.height}"
+    for r, size, set_out in zip(rows, sizes, set_outs):
         location = ", ".join(sorted(set(r.rooms)))
         if len(location) > 40:
             location = location[:37] + "..."
         out.append(
-            f"  {r.mark:5} {r.code:6} {size:16} {r.set_out():34} "
+            f"  {r.mark:5} {r.code:6} {size:{size_w}} {set_out:{set_out_w}} "
             f"{r.count:<3} {'YES' if r.needs_lintel else '-':7} {location}"
         )
     out.append("")

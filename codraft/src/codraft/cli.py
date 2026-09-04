@@ -661,11 +661,14 @@ def cmd_plan(args) -> int:
     # about.
     unframed = [r for r in rows if r.kind is OpeningKind.OPENING]
     schedule_text = "\n".join(
-        format_schedule(windows, "WINDOW SCHEDULE", notes=False)
+        format_schedule(windows, "WINDOW SCHEDULE", notes=False,
+                        system=args.units)
         + [""]
-        + format_schedule(doors, "DOOR SCHEDULE", notes=False)
+        + format_schedule(doors, "DOOR SCHEDULE", notes=False,
+                          system=args.units)
         + [""]
-        + format_schedule(unframed, "OPENING SCHEDULE", notes=False)
+        + format_schedule(unframed, "OPENING SCHEDULE", notes=False,
+                          system=args.units)
         # Once, under all three, rather than word for word after each.
         + schedule_notes(rows)
         + ["", "SPECIFICATION AT EVERY EXTERNAL OPENING", "-" * 72,

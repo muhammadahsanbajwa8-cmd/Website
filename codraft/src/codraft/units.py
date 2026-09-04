@@ -138,10 +138,11 @@ def to_ft2(value_mm2: int) -> float:
 def fmt_len(value_mm: int, system: str = "metric") -> str:
     """A length as a person would write it."""
     if system == "imperial":
-        total_inches = Decimal(value_mm) / INCH
-        feet = int(total_inches // 12)
-        inches = (total_inches - feet * 12).quantize(Decimal("0.1"))
-        return f"{feet}'-{inches}\""
+        # Rounded to a tenth of an inch BEFORE the split, so a remainder of
+        # 11.97 carries into the next foot rather than printing as 1'-12.0".
+        tenths = (Decimal(value_mm) / INCH * 10).quantize(Decimal("1"))
+        feet, inches = divmod(tenths, 120)
+        return f"{int(feet)}'-{inches / 10}\""
     metres = Decimal(value_mm) / 1000
     return f"{metres.normalize():f} m"
 

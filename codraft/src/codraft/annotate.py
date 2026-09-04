@@ -71,10 +71,12 @@ def format_mm(value: int, system: str = "metric") -> str:
     dusty print.
     """
     if system == "imperial":
-        total_inches = value / 25.4
-        feet = int(total_inches // 12)
-        inches = total_inches - feet * 12
-        return f"{feet}'-{inches:.0f}\""
+        # ROUND FIRST, then split. Splitting first and rounding the
+        # remainder prints twelve inches instead of carrying: 600 mm is
+        # 1 ft 11.62 in, and rounding that remainder to a whole inch gave
+        # 1'-12" -- a dimension no rule reads and nobody writes.
+        inches = round(value / 25.4)
+        return f"{inches // 12}'-{inches % 12}\""
     return str(int(round(value)))
 
 

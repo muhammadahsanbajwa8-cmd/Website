@@ -135,7 +135,7 @@ class TestItDoesNotInventStructure(unittest.TestCase):
 
 class TestLevelsAreReadable(unittest.TestCase):
     def test_levels_are_called_up_in_courses(self):
-        labels = " ".join(l.label for l in section(_building()).levels)
+        labels = " ".join(l.label() for l in section(_building()).levels)
         self.assertIn("c", labels)
         self.assertIn("RIDGE", labels)
         self.assertIn("FL 0", labels)
@@ -149,7 +149,7 @@ class TestLevelsAreReadable(unittest.TestCase):
                                         _level_labels)
         from codraft.export.elevation import Level
 
-        placed = _level_labels([Level(0, "FL 0"), Level(2434, "CL"),
+        placed = _level_labels([Level(0, "FL"), Level(2434, "CL"),
                                 Level(2634, "FL")])
         size = TEXT_SIZES.get("elev-level-text", 210)
         centres = [label_y - LEVEL_LABEL_RISE if below

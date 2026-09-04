@@ -77,10 +77,28 @@ MASONRY = frozenset({"solid_masonry", "double_brick", "brick_veneer"})
 
 @dataclass(slots=True)
 class Level:
-    """A height called up the side of the drawing."""
+    """A height called up the side of the drawing.
+
+    The height is kept as a NUMBER and formatted when it is drawn, in the
+    units of the sheet drawing it. Stored as a finished string it was always
+    millimetres, so a set dimensioned in feet and inches called its ceiling
+    "CL 2864 (33c + PLATE)".
+
+    The course count is not converted with it. A course is 86 mm because
+    that is the brick, and it is an instruction to the bricklayer rather
+    than a length on the drawing -- turning "33c" into a number of inches
+    would be the same mixture of systems in the other direction.
+    """
 
     y: int
-    label: str
+    name: str          # FL, CL, RIDGE
+    note: str = ""     # the courses, as the sheet writes them
+
+    def label(self, system: str = "metric") -> str:
+        from ..annotate import format_mm
+
+        figure = format_mm(self.y, system)
+        return f"{self.name} {figure} {self.note}".strip()
 
 
 @dataclass(slots=True)
@@ -394,15 +412,15 @@ def elevation(building: Building, direction: str, number: int = 1,
                 )
 
         view.levels.append(
-            Level(base, f"FL {base} ({courses_for(base)}c)" if base else "FL 0 (0c)")
+            Level(base, "FL", f"({courses_for(base)}c)")
         )
         view.levels.append(
-            Level(top, f"CL {top} ({courses_for(top - base)}c + PLATE)")
+            Level(top, "CL", f"({courses_for(top - base)}c + PLATE)")
         )
 
     roof = building.roof or Roof()
     view.roof, ridge = _roof_lines(building, roof, direction, plate)
-    view.levels.append(Level(ridge, f"RIDGE {ridge}"))
+    view.levels.append(Level(ridge, "RIDGE"))
     stepped = len({
         s.elevation + s.ceiling_height for s in building.storeys
     }) > 1 and any(

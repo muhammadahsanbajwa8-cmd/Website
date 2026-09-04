@@ -183,7 +183,8 @@ STYLE = """
 """
 
 
-def _draw_section(canvas: _Canvas, view, dx: int = 0, dy: int = 0) -> None:
+def _draw_section(canvas: _Canvas, view, dx: int = 0, dy: int = 0,
+                  system: str = "metric") -> None:
     """One section: what the plane cuts, what is seen past it, and the roof."""
     for line in view.beyond:
         canvas.line(line.x0 + dx, line.y0 + dy, line.x1 + dx, line.y1 + dy,
@@ -210,16 +211,16 @@ def _draw_section(canvas: _Canvas, view, dx: int = 0, dy: int = 0) -> None:
 
     span = _drawn_extent(view.cut, view.roof)
     left, right = span[0] + dx, span[1] + dx
-    _draw_levels(canvas, view.levels, left, right, dy)
+    _draw_levels(canvas, view.levels, left, right, dy, system)
 
 
-def _section_canvas(building: Building):
+def _section_canvas(building: Building, system: str = "metric"):
     """The section on its own sheet, with the notes under it."""
     from .section import section
 
     view = section(building)
     canvas = _Canvas()
-    _draw_section(canvas, view)
+    _draw_section(canvas, view, system=system)
     canvas.text(view.width_mm // 2, -2400, view.title, "title")
 
     # The notes go in the TITLE BLOCK, not under the drawing -- the same
@@ -251,7 +252,7 @@ def _section_canvas(building: Building):
     )
 
 
-def _schedule_canvas(building: Building):
+def _schedule_canvas(building: Building, system: str = "metric"):
     """The window, door and opening schedules on a sheet of their own.
 
     Drawn from the very lines `format_schedule` writes to the text file, so
@@ -272,7 +273,7 @@ def _schedule_canvas(building: Building):
                         (OpeningKind.DOOR, "DOOR SCHEDULE"),
                         (OpeningKind.OPENING, "OPENING SCHEDULE")):
         block = format_schedule([r for r in rows if r.kind is kind], title,
-                                notes=False)
+                                notes=False, system=system)
         if block:
             lines += block + [""]
     # Once, at the foot of the sheet. Printed per block they appeared three
@@ -675,7 +676,7 @@ def _draw_architecture(canvas: _Canvas, building, storey, dx: int, ghost: bool,
                 canvas.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, "fixture")
 
 
-def _level_labels(levels, min_gap: int = 520):
+def _level_labels(levels, min_gap: int = 520, system: str = "metric"):
     """Level lines at their true heights, with their labels placed clear.
 
     A storey's ceiling and the floor above it are 200 mm apart -- the floor
@@ -699,7 +700,7 @@ def _level_labels(levels, min_gap: int = 520):
     for level in sorted(levels, key=lambda l: l.y):
         if rows and level.y == rows[-1][0]:
             continue
-        rows.append((level.y, level.label))
+        rows.append((level.y, level.label(system)))
 
     out = []
     previous = None
@@ -761,7 +762,7 @@ def _drawn_extent(*groups) -> tuple[int, int]:
 
 
 def _draw_levels(canvas: _Canvas, levels, left: float, right: float,
-                 dy: int) -> None:
+                 dy: int, system: str = "metric") -> None:
     """Levels called up the side of an elevation or a section.
 
     `_level_labels` keeps each label off every level line by choosing which
@@ -771,7 +772,7 @@ def _draw_levels(canvas: _Canvas, levels, left: float, right: float,
     to be moved. Breaking a line around a label is what `_course_lines`
     already does for brickwork behind a window.
     """
-    placed = list(_level_labels(levels))
+    placed = list(_level_labels(levels, system=system))
     size = TEXT_SIZES.get("elev-level-text", 210)
     boxes = []
     for _true_y, label_y, label, below in placed:
@@ -835,7 +836,8 @@ def _course_lines(face, panels, spacing: int) -> list[tuple[int, int, int]]:
     return runs
 
 
-def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
+def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0,
+                    system: str = "metric") -> None:
     """One elevation: walls, roof, openings and the levels up the side.
 
     `dy` shifts the whole view so several can be stacked in rows on a sheet.
@@ -889,7 +891,7 @@ def _draw_elevation(canvas: _Canvas, view, dx: int, dy: int = 0) -> None:
     # Levels run off to the left of the drawing, as a sheet sets them out.
     span = _drawn_extent(view.outline, view.roof)
     left, right = span[0] + dx, span[1] + dx
-    _draw_levels(canvas, view.levels, left, right, dy)
+    _draw_levels(canvas, view.levels, left, right, dy, system)
 
 
 def _draw_dims(canvas: _Canvas, dims, dx: int) -> None:
@@ -1520,7 +1522,7 @@ def build_sheet(
     # elevations is wanted. Two views to a sheet; `elevation_sheets` says how
     # many that comes to for a given building.
     if sheet == "elevations":
-        return _elevation_canvas(building, storey_index or 0)
+        return _elevation_canvas(building, storey_index or 0, system)
 
     storeys = (
         [s for s in building.storeys if s.index == storey_index]
@@ -1531,10 +1533,10 @@ def build_sheet(
         raise ValueError(f"the building has no storey {storey_index}")
 
     if sheet == "sections":
-        return _section_canvas(building)
+        return _section_canvas(building, system)
 
     if sheet == "schedules":
-        return _schedule_canvas(building)
+        return _schedule_canvas(building, system)
 
     # Breathing room around the drawing, in real millimetres. It is deducted
     # from the paper before a scale is chosen, so it is not free: 3000 here
@@ -1823,7 +1825,8 @@ def elevation_sheets(building: Building) -> int:
     return max(1, -(-views // PER_ELEVATION_SHEET))
 
 
-def _elevation_canvas(building: Building, page: int = 0):
+def _elevation_canvas(building: Building, page: int = 0,
+                      system: str = "metric"):
     """One sheet of elevations, at the scale every elevation sheet shares.
 
     Shares, deliberately. The scale is chosen from the content box, and the
@@ -1834,7 +1837,7 @@ def _elevation_canvas(building: Building, page: int = 0):
     box any of them needs, and they all land on the same ratio.
     """
     pages = elevation_sheets(building)
-    boxes = [_elevation_page(building, p) for p in range(pages)]
+    boxes = [_elevation_page(building, p, system) for p in range(pages)]
     if not 0 <= page < pages:
         raise ValueError(f"the building has no elevation sheet {page}")
     canvas, origin, _w, _h, name = boxes[page]
@@ -1842,7 +1845,8 @@ def _elevation_canvas(building: Building, page: int = 0):
             max(b[2] for b in boxes), max(b[3] for b in boxes), name)
 
 
-def _elevation_page(building: Building, page: int = 0):
+def _elevation_page(building: Building, page: int = 0,
+                    system: str = "metric"):
     """One sheet of elevations, numbered from the street."""
     every = build_elevations(building)
     first = page * PER_ELEVATION_SHEET
@@ -1871,7 +1875,7 @@ def _elevation_page(building: Building, page: int = 0):
     for index, (view, (left, right)) in enumerate(zip(views, spans)):
         dx = -left
         dy = -index * row_h
-        _draw_elevation(canvas, view, dx, dy)
+        _draw_elevation(canvas, view, dx, dy, system)
         canvas.text((left + right) // 2 + dx, dy - 2400, view.title, "title")
 
     # The notes go in the TITLE BLOCK, not under the drawing.

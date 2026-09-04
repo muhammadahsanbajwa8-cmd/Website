@@ -81,7 +81,7 @@ class TestElevations(unittest.TestCase):
         storey = building.storeys[0]
         self.assertLess(storey.ceiling_height, storey.height)
         view = elevation(building, "south")
-        labels = " ".join(l.label for l in view.levels)
+        labels = " ".join(l.label() for l in view.levels)
         self.assertIn("28c", labels)
         self.assertIn("FL 0", labels)
 

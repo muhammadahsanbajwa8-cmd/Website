@@ -302,7 +302,7 @@ def write_dxf(
     w.tag(2, "ENTITIES")
 
     if sheet == "elevations":
-        _dxf_elevations(w, building)
+        _dxf_elevations(w, building, system)
         _dxf_notes(w, building, notes, 0)
         w.tag(0, "ENDSEC")
         w.tag(0, "EOF")
@@ -398,7 +398,8 @@ def write_dxf(
     return path
 
 
-def _dxf_elevations(w: _Writer, building: Building) -> None:
+def _dxf_elevations(w: _Writer, building: Building,
+                    system: str = "metric") -> None:
     """All four elevations, side by side, with their levels."""
     cursor = 0
     for view in build_elevations(building):
@@ -430,7 +431,7 @@ def _dxf_elevations(w: _Writer, building: Building) -> None:
             seen.add(level.y)
             w.line(left + dx - 2600, level.y, right + dx + 400, level.y,
                    "A-ELEV-LEVL")
-            w.text(left + dx - 2500, level.y + 120, 200, level.label,
+            w.text(left + dx - 2500, level.y + 120, 200, level.label(system),
                    "A-ELEV-LEVL", centred=False)
 
         w.text((left + right) // 2 + dx, -2400, 400,

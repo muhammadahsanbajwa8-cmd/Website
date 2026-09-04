@@ -154,10 +154,10 @@ def section(building: Building, mark: str = "A") -> SectionView:
                 view.beyond.append(Line(left, top, right, top))
 
         view.levels.append(
-            Level(base, f"FL {base} ({courses_for(base)}c)" if base else "FL 0")
+            Level(base, "FL", f"({courses_for(base)}c)")
         )
         view.levels.append(
-            Level(top, f"CL {top} ({courses_for(top - base)}c + PLATE)")
+            Level(top, "CL", f"({courses_for(top - base)}c + PLATE)")
         )
 
     roof = building.roof or Roof()
@@ -168,7 +168,7 @@ def section(building: Building, mark: str = "A") -> SectionView:
     # 20 m behind it.
     view.roof, ridge = _roof_lines(building, roof, direction, plate,
                                    through=position)
-    view.levels.append(Level(ridge, f"RIDGE {ridge}"))
+    view.levels.append(Level(ridge, "RIDGE"))
 
     view.ground = Line(lo - GROUND_RUN, 0, hi + GROUND_RUN, 0)
     view.width_mm = hi - lo

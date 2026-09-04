@@ -104,3 +104,102 @@ class TheWholeSetFollowsIt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeightsFollowItToo(unittest.TestCase):
+    """The levels up the side of an elevation, and the opening schedule.
+
+    Both were stored as finished strings in millimetres, so a set drawn in
+    feet and inches called its ceiling "CL 2864 (33c + PLATE)" and scheduled
+    a window as "2260 x 1290". `Level` now carries a number and formats it
+    when it is drawn; `set_out` and the schedule's sizes take the system.
+
+    The COURSE count is not converted with them. A course is 86 mm because
+    that is the brick, and the count is an instruction to the bricklayer
+    rather than a length on the drawing -- turning "33c" into inches would
+    be the same mixture of systems in the other direction.
+    """
+
+    def test_a_level_reads_in_the_sheets_units(self):
+        from codraft.export.elevation import Level
+
+        level = Level(2864, "CL", "(33c + PLATE)")
+        self.assertEqual(level.label("metric"), "CL 2864 (33c + PLATE)")
+        self.assertEqual(level.label("imperial"), "CL 9'-5\" (33c + PLATE)")
+
+    def test_the_elevation_sheet_carries_the_converted_levels(self):
+        building, layout = _built()
+        canvas, *_ = build_sheet(building, 0, "elevations", None,
+                                 layout.envelope, "imperial")
+        levels = [op[6] for op in canvas.ops
+                  if op[0] == "text" and op[1] == "elev-level-text"]
+        self.assertTrue(levels)
+        for text in levels:
+            with self.subTest(level=text):
+                self.assertIn("'-", text)
+
+    def test_the_schedule_sizes_and_set_out_convert(self):
+        from codraft.model import OpeningKind
+        from codraft.schedule import format_schedule, schedule
+
+        building, _layout = _built()
+        rows, _warnings = schedule(building)
+        windows = [r for r in rows if r.kind is OpeningKind.WINDOW]
+        self.assertTrue(windows)
+        imperial = "\n".join(
+            format_schedule(windows, "W", notes=False, system="imperial"))
+        metric = "\n".join(
+            format_schedule(windows, "W", notes=False, system="metric"))
+        self.assertIn("'-", imperial)
+        self.assertNotIn(" mm)", imperial)
+        # The metric schedule keeps the millimetres it has always printed:
+        # inside brackets beside a course count, a bare number is a number
+        # of nothing.
+        self.assertIn(" mm)", metric)
+        self.assertIn("c (", metric)
+        self.assertIn("c (", imperial)
+
+    def test_the_columns_still_line_up_in_both(self):
+        from codraft.model import OpeningKind
+        from codraft.schedule import format_schedule, schedule
+
+        building, _layout = _built()
+        rows, _warnings = schedule(building)
+        windows = [r for r in rows if r.kind is OpeningKind.WINDOW]
+        for system in ("metric", "imperial"):
+            lines = format_schedule(windows, "W", notes=False, system=system)
+            header = lines[2]
+            with self.subTest(system=system):
+                for line in lines[3:]:
+                    if not line.strip():
+                        continue
+                    self.assertEqual(
+                        line.index(" YES ") if " YES " in line
+                        else line.index(" -   "),
+                        header.index("LINTEL") - 1,
+                        f"{system}: the LINTEL column does not line up",
+                    )
+
+
+class AnInchIsNeverTwelve(unittest.TestCase):
+    """600 mm printed as 1'-12".
+
+    The remainder was split off before it was rounded, so 1 ft 11.62 in
+    became 1'-12" instead of carrying into 2'-0" -- a dimension no rule
+    reads and nobody writes. It reached the drawing: a 600 mm linen press
+    was scheduled at 1'-12" x 1'-12".
+    """
+
+    def test_a_remainder_that_rounds_to_twelve_carries(self):
+        from codraft.annotate import format_mm
+        from codraft.units import fmt_len
+
+        self.assertEqual(format_mm(600, "imperial"), "2'-0\"")
+        self.assertEqual(fmt_len(305, "imperial"), "1'-0\"")
+
+    def test_no_length_in_a_sweep_prints_twelve_inches(self):
+        from codraft.annotate import format_mm
+
+        for value in range(0, 30000, 7):
+            with self.subTest(mm=value):
+                self.assertNotIn("-12\"", format_mm(value, "imperial"))
