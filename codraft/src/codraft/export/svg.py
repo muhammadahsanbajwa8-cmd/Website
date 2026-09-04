@@ -264,16 +264,21 @@ def _schedule_canvas(building: Building):
     floor plan is how a 1:100 drawing becomes 1:200.
     """
     from ..model import OpeningKind
-    from ..schedule import format_schedule, schedule
+    from ..schedule import format_schedule, schedule, schedule_notes
 
     rows, _warnings = schedule(building)
     lines: list[str] = []
     for kind, title in ((OpeningKind.WINDOW, "WINDOW SCHEDULE"),
                         (OpeningKind.DOOR, "DOOR SCHEDULE"),
                         (OpeningKind.OPENING, "OPENING SCHEDULE")):
-        block = format_schedule([r for r in rows if r.kind is kind], title)
+        block = format_schedule([r for r in rows if r.kind is kind], title,
+                                notes=False)
         if block:
             lines += block + [""]
+    # Once, at the foot of the sheet. Printed per block they appeared three
+    # times word for word.
+    if lines:
+        lines += schedule_notes(rows)
 
     if not lines:
         lines = ["No openings are scheduled."]
@@ -303,9 +308,21 @@ def _schedule_canvas(building: Building):
     across = int(max(len(line) for line in lines) * font * 0.6)
     down = pitch * len(lines)
     margin = 900
+    # The origin is the canvas point that lands at the TOP-LEFT of the
+    # content box, and this sheet's first line is drawn at y = 0 with the
+    # rest running DOWN from it into negative y. Handing back `down + margin`
+    # put that first line at the BOTTOM of the box and everything after it
+    # off the paper: 23 of the 37 lines, which is the whole DOOR SCHEDULE and
+    # the whole OPENING SCHEDULE. The window schedule survived because it is
+    # printed first, so a set that looked like it had a schedule sheet had no
+    # door sizes on it anywhere.
+    #
+    # The lines were still in the page stream, outside the media box, which
+    # is why nothing failed: the sheet was the right size for the table and
+    # the table was drawn past the edge of it.
     return (
         canvas,
-        (margin, down + margin),
+        (margin, margin),
         across + 2 * margin, down + 2 * margin, "Schedules",
     )
 

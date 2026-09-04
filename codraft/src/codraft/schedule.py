@@ -255,25 +255,15 @@ def opening_specification() -> list[tuple[str, str, str]]:
     return list(_OPENING_SPEC)
 
 
-def format_schedule(rows: list[ScheduleRow], title: str) -> list[str]:
-    """The schedule as drawing-block text."""
-    if not rows:
-        return []
-    out = [title, "-" * 72]
-    out.append(
-        f"  {'MARK':5} {'CODE':6} {'SIZE (W x H)':16} {'SET OUT':34} "
-        f"{'NO':3} {'LINTEL':7} LOCATION"
-    )
-    for r in rows:
-        size = f"{r.width} x {r.height}"
-        location = ", ".join(sorted(set(r.rooms)))
-        if len(location) > 40:
-            location = location[:37] + "..."
-        out.append(
-            f"  {r.mark:5} {r.code:6} {size:16} {r.set_out():34} "
-            f"{r.count:<3} {'YES' if r.needs_lintel else '-':7} {location}"
-        )
-    out.append("")
+def schedule_notes(rows: list[ScheduleRow]) -> list[str]:
+    """What a reader has to know to use the sizes in a schedule.
+
+    Separated from `format_schedule` so a sheet carrying the window, door
+    and opening schedules prints them ONCE. Printed per block they came out
+    three times on the same sheet, word for word, which reads as a document
+    that has not been looked at.
+    """
+    out: list[str] = []
     if any(r.needs_lintel for r in rows):
         # The specification item for lintels says "the schedule marks which
         # openings need one". It did not: `needs_lintel` was worked out for
@@ -295,4 +285,33 @@ def format_schedule(rows: list[ScheduleRow], title: str) -> list[str]:
         "  Heads and sills are given in brick courses first because that is "
         f"how the wall is built: one course is {COURSE_MM} mm."
     )
+    return out
+
+
+def format_schedule(rows: list[ScheduleRow], title: str,
+                    notes: bool = True) -> list[str]:
+    """The schedule as drawing-block text.
+
+    `notes` off leaves out the explanatory lines, for a caller printing
+    several schedules together that will print them once at the end.
+    """
+    if not rows:
+        return []
+    out = [title, "-" * 72]
+    out.append(
+        f"  {'MARK':5} {'CODE':6} {'SIZE (W x H)':16} {'SET OUT':34} "
+        f"{'NO':3} {'LINTEL':7} LOCATION"
+    )
+    for r in rows:
+        size = f"{r.width} x {r.height}"
+        location = ", ".join(sorted(set(r.rooms)))
+        if len(location) > 40:
+            location = location[:37] + "..."
+        out.append(
+            f"  {r.mark:5} {r.code:6} {size:16} {r.set_out():34} "
+            f"{r.count:<3} {'YES' if r.needs_lintel else '-':7} {location}"
+        )
+    out.append("")
+    if notes:
+        out += schedule_notes(rows)
     return out

@@ -24,6 +24,7 @@ from .export import write_dxf, write_ifc, write_model_json, write_svg
 from .export.pdf import write_pdf
 from .schedule import (
     format_schedule,
+    schedule_notes,
     opening_specification,
     schedule,
 )
@@ -577,11 +578,13 @@ def cmd_plan(args) -> int:
     # about.
     unframed = [r for r in rows if r.kind is OpeningKind.OPENING]
     schedule_text = "\n".join(
-        format_schedule(windows, "WINDOW SCHEDULE")
+        format_schedule(windows, "WINDOW SCHEDULE", notes=False)
         + [""]
-        + format_schedule(doors, "DOOR SCHEDULE")
+        + format_schedule(doors, "DOOR SCHEDULE", notes=False)
         + [""]
-        + format_schedule(unframed, "OPENING SCHEDULE")
+        + format_schedule(unframed, "OPENING SCHEDULE", notes=False)
+        # Once, under all three, rather than word for word after each.
+        + schedule_notes(rows)
         + ["", "SPECIFICATION AT EVERY EXTERNAL OPENING", "-" * 72,
            "  NONE OF THIS IS CHECKED. It cannot be read off a plan. These are",
            "  the items to be drawn, priced and built, each against the standard",
