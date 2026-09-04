@@ -184,6 +184,28 @@ def _collapse(positions: list[int], lo: int, hi: int) -> list[int]:
     return kept
 
 
+def storey_extent(storey: Storey, footprint: Rect) -> Rect:
+    """The rectangle THIS floor occupies, which is not always the building's.
+
+    An upper floor is stacked inside the ground floor and is usually smaller
+    than it -- the single-storey part of the house, the garage and the
+    portico and whatever else is under its own roof, is not on the first
+    floor at all. Dimensioning every floor to the building's footprint put
+    the ground floor's overall on the first floor's chain: 45 of the 90
+    floors in a lot sweep carried a depth that is not a face on that floor,
+    by up to 6321 mm. A builder setting the first floor out from its own
+    sheet builds it six metres too long.
+
+    Taken from the walls, which run on tile centrelines, so this measures
+    the same thing the footprint measures and the two are comparable.
+    """
+    if not storey.walls:
+        return footprint
+    xs = [p.x for wall in storey.walls for p in (wall.start, wall.end)]
+    ys = [p.y for wall in storey.walls for p in (wall.start, wall.end)]
+    return Rect(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+
+
 def dimension_storey(
     storey: Storey, footprint: Rect, system: str = "metric"
 ) -> list[DimLine]:
@@ -192,7 +214,11 @@ def dimension_storey(
     The chains sit below and to the left of the plan, which is where a
     reader looks for them, and the overall sits outside its chain so the
     two can be compared at a glance.
+
+    `footprint` is the building's, and is only a fallback: what gets
+    dimensioned is the floor, which `storey_extent` measures.
     """
+    footprint = storey_extent(storey, footprint)
     dims: list[DimLine] = []
 
     # Along the bottom: the vertical walls, then the overall width.

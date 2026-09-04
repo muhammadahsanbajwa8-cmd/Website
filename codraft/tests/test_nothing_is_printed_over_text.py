@@ -184,3 +184,65 @@ class NoLevelIsCalledUpThroughItsOwnLabel(unittest.TestCase):
                     )
         self.assertGreater(checked, 100,
                            "almost no level labels were checked")
+
+
+class TheSectionCutLineDoesNotRuleThroughLabels(unittest.TestCase):
+    """The cut line runs the width of the plan at whatever height it cuts.
+
+    So it lands on whatever is there. Forty-five room names, area figures
+    and window tags across 110 sheets had it ruled through them -- "Stair
+    14.4 m2" with a line through the figure, which is a figure a builder
+    cannot trust and no way to tell which digits belong to it.
+
+    It is broken around them, the way a level line is and a brick course
+    behind a window is. Breaking it costs nothing: a cut line says WHERE the
+    plane is, and a gap in it still says that. It is drawn last, after every
+    other thing on the sheet, which is what makes the labels knowable.
+
+    The marker's own LETTER is excluded: an "A" at the end of a cut line
+    belongs on the line, and that is the convention rather than a collision.
+    """
+
+    def test_no_label_has_the_cut_line_through_it(self):
+        marked = 0
+        for label, canvas in _sheets():
+            lines = [op for op in canvas.ops
+                     if op[0] == "line" and op[1] == "mark-line"]
+            if not lines:
+                continue
+            marked += 1
+            ops = [op for op in canvas.ops if op[0] == "text"]
+            for box, op in zip(_text_boxes(canvas), ops):
+                if op[1] == "mark-text":
+                    continue
+                struck = [ln for ln in lines
+                          if _crosses((ln[2], ln[3], ln[4], ln[5]), box)]
+                with self.subTest(sheet=label, text=op[6]):
+                    self.assertEqual(
+                        struck, [],
+                        f"{label}: the section marker is ruled through "
+                        f"{op[6]!r}",
+                    )
+        self.assertGreater(marked, 10, "almost no sheet carried a marker")
+
+    def test_the_line_is_still_a_line(self):
+        # Broken into enough pieces it stops reading as a cut line at all.
+        # Measured: a median of 2 segments, and 91 per cent of the run still
+        # drawn.
+        for label, canvas in _sheets():
+            lines = [op for op in canvas.ops
+                     if op[0] == "line" and op[1] == "mark-line"]
+            if not lines:
+                continue
+            drawn = sum(abs(ln[4] - ln[2]) + abs(ln[5] - ln[3]) for ln in lines)
+            span = max(
+                max(max(ln[2], ln[4]) for ln in lines)
+                - min(min(ln[2], ln[4]) for ln in lines),
+                max(max(ln[3], ln[5]) for ln in lines)
+                - min(min(ln[3], ln[5]) for ln in lines),
+            )
+            with self.subTest(sheet=label):
+                self.assertLessEqual(len(lines), 8,
+                                     "the cut line is in too many pieces")
+                self.assertGreater(drawn / max(1, span), 0.6,
+                                   "most of the cut line has been broken away")

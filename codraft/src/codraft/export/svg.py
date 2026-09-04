@@ -929,6 +929,9 @@ def _clear_of(box, boxes) -> bool:
 # steps. The cap is what an earlier measurement showed a sheet can give away
 # before the drawing drops a scale step.
 MARKER_STEP = 300
+
+# How far a cut line stays clear of a label it would otherwise rule through.
+MARK_LINE_GAP = 120
 MARKER_REACH = 2100
 
 
@@ -958,12 +961,38 @@ def _draw_section_marker(canvas: _Canvas, building, dx: int) -> None:
     axis, position, run_from, run_to = section_marker(building)
     if run_to <= run_from:
         return
-    if axis == "x":
-        canvas.line(run_from + dx, position, run_to + dx, position, "mark-line")
-    else:
-        canvas.line(position + dx, run_from, position + dx, run_to, "mark-line")
 
+    # The cut line is BROKEN where a label is already on the paper, the same
+    # way a level line is and a brick course behind a window is. It runs the
+    # width of the plan at whatever height the cut is taken, so it lands on
+    # whatever happens to be there -- 45 room names, area figures and window
+    # tags across 110 sheets had it ruled through them, and an area figure
+    # with a line through it is a figure a builder cannot trust. Breaking it
+    # loses nothing: a cut line says WHERE the plane is, and a gap in it
+    # still says that.
+    #
+    # This runs after every other thing on the sheet is drawn, which is what
+    # makes it possible: `_text_boxes` is the finished drawing's labels.
     taken = _text_boxes(canvas)
+    holes = [
+        (box[0] - MARK_LINE_GAP, box[2] + MARK_LINE_GAP)
+        if axis == "x" else (box[1] - MARK_LINE_GAP, box[3] + MARK_LINE_GAP)
+        for box in taken
+        if (box[1] - MARK_LINE_GAP <= position <= box[3] + MARK_LINE_GAP)
+        if axis == "x"
+    ] + [
+        (box[1] - MARK_LINE_GAP, box[3] + MARK_LINE_GAP)
+        for box in taken
+        if axis != "x"
+        and box[0] - MARK_LINE_GAP <= position + dx <= box[2] + MARK_LINE_GAP
+    ]
+    for a, b in _clear_spans(run_from + (dx if axis == "x" else 0),
+                             run_to + (dx if axis == "x" else 0), holes):
+        if axis == "x":
+            canvas.line(a, position, b, position, "mark-line")
+        else:
+            canvas.line(position + dx, a, position + dx, b, "mark-line")
+
     size = TEXT_SIZES.get("mark-text", 420)
     half_w, half_h = size * CHAR_WIDTH / 2, size / 2
     for end, outward in ((run_from, -1), (run_to, 1)):
@@ -1006,8 +1035,15 @@ def _draw_dimensions(canvas: _Canvas, storey, footprint, dx: int,
 
 
 def _undimensioned(storey, footprint) -> int:
-    """Wall positions the chains had to leave out to stay readable."""
-    from ..annotate import _collapse
+    """Wall positions the chains had to leave out to stay readable.
+
+    Measured over the same rectangle the chains are drawn over -- this
+    floor's, not the building's -- or a wall outside an upper floor's own
+    extent is counted as one the chain skipped.
+    """
+    from ..annotate import _collapse, storey_extent
+
+    footprint = storey_extent(storey, footprint)
 
     missing = 0
     for vertical in (True, False):
