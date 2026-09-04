@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
 import { audit, ACTIVE_BUSINESS_COOKIE } from '@/lib/session';
+import { landingPath } from '@/lib/customer-session';
 import {
   fieldErrors,
   forgotPasswordSchema,
@@ -72,7 +73,10 @@ export async function signUpAction(
     );
   }
 
-  redirect('/onboarding');
+  // A customer who signed up from an invitation is already attached to their
+  // account by the time the session exists, so this lands them in the portal
+  // rather than asking them to set up a business they do not have.
+  redirect(await landingPath());
 }
 
 export async function signInAction(
@@ -110,7 +114,7 @@ export async function signInAction(
   const destination =
     typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')
       ? next
-      : '/dashboard';
+      : await landingPath();
   redirect(destination);
 }
 

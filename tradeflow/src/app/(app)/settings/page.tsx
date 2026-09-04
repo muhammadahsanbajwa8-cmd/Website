@@ -23,6 +23,7 @@ export default async function SettingsPage() {
     { href: '/settings/ai', label: 'AI assistant', icon: icons.ai, blurb: 'What your assistant knows and how it answers the phone.' },
     { href: '/settings/mailboxes', label: 'Mailboxes', icon: icons.emails, blurb: 'Connect the mailbox you already use, so replies land on the job.' },
     { href: '/settings/payments', label: 'Taking payments', icon: icons.invoices, blurb: 'Let customers pay an invoice by card, into your own account.' },
+    { href: '/settings/services', label: 'Services', icon: icons.jobs, blurb: 'What you take on, as your customers see it in their account.' },
     { href: '/team', label: 'Team', icon: icons.team, blurb: 'Who can get in, and what they can reach.' },
     { href: '/settings/demo', label: 'Demo data', icon: icons.building, blurb: 'Load a worked example, or clear it out.' },
   ];

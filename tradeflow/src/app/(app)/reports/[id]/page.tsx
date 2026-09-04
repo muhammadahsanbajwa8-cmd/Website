@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireCapability } from '@/lib/session';
 import { createClient } from '@/lib/supabase/server';
-import { deleteReportAction, duplicateReportAction } from '../actions';
+import { completeReportAction, deleteReportAction, duplicateReportAction } from '../actions';
 import {
   Badge,
   ButtonLink,
@@ -127,6 +127,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             </ButtonLink>
             {session.can('reports.edit') ? (
               <>
+                {report.status === 'draft' ? (
+                  <form action={completeReportAction}>
+                    <input type="hidden" name="id" value={report.id} />
+                    <SubmitButton variant="secondary" pendingLabel="Marking…">
+                      <Icon path={icons.check} size={16} />
+                      Mark completed
+                    </SubmitButton>
+                  </form>
+                ) : null}
                 <form action={duplicateReportAction}>
                   <input type="hidden" name="id" value={report.id} />
                   <SubmitButton variant="secondary" pendingLabel="Copying…">

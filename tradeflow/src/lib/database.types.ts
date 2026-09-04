@@ -158,6 +158,10 @@ export type Lead = Timestamps & SoftDelete & {
   next_follow_up_at: string | null;
   lost_reason: string | null;
   created_by: string | null;
+  /** Set when the request came from the customer portal. */
+  service_id: string | null;
+  preferred_date: string | null;
+  preferred_window: string | null;
 }
 
 export type Supplier = Timestamps & SoftDelete & {
@@ -805,6 +809,36 @@ export type CustomerUser = Timestamps & SoftDelete & {
   last_seen_at: string | null;
 }
 
+/** A line on the business's own list of what it will take on. */
+export type Service = Timestamps & SoftDelete & {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string | null;
+  price_from_cents: number | null;
+  price_note: string | null;
+  lead_time: string | null;
+  is_active: boolean;
+  position: number;
+  created_by: string | null;
+}
+
+/** One line in the thread between a customer and a business. */
+export type Message = {
+  id: string;
+  business_id: string;
+  customer_id: string;
+  job_id: string | null;
+  sender: 'customer' | 'business';
+  author_id: string | null;
+  author_label: string | null;
+  body: string;
+  read_by_business_at: string | null;
+  read_by_customer_at: string | null;
+  created_at: string;
+  deleted_at: string | null;
+}
+
 export type PaymentEvent = {
   id: string;
   business_id: string | null;
@@ -864,6 +898,8 @@ type TableRows = {
   audit_logs: AuditLog;
   customer_users: CustomerUser;
   payment_events: PaymentEvent;
+  services: Service;
+  messages: Message;
 }
 
 type TableDefinition<Row> = {
@@ -897,6 +933,41 @@ export type Database = {
       accept_team_invite: { Args: { p_token: string }; Returns: string };
       accept_customer_invite: { Args: { p_token: string }; Returns: string };
       public_report_by_token: { Args: { p_token: string }; Returns: Json };
+      portal_links: { Args: Record<string, never>; Returns: Json };
+      portal_jobs: { Args: { p_business: string }; Returns: Json };
+      portal_job: { Args: { p_job: string }; Returns: Json };
+      portal_requests: { Args: { p_business: string }; Returns: Json };
+      portal_summary: { Args: { p_business: string; p_customer: string }; Returns: Json };
+      portal_create_request: {
+        Args: {
+          p_business: string;
+          p_customer: string;
+          p_service: string | null;
+          p_description: string;
+          p_preferred_date: string | null;
+          p_preferred_window: string | null;
+          p_site_address: string | null;
+        };
+        Returns: string;
+      };
+      portal_update_customer: {
+        Args: {
+          p_customer: string;
+          p_email: string | null;
+          p_phone: string | null;
+          p_address_line1: string | null;
+          p_address_line2: string | null;
+          p_suburb: string | null;
+          p_state: string | null;
+          p_postcode: string | null;
+        };
+        Returns: undefined;
+      };
+      portal_document_token: { Args: { p_kind: string; p_id: string }; Returns: string | null };
+      portal_mark_messages_read: {
+        Args: { p_business: string; p_customer: string };
+        Returns: undefined;
+      };
       public_invoice_payable: { Args: { p_token: string }; Returns: Json };
       next_document_number: { Args: { target: string; doc_kind: string }; Returns: string };
       dashboard_summary: { Args: { target: string }; Returns: Json };

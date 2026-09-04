@@ -97,9 +97,15 @@ travel, subcontractors and other costs, with markup, contingency and GST;
 estimates that become quotes; quotes that become invoices; payments, expenses,
 materials, suppliers, and job profitability that reconciles against all of it.
 
-**Customers** — customers and their contacts, leads through a pipeline, a
-customer portal where a quote can be read, downloaded, accepted, declined or
-queried without an account, and the same for invoices.
+**Customers** — customers and their contacts, leads through a pipeline, and two
+ways for a customer to reach their own records. Without an account: a quote can
+be read, downloaded, accepted, declined or queried from the link they were
+emailed, and the same for an invoice. With one: an account of their own —
+bookings and what has been asked for, the services the business offers and a
+form to ask for one, the reports written up after each visit, quotes and
+invoices, what is owing and a card payment that settles it, a message thread
+with the office, and their own contact details to correct. A business gives a
+customer that account from their record; the invitation is one email.
 
 **Communication** — email with attachments generated from the live record; a
 connected Gmail or Outlook mailbox whose incoming mail is matched to the
@@ -195,7 +201,7 @@ npm run typecheck
 npm run check     # both
 ```
 
-385 tests. The interesting ones are not the unit tests:
+511 tests. The interesting ones are not the unit tests:
 
 - **`tests/tenancy.test.ts`** reads the migrations and asserts the guarantee
   above — RLS on and forced everywhere, every policy scoped to the caller,
@@ -212,8 +218,21 @@ npm run check     # both
 - **`tests/permissions.test.ts`** parses the role sets out of the SQL and
   compares them with the capability table the interface uses, so the two cannot
   drift apart unnoticed.
+- **`tests/portal.live.test.ts`** asks the customer's half of the same
+  question against a real database: two customers at two businesses, and then
+  every way one could reach the other — the portal's own functions pointed at
+  somebody else's ids, the tables behind them, a request made on another
+  customer's behalf, a message planted in their thread, a report token for a
+  document that is not theirs. All refused. It also checks that the working
+  notes a business keeps about a customer never appear in anything the portal
+  hands back, and that withdrawing access closes the account immediately.
 - **`tests/schema.test.ts`** compares every column in the migrations against
   the hand-written row types, and checks no money column is a float.
+
+And `tests/e2e/` drives the buttons in a real browser against a running
+instance — the invitation email leaving, the report PDF arriving, the card
+payment settling only on the provider's webhook, and the failure paths saying
+so rather than claiming success. See the README in that directory.
 
 The live suite needs a database. It skips loudly without one:
 

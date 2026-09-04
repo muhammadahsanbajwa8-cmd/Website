@@ -6,6 +6,7 @@ import { env } from '@/lib/env';
 import { htmlBody, sendAndRecord } from '@/lib/email/send';
 import { loadReportForPdf, renderReportPdf, reportFilename } from '@/lib/report-pdf';
 import { audit, recordActivity, notifyRoles } from '@/lib/session';
+import { notifyCustomer } from '@/lib/notify-customer';
 import { formatDate } from '@/lib/format';
 import type { BusinessSession } from '@/lib/session';
 import type { Report } from '@/lib/database.types';
@@ -232,6 +233,15 @@ export async function sendReport(
       title: `Report ${report.number} sent`,
       body: `${report.title} went to ${recipient}.`,
       link: `/reports/${report.id}`,
+      severity: 'success',
+    });
+    // And the customer, if they have an account: the email may be sitting in a
+    // spam folder, but the portal is where they look for their own records.
+    await notifyCustomer(session.business.id, report.customer_id, {
+      kind: 'report.sent',
+      title: `${session.business.name} sent you a report`,
+      body: `${templateName} ${report.number} — ${report.title}`,
+      link: `/portal/reports/${report.id}`,
       severity: 'success',
     });
   }

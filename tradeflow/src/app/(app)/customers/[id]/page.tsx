@@ -28,6 +28,7 @@ import {
 } from '@/lib/format';
 import { invoiceStatus, jobStatus, quoteStatus } from '@/lib/domain';
 import { ContactsPanel } from './contacts';
+import { PortalAccessPanel } from './portal-access';
 import type { Customer } from '@/lib/database.types';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -115,6 +116,14 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           .limit(20),
       ])
     : [{ data: [] }, { data: [] }];
+
+  const { data: portalLinks } = await supabase
+    .from('customer_users')
+    .select('id, email, invited_at, accepted_at, last_seen_at')
+    .eq('business_id', session.business.id)
+    .eq('customer_id', id)
+    .is('deleted_at', null)
+    .order('created_at');
 
   const jobs = jobsResult.data ?? [];
   const quotes = quotesResult.data ?? [];
@@ -373,6 +382,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <ContactsPanel
             customerId={customer.id}
             contacts={contactsResult.data ?? []}
+            canEdit={session.can('customers.edit')}
+          />
+
+          <PortalAccessPanel
+            customerId={customer.id}
+            customerEmail={customer.email}
+            links={portalLinks ?? []}
             canEdit={session.can('customers.edit')}
           />
 

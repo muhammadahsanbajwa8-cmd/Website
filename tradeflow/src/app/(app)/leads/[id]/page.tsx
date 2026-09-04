@@ -124,11 +124,26 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
         {lead.description ? (
           <Card>
-            <CardHeader title="What they want" />
+            <CardHeader
+              title="What they want"
+              description={
+                lead.source === 'portal' ? 'In their own words, from their account.' : undefined
+              }
+            />
             <CardBody>
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-default)]">
                 {lead.description}
               </p>
+              {lead.preferred_date || lead.preferred_window ? (
+                <p className="mt-4 rounded-[0.625rem] bg-[var(--surface-sunken)] px-3.5 py-3 text-sm text-[var(--text-muted)]">
+                  They asked for{' '}
+                  <span className="font-medium text-[var(--text-strong)]">
+                    {lead.preferred_date ? formatDate(lead.preferred_date) : 'no particular day'}
+                    {lead.preferred_window ? `, ${lead.preferred_window.toLowerCase()}` : ''}
+                  </span>
+                  . Nothing is booked until you schedule it.
+                </p>
+              ) : null}
             </CardBody>
           </Card>
         ) : null}

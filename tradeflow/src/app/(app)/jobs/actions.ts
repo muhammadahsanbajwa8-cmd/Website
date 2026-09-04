@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { audit, recordActivity, requireCapability } from '@/lib/session';
+import { notifyCustomer } from '@/lib/notify-customer';
 import { fieldErrors, jobNoteSchema, jobSchema } from '@/lib/validation';
 import { describeError, fail, invalid, ok, type ActionState } from '@/lib/action-state';
 import { jobStatus, type JobStatus } from '@/lib/domain';
@@ -51,6 +52,9 @@ export async function saveJobAction(
   };
 
   let jobId = id;
+  // What the status was before this save, so a customer is told about a
+  // booking once rather than on every subsequent edit.
+  let statusBefore: string | null = null;
 
   if (id) {
     const { data: before } = await supabase
@@ -72,6 +76,7 @@ export async function saveJobAction(
       .eq('business_id', session.business.id);
 
     if (error) return fail(describeError(error));
+    statusBefore = before?.status ?? null;
 
     if (before && before.status !== parsed.data.status) {
       await recordActivity(session, {
@@ -121,6 +126,28 @@ export async function saveJobAction(
   }
 
   if (!jobId) return fail('The job could not be saved.');
+
+  // A booking is news to the person whose house it is. Sent when the job
+  // reaches a state that means "we are coming", and only then — a job sitting
+  // in the pipeline is not something to tell a customer about.
+  if (
+    parsed.data.customerId &&
+    (parsed.data.status === 'scheduled' || parsed.data.status === 'accepted') &&
+    statusBefore !== parsed.data.status
+  ) {
+    await notifyCustomer(session.business.id, parsed.data.customerId, {
+      kind: 'booking.scheduled',
+      title:
+        parsed.data.status === 'scheduled'
+          ? `${session.business.name} has booked you in`
+          : `${session.business.name} has accepted your job`,
+      body: parsed.data.startDate
+        ? `${parsed.data.name} — starting ${parsed.data.startDate}.`
+        : `${parsed.data.name} — a date will follow.`,
+      link: `/portal/bookings/${jobId}`,
+      severity: 'success',
+    });
+  }
 
   // Assignments are replaced wholesale: the form always posts the full set.
   await supabase.from('job_assignments').delete().eq('job_id', jobId).eq('business_id', session.business.id);
@@ -179,6 +206,30 @@ export async function changeJobStatusAction(formData: FormData): Promise<void> {
     entityId: id,
     detail: { from: job.status, to: status },
   });
+
+  // The same news the full form sends, from the one-tap version.
+  if (job.customer_id && job.status !== status) {
+    if (status === 'scheduled' || status === 'accepted') {
+      await notifyCustomer(session.business.id, job.customer_id, {
+        kind: 'booking.scheduled',
+        title:
+          status === 'scheduled'
+            ? `${session.business.name} has booked you in`
+            : `${session.business.name} has accepted your job`,
+        body: job.name,
+        link: `/portal/bookings/${id}`,
+        severity: 'success',
+      });
+    } else if (status === 'completed') {
+      await notifyCustomer(session.business.id, job.customer_id, {
+        kind: 'booking.completed',
+        title: `${job.name} is finished`,
+        body: `${session.business.name} has marked the work complete.`,
+        link: `/portal/bookings/${id}`,
+        severity: 'success',
+      });
+    }
+  }
 
   revalidatePath(`/jobs/${id}`);
   revalidatePath('/jobs');

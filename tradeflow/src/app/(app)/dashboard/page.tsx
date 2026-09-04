@@ -97,9 +97,69 @@ export default async function DashboardPage({
   const jobs = jobsResult.data ?? [];
   const activities = activityResult.data ?? [];
 
+  // The customer-facing half of the day: what has come in from people's own
+  // accounts, and what has just gone out to them.
+  const [requestsResult, messagesResult, completedResult, newCustomersResult, reportsResult] =
+    await Promise.all([
+      session.can('leads.view')
+        ? supabase
+            .from('leads')
+            .select('id, name, description, created_at, preferred_date, service_id, customer_id')
+            .eq('business_id', session.business.id)
+            .eq('source', 'portal')
+            .eq('status', 'new')
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', session.business.id)
+        .eq('sender', 'customer')
+        .is('read_by_business_at', null)
+        .is('deleted_at', null),
+      supabase
+        .from('jobs')
+        .select('id, number, name, customer_id, completed_at')
+        .eq('business_id', session.business.id)
+        .is('deleted_at', null)
+        .in('status', ['completed', 'invoiced', 'paid'])
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(5),
+      session.can('customers.view')
+        ? supabase
+            .from('customers')
+            .select('id, name, company, created_at')
+            .eq('business_id', session.business.id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        : Promise.resolve({ data: [] }),
+      session.can('reports.view')
+        ? supabase
+            .from('reports')
+            .select('id, number, title, status, report_date, sent_at, customer_id')
+            .eq('business_id', session.business.id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+  const newRequests = requestsResult.data ?? [];
+  const unreadMessages = messagesResult.count ?? 0;
+  const completedJobs = completedResult.data ?? [];
+  const newCustomers = newCustomersResult.data ?? [];
+  const recentReports = reportsResult.data ?? [];
+
   const customers = await lookup(
     'customers',
-    idsFrom(jobs, (job) => job.customer_id),
+    idsFrom(
+      [...jobs, ...completedJobs, ...recentReports, ...newRequests],
+      (row) => (row as { customer_id?: string | null }).customer_id ?? null
+    ),
     'id, name, company'
   );
 
@@ -147,6 +207,61 @@ export default async function DashboardPage({
             to see a full one first.
           </InfoNote>
         </div>
+      ) : null}
+
+      {/* --- what came in from customers, and is waiting on a person --- */}
+      {newRequests.length > 0 || unreadMessages > 0 ? (
+        <Card className="mb-6 border-[var(--accent)]/30">
+          <CardHeader
+            title="Waiting on you"
+            description="Sent in by customers from their own accounts."
+            action={
+              unreadMessages > 0 ? (
+                <Link href="/messages" className="text-sm text-[var(--accent)] hover:underline">
+                  {unreadMessages} unread message{unreadMessages === 1 ? '' : 's'}
+                </Link>
+              ) : null
+            }
+          />
+          {newRequests.length > 0 ? (
+            <ul className="divide-y divide-[var(--line-subtle)]">
+              {newRequests.map((request) => {
+                const customer = request.customer_id ? customers.get(request.customer_id) : null;
+                return (
+                  <li key={request.id}>
+                    <Link
+                      href={`/leads/${request.id}`}
+                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-[var(--surface-sunken)]"
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+                        <Icon path={icons.leads} size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
+                          {customer?.company || customer?.name || request.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                          {request.description ?? 'New request'}
+                          {request.preferred_date
+                            ? ` · would like ${formatDate(request.preferred_date)}`
+                            : ''}
+                        </span>
+                      </span>
+                      <Badge tone="info">New request</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <CardBody>
+              <p className="text-sm text-[var(--text-muted)]">
+                No new requests. There {unreadMessages === 1 ? 'is' : 'are'} {unreadMessages} unread{' '}
+                message{unreadMessages === 1 ? '' : 's'} to answer.
+              </p>
+            </CardBody>
+          )}
+        </Card>
       ) : null}
 
       {/* --- headline figures --- */}
@@ -464,6 +579,135 @@ export default async function DashboardPage({
                 ))}
               </ol>
             </CardBody>
+          )}
+        </Card>
+      </div>
+
+      {/* --- finished, new faces, and what has been written up --- */}
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <Card>
+          <CardHeader
+            title="Recently finished"
+            action={
+              <Link href="/jobs?status=completed" className="text-sm text-[var(--accent)] hover:underline">
+                All finished
+              </Link>
+            }
+          />
+          {completedJobs.length === 0 ? (
+            <CardBody>
+              <p className="text-sm text-[var(--text-muted)]">
+                Nothing finished yet. A job lands here when you mark it completed.
+              </p>
+            </CardBody>
+          ) : (
+            <ul className="divide-y divide-[var(--line-subtle)]">
+              {completedJobs.map((job) => {
+                const customer = job.customer_id ? customers.get(job.customer_id) : null;
+                return (
+                  <li key={job.id}>
+                    <Link
+                      href={`/jobs/${job.id}`}
+                      className="block px-5 py-3 hover:bg-[var(--surface-sunken)]"
+                    >
+                      <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
+                        {job.name}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                        {customer?.company || customer?.name || job.number} ·{' '}
+                        {formatDate(job.completed_at)}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Newest customers"
+            action={
+              <Link href="/customers" className="text-sm text-[var(--accent)] hover:underline">
+                All customers
+              </Link>
+            }
+          />
+          {newCustomers.length === 0 ? (
+            <CardBody>
+              <p className="text-sm text-[var(--text-muted)]">
+                No customers yet.{' '}
+                {session.can('customers.edit') ? (
+                  <Link href="/customers/new" className="text-[var(--accent)] hover:underline">
+                    Add your first
+                  </Link>
+                ) : null}
+              </p>
+            </CardBody>
+          ) : (
+            <ul className="divide-y divide-[var(--line-subtle)]">
+              {newCustomers.map((customer) => (
+                <li key={customer.id}>
+                  <Link
+                    href={`/customers/${customer.id}`}
+                    className="block px-5 py-3 hover:bg-[var(--surface-sunken)]"
+                  >
+                    <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
+                      {customer.company || customer.name}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+                      Added {formatDate(customer.created_at.slice(0, 10))}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Latest reports"
+            action={
+              <Link href="/reports" className="text-sm text-[var(--accent)] hover:underline">
+                All reports
+              </Link>
+            }
+          />
+          {recentReports.length === 0 ? (
+            <CardBody>
+              <p className="text-sm text-[var(--text-muted)]">
+                No reports yet. Write one up after a visit and send it straight to the customer.
+              </p>
+            </CardBody>
+          ) : (
+            <ul className="divide-y divide-[var(--line-subtle)]">
+              {recentReports.map((report) => {
+                const customer = report.customer_id ? customers.get(report.customer_id) : null;
+                return (
+                  <li key={report.id}>
+                    <Link
+                      href={`/reports/${report.id}`}
+                      className="flex items-start gap-3 px-5 py-3 hover:bg-[var(--surface-sunken)]"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
+                          {report.title}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-[var(--text-muted)]">
+                          {customer?.company || customer?.name || report.number} ·{' '}
+                          {formatDate(report.report_date)}
+                        </span>
+                      </span>
+                      <Badge tone={report.sent_at ? 'success' : 'neutral'}>
+                        {report.sent_at ? 'Sent' : 'Draft'}
+                      </Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </Card>
       </div>

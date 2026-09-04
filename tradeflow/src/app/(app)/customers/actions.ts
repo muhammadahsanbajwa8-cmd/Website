@@ -1,11 +1,16 @@
 'use server';
 
+import { randomBytes } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { env } from '@/lib/env';
+import { htmlBody, sendAndRecord } from '@/lib/email/send';
 import { audit, recordActivity, requireCapability } from '@/lib/session';
 import { contactSchema, customerSchema, fieldErrors } from '@/lib/validation';
 import { describeError, fail, invalid, ok, type ActionState } from '@/lib/action-state';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function readCustomerForm(formData: FormData) {
   return {
@@ -182,6 +187,153 @@ export async function deleteContactAction(formData: FormData): Promise<void> {
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .eq('business_id', session.business.id);
+
+  revalidatePath(`/customers/${customerId}`);
+}
+
+// --- letting a customer in --------------------------------------------------
+
+/**
+ * Give a customer a login.
+ *
+ * The link is `customer_users`: one row joining an email address to this
+ * customer at this business. Until they accept it holds only the address and
+ * a token; accepting attaches their user id, and from then on the portal shows
+ * them their own jobs, reports and invoices — and nothing else, here or at any
+ * other business.
+ */
+export async function inviteCustomerAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const session = await requireCapability('customers.edit');
+  const customerId = String(formData.get('customerId') ?? '').trim();
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+
+  if (!customerId) return fail('That customer was not found.');
+  if (!EMAIL_PATTERN.test(email)) {
+    return fail('That email address does not look right.', {
+      email: ['Check for a typo — it needs an @ and a domain.'],
+    });
+  }
+
+  const supabase = await createClient();
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, name, email')
+    .eq('id', customerId)
+    .eq('business_id', session.business.id)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (!customer) return fail('That customer was not found, or is not yours.');
+
+  // An invitation already out to this address is refreshed rather than
+  // duplicated: a second row would leave two live tokens for one person.
+  const { data: existing } = await supabase
+    .from('customer_users')
+    .select('id, accepted_at')
+    .eq('business_id', session.business.id)
+    .eq('customer_id', customerId)
+    .eq('email', email)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (existing?.accepted_at) {
+    return fail(`${email} already has access to this customer's account.`);
+  }
+
+  const token = randomBytes(24).toString('base64url');
+  const now = new Date().toISOString();
+
+  const { error } = existing
+    ? await supabase
+        .from('customer_users')
+        .update({ invite_token: token, invited_at: now })
+        .eq('id', existing.id)
+        .eq('business_id', session.business.id)
+    : await supabase.from('customer_users').insert({
+        business_id: session.business.id,
+        customer_id: customerId,
+        email,
+        invite_token: token,
+        invited_at: now,
+      });
+
+  if (error) return fail(describeError(error));
+
+  const inviteUrl = `${env.appUrl}/customer-invite/${token}`;
+  const paragraphs = [
+    `${session.business.name} has set up an account for you.`,
+    'Sign in and you can see your bookings, the reports written up after each visit, your invoices, and pay any that are due — all in one place.',
+    'The link below works only for this email address.',
+  ];
+
+  const { result } = await sendAndRecord(
+    session,
+    {
+      to: [email],
+      subject: `Your account with ${session.business.name}`,
+      text: `${paragraphs.join('\n\n')}\n\n${inviteUrl}`,
+      html: htmlBody(session.business.name, paragraphs, {
+        label: 'Open your account',
+        url: inviteUrl,
+      }),
+      replyTo: session.business.email ?? undefined,
+    },
+    { customerId }
+  );
+
+  await recordActivity(session, {
+    verb: 'invited',
+    summary: `${email} invited to ${customer.name}'s customer account`,
+    entityType: 'customer',
+    entityId: customerId,
+    customerId,
+  });
+  await audit(session.business.id, {
+    action: 'customer.invite',
+    entityType: 'customer',
+    entityId: customerId,
+    detail: { email, delivered: result.delivered, error: result.error },
+  });
+
+  revalidatePath(`/customers/${customerId}`);
+
+  if (result.error) {
+    return ok(
+      `The invitation is ready, but the email did not go: ${result.error} Send them this link instead: ${inviteUrl}`,
+      { inviteUrl }
+    );
+  }
+  if (!result.delivered) {
+    return ok(
+      `Invitation created. Email delivery is not configured, so send them this link yourself: ${inviteUrl}`,
+      { inviteUrl }
+    );
+  }
+  return ok(`Invitation sent to ${email}.`, { inviteUrl });
+}
+
+/** Take a customer's access away. Their records are untouched. */
+export async function revokeCustomerAccessAction(formData: FormData): Promise<void> {
+  const session = await requireCapability('customers.edit');
+  const id = String(formData.get('id') ?? '');
+  const customerId = String(formData.get('customerId') ?? '');
+
+  const supabase = await createClient();
+  await supabase
+    .from('customer_users')
+    .update({ deleted_at: new Date().toISOString(), invite_token: null })
+    .eq('id', id)
+    .eq('business_id', session.business.id);
+
+  await audit(session.business.id, {
+    action: 'customer.access_revoked',
+    entityType: 'customer',
+    entityId: customerId,
+    detail: { linkId: id },
+  });
 
   revalidatePath(`/customers/${customerId}`);
 }

@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_PREFIXES = [
   '/', '/pricing', '/login', '/signup', '/forgot-password', '/reset-password',
-  '/verify', '/auth', '/q/', '/i/', '/invite', '/api/health',
+  '/verify', '/auth', '/q/', '/i/', '/r/', '/invite', '/customer-invite', '/api/health',
 ];
 
 function isPublic(pathname: string): boolean {

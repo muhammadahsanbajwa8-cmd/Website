@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { downloadFile } from '@/lib/storage';
 import { parseSections, type ReportSection } from '@/lib/reports';
 import { renderReport, type ReportPdfPhoto } from '@/lib/pdf/report';
-import type { Business, Json, Report } from '@/lib/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Business, Database, Json, Report } from '@/lib/database.types';
 
 /**
  * Assembling a report PDF: the report, its template, the job and customer it
@@ -24,11 +25,19 @@ export interface LoadedReport {
   photos: { storage_path: string; caption: string | null; category: string; taken_at: string }[];
 }
 
+/**
+ * @param client an already-scoped Supabase client. The customer portal passes
+ * the service-role one, because a customer is entitled to their own report but
+ * not to the `businesses` row or the photo files behind it — their entitlement
+ * is established by the caller before this is reached, with a read that row
+ * level security had to allow.
+ */
 export async function loadReportForPdf(
   businessId: string,
-  reportId: string
+  reportId: string,
+  client?: SupabaseClient<Database>
 ): Promise<LoadedReport | null> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
 
   const { data: report } = await supabase
     .from('reports')

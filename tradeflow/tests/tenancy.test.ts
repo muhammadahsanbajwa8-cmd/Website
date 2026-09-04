@@ -280,17 +280,77 @@ describe('server code never trusts an id from the URL on its own', () => {
       // "what the sync is allowed to do" in mailbox.test.ts.
       if (/[/\\]lib[/\\](voice|ai)[/\\]/.test(file)) continue;
       if (/[/\\]lib[/\\]email[/\\](sync|oauth)\.ts$/.test(file)) continue;
+      // Telling a customer something happened. Called from a webhook that has
+      // no session at all, so it takes the business and customer from the row
+      // the caller already established and reads nothing else. Asserted
+      // positively below: "what the customer notifier is allowed to do".
+      if (/lib[/\\]notify-customer\.ts$/.test(file)) continue;
       if (/[/\\]auth[/\\]|[/\\]\(auth\)[/\\]|onboarding|invite/.test(file)) continue;
       if (/supabase[/\\](server|admin|client)\.ts$/.test(file)) continue;
       if (/lib[/\\](session|storage|demo|documents|report-pdf|pickers|query)\.ts$/.test(file)) continue;
 
+      // A customer's session is a session: `requireCustomer()` resolves the
+      // signed-in user's own portal link and every query below it is filtered
+      // by the business and customer on that link. The second test asserts
+      // that filtering, the same way it does for staff pages.
       const hasSession =
-        /requireCapability\(|requireBusiness\(|getBusinessSession\(|session\.business\.id/.test(source);
+        /requireCapability\(|requireBusiness\(|getBusinessSession\(|session\.business\.id/.test(source) ||
+        /requireCustomer\(|getCustomerSession\(/.test(source);
       if (!hasSession) offenders.push(file.replace(SRC, 'src'));
     }
 
     expect(offenders, `these query the database without establishing a session:\n${offenders.join('\n')}`)
       .toEqual([]);
+  });
+
+  it('what the customer notifier is allowed to do', () => {
+    // It runs with the service role, which is why it is worth writing down
+    // exactly what it may touch: the link table, filtered by both the business
+    // and the customer it was handed, and the notifications it then writes.
+    const source = readFileSync(join(SRC, 'lib/notify-customer.ts'), 'utf8');
+    const tables = [...source.matchAll(/\.from\('(\w+)'\)/g)].map((m) => m[1]);
+    expect(tables.sort()).toEqual(['customer_users', 'notifications']);
+
+    const read = source.slice(source.indexOf("from('customer_users')"));
+    expect(read).toMatch(/\.eq\('business_id', businessId\)/);
+    expect(read).toMatch(/\.eq\('customer_id', customerId\)/);
+
+    // No update, no delete, no select of anything else.
+    expect(source).not.toMatch(/\.update\(|\.delete\(|\.upsert\(/);
+  });
+
+  it('filters every portal query by the customer’s own link', () => {
+    // The portal's equivalent of the test below. A customer may hold links to
+    // more than one business, so "signed in" is not enough: every read has to
+    // name the business and, where the table has one, the customer on the
+    // active link.
+    const offenders: string[] = [];
+
+    // Tables keyed by the user rather than by a customer: their own
+    // notifications, their own profile.
+    const BY_USER = ['notifications', 'profiles'];
+
+    for (const file of files) {
+      if (!/[/\\]app[/\\]\(portal\)[/\\]/.test(file)) continue;
+      const source = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
+
+      for (const match of source.matchAll(/\.from\('(\w+)'\)/g)) {
+        const table = match[1]!;
+        const rest = source.slice(match.index);
+        const end = rest.search(/;|\n\s*\),?\n|\n\s{0,6}\),/);
+        const statement = rest.slice(0, end === -1 ? 600 : end);
+
+        const scoped = BY_USER.includes(table)
+          ? /session\.userId|user_id/.test(statement)
+          : /link\.businessId|business_id/.test(statement);
+
+        if (!scoped) offenders.push(`${file.replace(SRC, 'src')} → ${table}`);
+      }
+    }
+
+    expect(offenders, `unscoped portal queries:\n${offenders.join('\n')}`).toEqual([]);
   });
 
   it('filters every query by the session business as well as trusting RLS', () => {

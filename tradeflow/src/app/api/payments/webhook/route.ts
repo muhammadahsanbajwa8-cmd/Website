@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyWebhook } from '@/lib/payments/stripe';
+import { notifyCustomer } from '@/lib/notify-customer';
 import type { PaymentStatus } from '@/lib/database.types';
 
 /**
@@ -136,7 +137,7 @@ async function handle(event: Stripe.Event, admin: Admin): Promise<void> {
 
       const { data: payment } = await admin
         .from('payments')
-        .select('id, amount_cents, invoice_id, business_id')
+        .select('id, amount_cents, invoice_id, business_id, customer_id')
         .eq('provider', 'stripe')
         .eq('provider_payment_id', intentId)
         .maybeSingle();
@@ -157,6 +158,13 @@ async function handle(event: Stripe.Event, admin: Admin): Promise<void> {
         body: `${money(refunded)} was refunded.`,
         link: `/invoices/${payment.invoice_id}`,
         severity: 'warning',
+      });
+      await notifyCustomer(payment.business_id, payment.customer_id, {
+        kind: 'payment.refunded',
+        title: `${money(refunded)} refunded to you`,
+        body: 'It can take a few days to appear on your statement.',
+        link: '/portal/payments',
+        severity: 'info',
       });
       return;
     }
@@ -240,6 +248,14 @@ async function upsertPayment(admin: Admin, intent: Stripe.PaymentIntent, event: 
       link: `/invoices/${invoice.id}`,
       severity: 'success',
     });
+    // The person who paid gets the same news from their own side.
+    await notifyCustomer(invoice.business_id, invoice.customer_id, {
+      kind: 'payment.succeeded',
+      title: `Payment of ${money(amount)} received`,
+      body: `Thank you — invoice ${invoice.number} is settled.`,
+      link: '/portal/payments',
+      severity: 'success',
+    });
   }
 
   if (status === 'failed' || intent.last_payment_error) {
@@ -248,6 +264,15 @@ async function upsertPayment(admin: Admin, intent: Stripe.PaymentIntent, event: 
       title: `A payment on ${invoice.number} failed`,
       body: intent.last_payment_error?.message ?? 'The card was declined.',
       link: `/invoices/${invoice.id}`,
+      severity: 'danger',
+    });
+    await notifyCustomer(invoice.business_id, invoice.customer_id, {
+      kind: 'payment.failed',
+      title: `Your payment on ${invoice.number} did not go through`,
+      body:
+        intent.last_payment_error?.message ??
+        'The card was declined. Nothing has been charged — you can try again.',
+      link: '/portal/payments',
       severity: 'danger',
     });
   }

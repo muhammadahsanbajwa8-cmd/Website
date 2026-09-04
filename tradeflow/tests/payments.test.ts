@@ -193,11 +193,33 @@ describe('the database is the one that counts money', () => {
     // Every payments sum in the dashboard filters on succeeded — otherwise an
     // abandoned checkout would show up as money received.
     // The last *definition*, not the last mention — a `grant` line comes after it.
-    const dashboard = ALL_SQL.slice(ALL_SQL.lastIndexOf('create or replace function dashboard_summary'));
+    // Bounded to the function body: other functions defined later in the file
+    // also read `payments p`, and each is checked on its own below.
+    const fromDefinition = ALL_SQL.slice(
+      ALL_SQL.lastIndexOf('create or replace function dashboard_summary')
+    );
+    const dashboard = fromDefinition.slice(0, fromDefinition.indexOf('$$;') + 3);
     const sums = dashboard.split('from payments p').slice(1).map((part) => part.slice(0, 300));
     expect(sums.length).toBe(3);
     for (const sum of sums) {
       expect(sum, `a payments sum without a status filter: ${sum.slice(0, 90)}`).toMatch(
+        /p\.status = 'succeeded'/
+      );
+    }
+  });
+
+  it('shows the customer the same settled figure', () => {
+    // The portal's "paid to date" is the customer's side of the same number,
+    // and has to agree with it: a card payment that is still clearing is not
+    // money either party has.
+    const fromDefinition = ALL_SQL.slice(
+      ALL_SQL.lastIndexOf('create or replace function portal_summary')
+    );
+    const portal = fromDefinition.slice(0, fromDefinition.indexOf('$$;') + 3);
+    const sums = portal.split('from payments p').slice(1).map((part) => part.slice(0, 300));
+    expect(sums.length).toBeGreaterThan(0);
+    for (const sum of sums) {
+      expect(sum, `a portal payments sum without a status filter: ${sum.slice(0, 90)}`).toMatch(
         /p\.status = 'succeeded'/
       );
     }

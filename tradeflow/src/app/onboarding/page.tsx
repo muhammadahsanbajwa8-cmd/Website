@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
+import { getPortalLinks } from '@/lib/customer-session';
 import { Logo } from '@/components/marketing';
 import { ButtonLink, Card, CardBody } from '@/components/ui';
 import { ThemeToggle } from '@/components/ui/client';
@@ -7,8 +9,22 @@ import { OnboardingForm } from './form';
 
 export const metadata = { title: 'Set up your business' };
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
   const session = await requireSession();
+
+  // Somebody who was invited as a customer arrives here by way of the app
+  // shell, which knows only that they belong to no business. They are not
+  // setting one up; they are looking for their jobs. `?new=1` is how an
+  // existing user deliberately asks for this page.
+  const { new: deliberate } = await searchParams;
+  if (session.memberships.length === 0 && deliberate !== '1') {
+    const links = await getPortalLinks();
+    if (links.length > 0) redirect('/portal');
+  }
 
   return (
     <div className="min-h-screen bg-[var(--surface-page)]">
